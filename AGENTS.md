@@ -10,13 +10,14 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 
 | Path | Lane (owner) | What it is |
 |---|---|---|
-| `scripts/`, `pyproject.toml`, `Makefile`, `docker-compose.yml`, `Dockerfile`, `.github/`, `README.md` | Data + gate (LEONOB2014) | Discovery, cache build, setup, CI, release |
-| `validation/README.md`, `nisar_colombia_granules_2026.json` | Data + gate | Pre-registration and the hour-2 gate output |
-| `config/` | Quake science (Jack4Codes) | `preregistered.yaml` (frozen, hashed) and `bailasar.yaml` (operational) |
-| `gee_math/earthquake_dpm_math.py` | Quake science (Jack4Codes) | Coherence-loss damage proxy |
-| `validation/scoring.py`, `validation/ALLOWLIST.md` | Quake science (Maru816) | Ranking, precision@k, Wilson, block bootstrap, beats rule |
-| `gee_math/landslide_insar_math.py`, `gee_math/flood_polarimetric_math.py` | Aburrá + Flood (EstebanOchoaedos) | InSAR noise floor; dual-pol flood classes |
-| `mcp_servers/`, `agents/`, `validation/event_facts.json` | Agents/MCP (alicealanapineda-byte) | Two FastMCP servers (SSE), cache_guard, LangGraph, bulletin |
+| `scripts/`, `pyproject.toml`, `Makefile`, `docker-compose.yml`, `Dockerfile`, `.github/` | Data + gate (LEONOB2014) | Discovery, cache build, setup, CI |
+| `nisar_colombia_granules_2026.json` | Data + gate (LEONOB2014) | Hour-2 gate output |
+| `gee_math/earthquake_dpm_math.py`, `gee_math/landslide_insar_math.py`, `gee_math/flood_polarimetric_math.py` | Hazard modeling (LEONOB2014) | Quake damage proxy, InSAR noise floor, dual-pol flood classes |
+| `config/`, `validation/README.md` | Config + pre-registration (Jack4Codes) | `preregistered.yaml` (frozen, hashed), `bailasar.yaml` (operational), power check |
+| `validation/scoring.py`, `validation/ALLOWLIST.md` | Scoring (Maru816) | Ranking, precision@k, Wilson, block bootstrap, beats rule |
+| `mcp_servers/` (live GEE/ASF tools) | Cloud tools (Jack4Codes) | Tool timing, pair set, ranking/scoring tools |
+| `mcp_servers/cache_guard.py`, transport, `agents/`, `validation/event_facts.json` | Agents/MCP (alicealanapineda-byte) | SSE servers, cache_guard, LangGraph, bulletin |
+| `tests/fixtures/`, cache release, `README.md`, `docs/kb/` verification | Cloud checks + docs (EstebanOchoaedos) | Real-tile checks, release assets, KB, README |
 | `static/`, `app.py`, `video/` | Frontend + video (SaritaRpo) | Mission control, slider, story map, math-lab, 30 s video |
 | `tests/test_<area>.py` | Owner of `<area>` | Each lane owns its own test files |
 | `docs/kb/` | Everyone (append) | Living knowledge base (see below) |
@@ -25,7 +26,7 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 | `local_cache/` | — | Real-data cache. **Never in git** |
 | `docs/baseline/` | — | Import notes and patches not yet applied, per lane |
 
-Work only in your lane's paths. Anything outside them (shared config, CI, this file, contracts) goes through a PR that the orchestrator reviews.
+**Cloud rule:** GEE processing and GCP buckets/VMs are run only by LEONOB2014, Jack4Codes and EstebanOchoaedos (they hold the accounts); everyone else works offline from the cache. Work only in your lane's paths. Anything outside them (shared config, CI, this file, contracts) goes through a PR that the orchestrator reviews.
 
 ## Non-negotiables (science and evidence)
 
