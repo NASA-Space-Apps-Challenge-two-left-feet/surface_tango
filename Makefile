@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help setup sync worktree check test ci up pitch prewarm test-dag logs down clean
+.PHONY: help setup sync worktree check test ci up pitch prewarm test-dag logs down clean fetch-cache stage-cache
 
 help: ## Show available Space Apps Medellín operational commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -49,6 +49,12 @@ pitch: ## Boot full stack in PITCH mode (offline: local Zarr v3 cache + hashed L
 prewarm: ## Force rebuild of the Antioquia Zarr v3 Data Cube and local COGs
 	$(COMPOSE) build cache-warmer
 	$(COMPOSE) run --rm cache-warmer python scripts/prewarm_antioquia_cache.py
+
+fetch-cache: ## Fetch and verify public cache assets (BAILASAR_REPO and BAILASAR_RELEASE_TAG required)
+	bash scripts/fetch_cache.sh $(CACHE_FETCH_ARGS)
+
+stage-cache: ## Stage cache assets locally (CACHE_RELEASE_ARGS must include --source-commit)
+	uv run python scripts/cache_release.py stage $(CACHE_RELEASE_ARGS)
 
 test-dag: ## Run the agent graph end to end (3 hazard agents + cross-hazard synthesis)
 	$(COMPOSE) exec sars-web-orchestrator python -m agents.orchestrator
