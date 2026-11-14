@@ -1,1 +1,33 @@
 .gstack/
+
+# Secrets (AGENTS.md: Secrets)
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*service-account*.json
+
+# Data never enters git
+local_cache/
+*.zarr/
+*.tif
+*.h5
+*.parquet
+nisar_colombia_granules_2026.json.tmp
+
+# Python / tooling
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Video renders (keep scripts and storyboard, not raw footage)
+video/*.mp4
+video/*.mov
+video/raw/
+
+.DS_Store

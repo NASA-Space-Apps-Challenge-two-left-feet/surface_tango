@@ -1,0 +1,51 @@
+[project]
+name = "bailasar"
+version = "0.1.0"
+description = "NISAR L-band multi-agent observatory for cascading disasters in Colombia (NASA Space Apps 2026)"
+readme = "README.md"
+requires-python = ">=3.11"
+# Versions are pinned by uv.lock (issue #2: `uv lock` + hour-0 checklist).
+dependencies = [
+    "asf-search",
+    "earthaccess",
+    "earthengine-api",
+    "h5py",
+    "fsspec",
+    "rioxarray",
+    "rasterio",
+    "xarray",
+    "zarr>=3",
+    "numpy",
+    "fastmcp",
+    "langgraph",
+    "langchain-anthropic",
+    "fastapi",
+    "uvicorn",
+    "pyyaml",
+    "osmnx",
+]
+
+[dependency-groups]
+dev = ["pytest", "pre-commit", "commitizen", "ruff", "detect-secrets"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: needs network or credentials (never in CI)",
+    "cache: needs a built local_cache/ (never in CI)",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = ["pyproject.toml:^version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+major_version_zero = true

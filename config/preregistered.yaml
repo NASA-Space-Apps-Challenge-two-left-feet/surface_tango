@@ -1,0 +1,25 @@
+# FROZEN pre-registration (design doc: Hazard 2/3, D13). Commit before viewing any C-pair coherence;
+# validation/README.md records `git hash-object config/preregistered.yaml`. Never edit after freeze.
+# Values below are the approved plan values; pair IDs are filled from the hour-2 gate (issue #3).
+status: draft          # draft -> frozen (set once, by the Quake lane, with the hash recorded)
+quake:
+  pairs: {reference_R: null, coevent_C: null, control_K: null}   # GUNW granule IDs, same track, 12-day
+  built_up_min_footprint_fraction: 0.50
+  non_built_max_footprint_fraction: 0.10
+  min_built_up_pixels_per_unit: 20
+  unit: barrio
+  positive_label: ">=1 damaged or collapsed building listed in the named source"
+  ground_truth_source: {name: null, date: null, url: null}
+  k_rule: {fraction: 0.10, minimum: 5}
+  ranking: {access_weight: 0.25}       # score = P(DPM) * P(pop) * (1 + w * P(dist)); baseline drops P(DPM)
+  informative: {min_units: 30, min_positives: 5, prevalence_min: 0.10, prevalence_max: 0.70}
+  bootstrap: {unit: barrio, replicates: 2000, seed: 20261114}
+flood:
+  open_water_abs_hh_db: -18.0
+  class1_delta_hh_db_max: -5.5
+  class2_delta_hh_db_min: 3.0
+  class2_delta_hv_hh_db_abs_max: 1.5
+  hand_max_m: 18
+  no_baseline_relative_gap: 0.20
+  sensitivity: {db_step: 1.0, hand_m: [12, 18, 24]}
+labels: {uncalibrated: [open_water_abs_hh_db, class1_delta_hh_db_max, class2_delta_hh_db_min, class2_delta_hv_hh_db_abs_max, hand_max_m]}

@@ -1,0 +1,53 @@
+repos:
+  # === Formatting & Linting ===
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # === General file hygiene ===
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      # Trunk-based: main changes only through pull requests. This is the local guard
+      # (a private free-plan repo cannot enforce branch protection); CI skips it.
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # === Security ===
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: (\.lock|\.csv|\.parquet|\.pdf|\.tif|\.zarr/.*)$
+
+  # === Evidence rules ===
+  - repo: local
+    hooks:
+      - id: no-synthetic-data
+        name: no synthetic data in data paths
+        entry: uv run --frozen pytest -q tests/test_repo_rules.py
+        language: system
+        files: ^(scripts/|gee_math/|mcp_servers/|agents/|app\.py|static/|config/|tests/test_repo_rules\.py)
+        pass_filenames: false
+
+  # === Commit Messages ===
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.29.1
+    hooks:
+      - id: commitizen

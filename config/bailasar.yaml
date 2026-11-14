@@ -1,0 +1,14 @@
+# Operational settings (may change at any time; NOT part of the pre-registration hash).
+preregistered: config/preregistered.yaml
+aois:   # bboxes [W, S, E, N] in EPSG:4326 — set by the Data lane at the hour-2 gate
+  1_aburra_medellin_bello: [-75.63, 6.22, -75.50, 6.38]   # from the generated baseline; confirm at gate
+  2_eje_cafetero_quake: null
+  3_la_mojana_caregato: null
+mcp:
+  transport: sse
+  ports: {nisar_asf: 8001, gee_fusion: 8002}
+breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool at the hour-2 gate (D6); default until measured
+  default: 1.8
+features:            # hide unfinished work behind flags instead of long-lived branches
+  mathlab_corrections: false
+  story_chapter_4_synthesis: false
