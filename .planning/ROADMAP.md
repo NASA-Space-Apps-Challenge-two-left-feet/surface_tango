@@ -58,11 +58,11 @@ Plans:
 Plans:
 - [ ] 02-01: Run discovery over 3 AOIs; select R/C/K (same track, matched baseline, pre-event K); CHIRPS per date; apply the gate table — **LEONOB2014** — `scripts/discover_nisar_colombia.py`, `nisar_colombia_granules_2026.json`, `reports/gate.md`
 - [ ] 02-02: Find barrio-level damage reports and official barrio polygons for Pereira/Armenia/Manizales (hard timebox hour 4) — **Maru816** — `docs/kb/data-ground-truth-*.md`, `reports/ground_truth.md`
-- [ ] 02-03: Power check from polygons and ground truth only (expected units, positives, prevalence, k); record the headline decision — **LEONOB2014** — `validation/README.md`
+- [ ] 02-03: Power check from polygons and ground truth only (expected units, positives, prevalence, k); record the headline decision — **Jack4Codes** — `validation/README.md`
 - [ ] 02-04: Fill pair IDs and the ground-truth source in `preregistered.yaml`; set `status: frozen`; record the hash — **Jack4Codes** — `config/preregistered.yaml` (validation/README.md hash row via 02-03 owner review)
 - [ ] 02-05: Verify KB facts from primary pages (USGS event ID, SGC bulletin, Granizal record, ASF NISAR notices, GUNW spec, polarimetry) and update `event_facts.json` sources — **EstebanOchoaedos** — `docs/kb/`, `validation/event_facts.json` (sources only)
-- [ ] 02-06: Time 10 calls per live tool; write p95 + 0.5 s budgets — **alicealanapineda-byte** — `config/bailasar.yaml` (`breaker_budgets_s` only), `reports/tool_latency.md`
-- [ ] 02-07: Record the official submission deadline D and the backward milestones; post them in the team channel — **LEONOB2014** — `docs/designs/bailasar.md` (schedule section)
+- [ ] 02-06: Time 10 calls per live tool; write p95 + 0.5 s budgets — **Jack4Codes** — `config/bailasar.yaml` (`breaker_budgets_s` only), `reports/tool_latency.md`
+- [ ] 02-07: Record the official submission deadline D and the backward milestones; post them in the team channel — **alicealanapineda-byte** — `docs/designs/bailasar.md` (schedule section)
 
 ### Phase 3: Science and stack (h4–h14)
 **Goal**: Each hazard has a measured result or a documented null, and the stack shows them end to end through the agents.
@@ -78,11 +78,11 @@ Plans:
 
 Plans:
 - [ ] 03-01: Build the cache for the headline AOI, then the other AOIs; pre-stage real S1/S2 tiles and GEE stats with source IDs (replace the Google basemap) — **LEONOB2014** — `scripts/prewarm_antioquia_cache.py`, `scripts/prestage_tiles.py`
-- [ ] 03-02: Quake DPM: non-built Z, clamp, masks, built-up classes, barrio DPM_u, control pass — **Jack4Codes** — `gee_math/earthquake_dpm_math.py`, `tests/test_earthquake_dpm.py`
+- [ ] 03-02: Quake DPM: non-built Z, clamp, masks, built-up classes, barrio DPM_u, control pass — **LEONOB2014** — `gee_math/earthquake_dpm_math.py`, `tests/test_earthquake_dpm.py`
 - [ ] 03-03: Scorecard on real units: rankings, precision@k + Wilson, paired block bootstrap, E_C − E_K, informative gate → `reports/scorecard.md` — **Maru816** — `validation/scoring.py`, `reports/scorecard.md`
-- [ ] 03-04: Aburrá InSAR pipeline and noise-floor verdict — **EstebanOchoaedos** — `gee_math/landslide_insar_math.py`, `reports/aburra.md`
-- [ ] 03-05: La Mojana: driest-date baseline, Class 1/2, sensitivity, S1 comparison — **EstebanOchoaedos** — `gee_math/flood_polarimetric_math.py`, `reports/mojana.md`
-- [ ] 03-06: MCP tools `get_earthquake_pair_set`, `rank_first_aid_barrios`, `score_against_baseline` (wrappers over scoring) — **alicealanapineda-byte** — `mcp_servers/`
+- [ ] 03-04: Aburrá InSAR pipeline and noise-floor verdict — **LEONOB2014** — `gee_math/landslide_insar_math.py`, `reports/aburra.md`
+- [ ] 03-05: La Mojana: driest-date baseline, Class 1/2, sensitivity, S1 comparison — **LEONOB2014** — `gee_math/flood_polarimetric_math.py`, `reports/mojana.md`
+- [ ] 03-06: MCP tools `get_earthquake_pair_set`, `rank_first_aid_barrios`, `score_against_baseline` (wrappers over scoring) — **Jack4Codes** — `mcp_servers/`
 - [ ] 03-07: LangGraph 3-agent graph; locale renderer; checker at generation and serve time; LLM cache keyed on the tool-output hash — **alicealanapineda-byte** — `agents/`
 - [ ] 03-08: Curtain slider (two configs) and story map Ch1–Ch4 from measured outputs (rewrite the story patch without fabricated numbers) — **SaritaRpo** — `static/`
 
@@ -98,11 +98,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 04-01: Real-tile fixture pipeline checks for quake, landslide and flood — **Jack4Codes** — `tests/fixtures/`, `tests/test_pipeline_*.py`
+- [ ] 04-01: Real-tile fixture pipeline checks for quake, landslide and flood — **EstebanOchoaedos** — `tests/fixtures/`, `tests/test_pipeline_*.py`
 - [ ] 04-02: Lock the storyboard to the hour-4 headline and the measured outcome; mark placeholder frames — **SaritaRpo** — `video/storyboard.md`
 - [ ] 04-03: Offline `make pitch` walkthrough checklist with the network disabled — **Maru816** — `tests/e2e_pitch.md`
 - [ ] 04-04: Math-lab corrections (modules 1–5); first cut if time runs short — **SaritaRpo** — `static/mathlab/`
-- [ ] 04-05: Cache release assets (split <2 GB, provenance manifest) and `make fetch-cache`; staged, not published — **LEONOB2014** — `Makefile` (cache targets), `scripts/fetch_cache.sh`
+- [ ] 04-05: Cache release assets (split <2 GB, provenance manifest) and `make fetch-cache`; staged, not published — **EstebanOchoaedos** — `Makefile` (cache targets), `scripts/fetch_cache.sh`
 
 ### Phase 5: Submission (D−8h–D)
 **Goal**: The judged deliverables are submitted on time, honestly and safely.
@@ -122,13 +122,15 @@ Plans:
 
 ## Load per person (plans)
 
+Cloud rule: GEE processing and GCP buckets/VMs are worked only by LEONOB2014, Jack4Codes and EstebanOchoaedos (they hold the accounts). LEONOB2014 owns the three hazard models.
+
 | Person | P1 | P2 | P3 | P4 | P5 | Total |
 |---|---|---|---|---|---|---|
-| LEONOB2014 (orchestrator, data) | 01-01 | 02-01, 02-03, 02-07 | 03-01 | 04-05 | 05-04 | 7 |
-| Jack4Codes (config, quake DPM) | 01-02 | 02-04 | 03-02 | 04-01 | — | 4 |
+| LEONOB2014 (orchestrator, data gate, hazard modeling) | 01-01 | 02-01 | 03-01, 03-02, 03-04, 03-05 | — | 05-04 | 7 |
+| Jack4Codes (config, pre-registration, cloud tools) | 01-02 | 02-03, 02-04, 02-06 | 03-06 | — | — | 5 (+ GCP setup #48) |
+| EstebanOchoaedos (module prep, KB, cloud cache checks, README) | 01-04 | 02-05 | — | 04-01, 04-05 | 05-03 | 5 |
 | Maru816 (scoring, ground truth, VO) | 01-03 | 02-02 | 03-03 | 04-03 | 05-02 | 5 |
-| EstebanOchoaedos (Aburrá, flood, KB, README) | 01-04 | 02-05 | 03-04, 03-05 | — | 05-03 | 5 |
-| alicealanapineda-byte (MCP, agents, bulletin) | 01-05, 01-06 | 02-06 | 03-06, 03-07 | — | — | 5 |
+| alicealanapineda-byte (MCP offline, agents, bulletin, schedule) | 01-05, 01-06 | 02-07 | 03-07 | — | — | 4 |
 | SaritaRpo (UI, video) | 01-07 | — | 03-08 | 04-02, 04-04 | 05-01 | 5 |
 
 ## Progress
