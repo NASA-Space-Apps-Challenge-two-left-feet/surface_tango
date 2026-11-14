@@ -1,9 +1,9 @@
 # Operational settings (may change at any time; NOT part of the pre-registration hash).
 preregistered: config/preregistered.yaml
 aois:   # bboxes [W, S, E, N] in EPSG:4326 — set by the Data lane at the hour-2 gate
-  1_aburra_medellin_bello: [-75.63, 6.22, -75.50, 6.38]   # from the generated baseline; confirm at gate
-  2_eje_cafetero_quake: null
-  3_la_mojana_caregato: null
+  1_aburra_medellin_bello: [-75.70, 6.12, -75.42, 6.45]   # Medellín, Bello, Copacabana (hour-2 gate)
+  2_eje_cafetero_quake: [-75.85, 4.40, -75.40, 5.15]   # Pereira, Armenia, Manizales (hour-2 gate)
+  3_la_mojana_caregato: [-75.40, 7.90, -74.20, 9.20]   # La Mojana incl. Caregato (hour-2 gate)
 mcp:
   transport: sse
   ports: {nisar_asf: 8001, gee_fusion: 8002}
