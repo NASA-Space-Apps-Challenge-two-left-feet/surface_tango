@@ -1,30 +1,150 @@
-# gee_math/landslide_insar_math.py
+"""Offline landslide rules and an Earth Engine pipeline with uncalibrated HKLSI."""
+
 import math
-import ee
+
+import numpy as np
+
+# L-band carrier wavelength, not a threshold.
+NISAR_L_BAND_WAVELENGTH_MM = 240.0
+DAYS_PER_YEAR = 365.25
+
+# TODO(01-02): read these from config/preregistered.yaml via src/bailasar/config.py
+# once the keys exist (Jack4Codes owns config/). Until then callers pass `params`.
+LANDSLIDE_PARAM_KEYS = [
+    "coherence_min",
+    "stable_slope_max_deg",
+    "min_slope_deg",
+    "cos_xi_floor",
+    "noise_floor.min_pairs",
+    "noise_floor.require_sign_agreement",
+    "hklsi.weights.velocity",
+    "hklsi.weights.slope",
+    "hklsi.weights.rain",
+    "hklsi.velocity_norm_mm_yr",
+    "hklsi.slope_offset_deg",
+    "hklsi.slope_norm_deg",
+    "hklsi.rain_norm_mm",
+    "incidence_deg",
+    "heading_deg",
+]
+
+
+def _require(params, dotted_key):
+    """Read a required nested parameter, naming the full key on failure."""
+    value = params
+    for key in dotted_key.split("."):
+        if not isinstance(value, dict) or key not in value:
+            raise KeyError(f"Missing required landslide parameter: {dotted_key}")
+        value = value[key]
+    return value
+
+
+def noise_floor_verdict(rates_by_pair, stable_residuals_by_pair, params):
+    """Keep finite rates exceeding every independent pair's stable-pixel RMS."""
+    min_pairs = _require(params, "noise_floor.min_pairs")
+    require_sign = _require(params, "noise_floor.require_sign_agreement")
+    n_pairs = len(rates_by_pair)
+    if len(stable_residuals_by_pair) != n_pairs:
+        raise ValueError("Rates and stable residuals must have the same number of pairs")
+    rates = [np.asarray(rate, dtype=float) for rate in rates_by_pair]
+    shape = rates[0].shape if rates else (0,)
+    if any(rate.shape != shape for rate in rates):
+        raise ValueError("All pair rates must have equal shapes")
+    floors = []
+    for residuals in stable_residuals_by_pair:
+        residuals = np.asarray(residuals, dtype=float)
+        if residuals.ndim != 1:
+            raise ValueError("Stable residuals for each pair must be one-dimensional")
+        finite = residuals[np.isfinite(residuals)]
+        floors.append(float(np.sqrt(np.mean(finite**2))) if finite.size else float("nan"))
+    floor = float(np.max(floors)) if floors else float("nan")
+    kept_mask = np.full(shape, False, dtype=bool)
+    kept_rate = np.full(shape, np.nan)
+    if n_pairs and n_pairs >= min_pairs:
+        stack = np.stack(rates)
+        floor_grid = np.asarray(floors).reshape((n_pairs,) + (1,) * len(shape))
+        kept_mask = np.all(np.isfinite(stack) & (np.abs(stack) > floor_grid), axis=0)
+        if require_sign:
+            kept_mask &= np.all(np.sign(stack) == np.sign(stack[0]), axis=0)
+        kept_rate = np.mean(np.where(kept_mask, stack, np.nan), axis=0)
+    count = int(np.count_nonzero(kept_mask))
+    text = (
+        f"motion above {floor:.1f} mm noise floor in {count} pixels ({n_pairs} pairs)"
+        if count
+        else f"no motion detected above {floor:.1f} mm noise floor ({n_pairs} pairs)"
+    )
+    return {
+        "kept_rate": kept_rate,
+        "kept_mask": kept_mask,
+        "n_pairs": n_pairs,
+        "noise_floor_mm_yr": floor,
+        "per_pair_noise_floor_mm_yr": floors,
+        "verdict": "motion detected" if count else "null",
+        "text": text,
+    }
+
+
+def project_los_to_downslope(d_los_mm, slope_deg, aspect_deg, params):
+    """Project signed LOS displacement using a sign-preserving cosine floor."""
+    theta = np.deg2rad(_require(params, "incidence_deg"))
+    alpha = np.deg2rad(_require(params, "heading_deg"))
+    floor = _require(params, "cos_xi_floor")
+    beta = np.deg2rad(np.asarray(slope_deg, dtype=float))
+    psi = np.deg2rad(np.asarray(aspect_deg, dtype=float))
+    cos_xi = (
+        -np.sin(theta) * np.cos(alpha) * np.cos(beta) * np.sin(psi)
+        + np.sin(theta) * np.sin(alpha) * np.cos(beta) * np.cos(psi)
+        - np.cos(theta) * np.sin(beta)
+    )
+    regularised = np.where(np.abs(cos_xi) < floor, np.where(cos_xi >= 0, floor, -floor), cos_xi)
+    return np.asarray(d_los_mm, dtype=float) / regularised
+
+
+def hklsi(v_downslope_mm_yr, slope_deg, rain_mm, params):
+    """Return the uncalibrated Hydro-Kinematic Landslide Susceptibility Index."""
+    # Absolute signed velocity is used only inside HKLSI; exported velocity keeps its sign.
+    velocity = np.clip(
+        np.abs(v_downslope_mm_yr) / _require(params, "hklsi.velocity_norm_mm_yr"), 0, 1
+    )
+    slope = np.clip(
+        (np.asarray(slope_deg) - _require(params, "hklsi.slope_offset_deg"))
+        / _require(params, "hklsi.slope_norm_deg"),
+        0,
+        1,
+    )
+    rain = np.clip(np.asarray(rain_mm) / _require(params, "hklsi.rain_norm_mm"), 0, 1)
+    return (
+        _require(params, "hklsi.weights.velocity") * velocity
+        + _require(params, "hklsi.weights.slope") * slope
+        + _require(params, "hklsi.weights.rain") * rain
+    )
+
 
 def compute_landslide_insar_kinematics(
     gunw_unw_gcs: str,
-    gunw_iono_gcs: str,
+    gunw_iono_gcs: str | None,
     gunw_coh_gcs: str,
     gunw_conncomp_gcs: str,
-    aoi: ee.Geometry,
-    rain_start_date: str = "2026-10-29",
-    rain_end_date: str = "2026-11-13",
-    temporal_baseline_days: float = 12.0,
-    inc_angle_deg: float = 37.5,
-    sat_heading_deg: float = -12.0,  # Ascending NISAR orbit over Colombia (~348 deg)
-) -> ee.Image:
+    aoi,
+    rain_start_date: str,
+    rain_end_date: str,
+    temporal_baseline_days: float,
+    params: dict,
+):
+    """Compute signed downslope velocity and uncalibrated HKLSI from real layers.
+
+    Missing ionosphere or tropospheric fit leaves displacement and velocity masked.
+    Independent-pair noise-floor assessment is provided by noise_floor_verdict.
     """
-    Computes ionosphere/troposphere-corrected L-band InSAR downslope velocity (mm/yr)
-    and Hydro-Kinematic Landslide Hazard Score using bare-earth FABDEM and CHIRPS.
-    """
-    # 1. Load NISAR L2 GUNW grids from GCS COGs
-    phi_unw = ee.Image.loadGeoTIFF(gunw_unw_gcs).rename("phi_unw")
-    phi_iono = ee.Image.loadGeoTIFF(gunw_iono_gcs).rename("phi_iono")
+    for key in LANDSLIDE_PARAM_KEYS:
+        _require(params, key)
+    if temporal_baseline_days <= 0:
+        raise ValueError("temporal_baseline_days must be positive")
+
+    import ee
+
     coh = ee.Image.loadGeoTIFF(gunw_coh_gcs).rename("coherence")
     conn_comp = ee.Image.loadGeoTIFF(gunw_conncomp_gcs).rename("conn_comp")
-
-    # 2. Load Bare-Earth FABDEM (30m tree/building removed DEM from GEE Community Catalog)
     fabdem = (
         ee.ImageCollection("projects/sat-io/open-datasets/FABDEM")
         .filterBounds(aoi)
@@ -35,73 +155,65 @@ def compute_landslide_insar_kinematics(
     terrain = ee.Terrain.products(fabdem)
     slope_deg = terrain.select("slope")
     aspect_deg = terrain.select("aspect")
-
-    # 3. Phase Unwrapping Mask & Stratified Tropospheric Delay Removal
-    # Quality mask: coherence >= 0.35 and valid non-zero connected component
-    valid_insar_mask = coh.gte(0.35).And(conn_comp.gt(0))
-    phi_iono_corr = phi_unw.subtract(phi_iono).updateMask(valid_insar_mask)
-
-    # Estimate linear elevation-dependent tropospheric phase ramp (rad/m) over stable flat terrain (<8 deg)
-    stable_mask = slope_deg.lt(8.0).And(valid_insar_mask)
-    tropo_fit = (
-        ee.Image.cat([fabdem, phi_iono_corr])
-        .updateMask(stable_mask)
-        .reduceRegion(
-            reducer=ee.Reducer.linearFit(),
-            geometry=aoi,
-            scale=90,
-            maxPixels=1e8,
-            bestEffort=True,
+    valid_mask = coh.gte(_require(params, "coherence_min")).And(conn_comp.gt(0))
+    if gunw_iono_gcs:
+        phi_unw = ee.Image.loadGeoTIFF(gunw_unw_gcs)
+        phi_iono = ee.Image.loadGeoTIFF(gunw_iono_gcs)
+        corrected = phi_unw.subtract(phi_iono).updateMask(valid_mask).rename("phase")
+        stable = slope_deg.lt(_require(params, "stable_slope_max_deg")).And(valid_mask)
+        fit = ee.Dictionary(
+            ee.Image.cat([fabdem, corrected])
+            .updateMask(stable)
+            .reduceRegion(
+                reducer=ee.Reducer.linearFit(),
+                geometry=aoi,
+                scale=coh.projection().nominalScale(),
+                maxPixels=1e8,
+                bestEffort=True,
+            )
         )
+        missing = coh.updateMask(ee.Image.constant(0))
+        has_fit = ee.Algorithms.If(
+            ee.Algorithms.IsEqual(fit.get("scale"), None),
+            False,
+            ee.Algorithms.If(ee.Algorithms.IsEqual(fit.get("offset"), None), False, True),
+        )
+        d_los_mm = ee.Image(
+            ee.Algorithms.If(
+                has_fit,
+                corrected.subtract(
+                    fabdem.multiply(ee.Number(fit.get("scale"))).add(ee.Number(fit.get("offset")))
+                ).multiply(-NISAR_L_BAND_WAVELENGTH_MM / (4 * math.pi)),
+                missing,
+            )
+        ).rename("d_los_mm")
+        displacement_status = ee.Algorithms.If(has_fit, "available", "missing: tropospheric fit")
+    else:
+        d_los_mm = coh.updateMask(ee.Image.constant(0)).rename("d_los_mm")
+        displacement_status = "missing: ionosphere layer not available"
+
+    theta = math.radians(_require(params, "incidence_deg"))
+    alpha = math.radians(_require(params, "heading_deg"))
+    beta = slope_deg.multiply(math.pi / 180)
+    psi = aspect_deg.multiply(math.pi / 180)
+    cos_xi = (
+        beta.cos()
+        .multiply(psi.sin())
+        .multiply(-math.sin(theta) * math.cos(alpha))
+        .add(beta.cos().multiply(psi.cos()).multiply(math.sin(theta) * math.sin(alpha)))
+        .subtract(beta.sin().multiply(math.cos(theta)))
     )
-    k_tropo = ee.Number(ee.Dictionary(tropo_fit).get("scale", 0.0))
-    c_tropo = ee.Number(ee.Dictionary(tropo_fit).get("offset", 0.0))
-    phi_tropo = fabdem.multiply(k_tropo).add(c_tropo)
-
-    # Pure deformation phase -> LOS displacement in millimeters (NISAR L-band lambda = 240.0 mm)
-    lambda_mm = 240.0
-    d_los_mm = (
-        phi_iono_corr.subtract(phi_tropo)
-        .multiply(-lambda_mm / (4.0 * math.pi))
-        .rename("d_los_mm")
+    floor = _require(params, "cos_xi_floor")
+    regularised = cos_xi.where(cos_xi.abs().lt(floor).And(cos_xi.gte(0)), floor).where(
+        cos_xi.abs().lt(floor).And(cos_xi.lt(0)), -floor
     )
-
-    # 4. Exact 3D Vector Projection onto Steepest Downslope (u_LOS . u_slope)
-    deg2rad = math.pi / 180.0
-    projection_img = ee.Image.cat([d_los_mm, slope_deg, aspect_deg]).expression(
-        """
-        // Unit LOS vector (East, North, Up)
-        var theta = inc_deg * deg2rad;
-        var alpha = heading_deg * deg2rad;
-        var los_e = -sin(theta) * cos(alpha);
-        var los_n =  sin(theta) * sin(alpha);
-        var los_u =  cos(theta);
-
-        // Unit steepest downslope vector (East, North, Up)
-        var beta = b('slope') * deg2rad;
-        var psi  = b('aspect') * deg2rad;
-        var slp_e =  cos(beta) * sin(psi);
-        var slp_n =  cos(beta) * cos(psi);
-        var slp_u = -sin(beta);
-
-        // Cosine of angle between LOS and downslope vector (regularized against near-orthogonal layover)
-        var cos_xi = (los_e * slp_e) + (los_n * slp_n) + (los_u * slp_u);
-        var reg_cos_xi = abs(cos_xi) < 0.20 ? (cos_xi >= 0 ? 0.20 : -0.20) : cos_xi;
-
-        var d_downslope_mm = abs(b('d_los_mm') / reg_cos_xi);
-        var v_downslope_mm_yr = d_downslope_mm * (365.25 / dt_days);
-        v_downslope_mm_yr
-        """,
-        {
-            "inc_deg": inc_angle_deg,
-            "heading_deg": sat_heading_deg,
-            "dt_days": temporal_baseline_days,
-            "deg2rad": deg2rad,
-        },
-    ).updateMask(slope_deg.gte(15.0)).rename("v_downslope_mm_yr")
-
-    # 5. Hydro-Geotechnical Pore Pressure Coupling (CHIRPS 15-day + Topographic Wetness Index proxy)
-    chirps_15d = (
+    velocity = (
+        d_los_mm.divide(regularised)
+        .multiply(DAYS_PER_YEAR / temporal_baseline_days)
+        .updateMask(slope_deg.gte(_require(params, "min_slope_deg")))
+        .rename("v_downslope_mm_yr")
+    )
+    rain = (
         ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
         .filterBounds(aoi)
         .filterDate(rain_start_date, rain_end_date)
@@ -109,15 +221,26 @@ def compute_landslide_insar_kinematics(
         .clip(aoi)
         .rename("rain_15d_mm")
     )
-
-    # Composite Hydro-Kinematic Landslide Susceptibility Index (0.0 to 1.0)
-    hklsi = ee.Image.cat([projection_img, slope_deg, chirps_15d]).expression(
-        """
-        var v_norm = clamp(b('v_downslope_mm_yr') / 120.0, 0.0, 1.0);
-        var s_norm = clamp((b('slope') - 15.0) / 30.0, 0.0, 1.0);
-        var r_norm = clamp(b('rain_15d_mm') / 200.0, 0.0, 1.0);
-        (0.50 * v_norm) + (0.25 * s_norm) + (0.25 * r_norm)
-        """
-    ).rename("landslide_hazard_index")
-
-    return ee.Image.cat([d_los_mm, projection_img, slope_deg, chirps_15d, coh, hklsi])
+    # Absolute signed velocity is used only inside HKLSI; exported velocity keeps its sign.
+    score = (
+        velocity.abs()
+        .divide(_require(params, "hklsi.velocity_norm_mm_yr"))
+        .clamp(0, 1)
+        .multiply(_require(params, "hklsi.weights.velocity"))
+        .add(
+            slope_deg.subtract(_require(params, "hklsi.slope_offset_deg"))
+            .divide(_require(params, "hklsi.slope_norm_deg"))
+            .clamp(0, 1)
+            .multiply(_require(params, "hklsi.weights.slope"))
+        )
+        .add(
+            rain.divide(_require(params, "hklsi.rain_norm_mm"))
+            .clamp(0, 1)
+            .multiply(_require(params, "hklsi.weights.rain"))
+        )
+        .rename("landslide_hazard_index")
+        .set({"calibrated": False, "label": "uncalibrated"})
+    )
+    return ee.Image.cat([d_los_mm, velocity, slope_deg, rain, coh, score]).set(
+        {"displacement": displacement_status, "calibrated": False, "label": "uncalibrated"}
+    )
