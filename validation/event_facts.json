@@ -3,7 +3,7 @@
   "quake_2026_08_10": {
     "date": "2026-08-10", "magnitude_mw": "7.4", "depth_km": "96",
     "epicenter": "near San Jose del Palmar, Choco",
-    "sources": {"usgs_event_id": null, "sgc_bulletin": null},
+    "sources": {"usgs_event_id": "us6000tjl2", "sgc_bulletin": null},
     "status": "unverified",
     "kb_note": "docs/kb/event-2026-08-10-earthquake.md"
   }
