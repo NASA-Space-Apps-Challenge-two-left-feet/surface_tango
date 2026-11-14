@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help setup worktree check test ci up pitch prewarm test-dag logs down clean
+.PHONY: help setup sync worktree check test ci up pitch prewarm test-dag logs down clean
 
 help: ## Show available Space Apps Medellín operational commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -15,6 +15,11 @@ setup: ## uv env + pre-commit and commit-msg hooks + .env from template
 	uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 	@[ -f .env ] || cp .env.example .env
 	@mkdir -p local_cache
+
+sync: ## Bring your branch up to date: rebase onto origin/main (fast-forward on main)
+	@git fetch origin
+	@if [ "$$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then git pull --ff-only origin main; \
+	else git rebase --autostash origin/main; fi
 
 worktree: ## New worktree from the latest origin/main: make worktree BRANCH=feat/quake-dpm
 	@test -n "$(BRANCH)" || (echo "BRANCH is required, e.g. make worktree BRANCH=feat/quake-dpm" && exit 1)
