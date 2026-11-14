@@ -1,0 +1,48 @@
+<!-- Floating Bottom-Center Story Map Scrollytelling HUD -->
+<div id="story-hud" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 w-[680px] max-w-[92%] bg-slate-950/92 backdrop-blur-md border border-cyan-500/50 rounded-2xl p-4 shadow-2xl transition-all duration-300">
+  
+  <!-- Top Progress Bar & Chapter Pills -->
+  <div class="flex items-center justify-between gap-2 mb-2.5">
+    <div class="flex items-center gap-1.5" id="story-step-pills">
+      <button onclick="goToStoryChapter(0)" class="story-pill px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500 text-slate-950">1. Biomass</button>
+      <button onclick="goToStoryChapter(1)" class="story-pill px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 hover:text-white">2. Landslide</button>
+      <button onclick="goToStoryChapter(2)" class="story-pill px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 hover:text-white">3. Flood</button>
+      <button onclick="goToStoryChapter(3)" class="story-pill px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 hover:text-white">4. Seismic DPM</button>
+      <button onclick="goToStoryChapter(4)" class="story-pill px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 hover:text-white">5. Cascading Synthesis</button>
+    </div>
+
+    <div class="flex items-center gap-1.5">
+      <button onclick="prevStoryChapter()" title="Previous Chapter (Left Arrow)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-bold">◀</button>
+      <button onclick="toggleAutoPlayTour()" id="btn-autoplay" class="px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5">
+        <span id="autoplay-icon">▶</span> <span id="autoplay-label">Auto-Tour (3:00 Pitch)</span>
+      </button>
+      <button onclick="nextStoryChapter()" title="Next Chapter (Right Arrow)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-bold">▶</button>
+    </div>
+  </div>
+
+  <!-- Chapter Title & Location Subtitle -->
+  <div class="flex items-baseline justify-between border-b border-slate-800/80 pb-1.5 mb-2">
+    <h3 id="story-title" class="text-sm font-extrabold text-cyan-300 tracking-wide">
+      Chapter 1: High-Andean Canopy & Biomass Loss (NISAR L-Band HV)
+    </h3>
+    <span id="story-coords" class="text-[11px] font-mono text-emerald-400">6.345°N, 75.525°W | Elev: 2,480m</span>
+  </div>
+
+  <!-- Narrative Body & Judge Takeaway -->
+  <p id="story-narrative" class="text-xs text-slate-200 leading-relaxed mb-2.5">
+    We begin on the upper eastern escarpment above Bello and Copacabana. Persistent cloud cover blinds Sentinel-2 (left), while Sentinel-1 C-band (center) saturates on upper leaves. Sweeping open NISAR L-band (right, λ = 24 cm) penetrates the canopy to measure HV woody volume scattering, revealing 612.8 tons of carbon disturbance that strips root cohesion on 34° slopes.
+  </p>
+
+  <!-- Curtain Auto-Choreography Status Bar -->
+  <div class="flex items-center justify-between text-[11px] text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+    <span id="story-radar-badge" class="font-semibold text-amber-300">
+      📡 Active Radar Physics: Cross-Polarized HV Volume Attenuation (RFDI = 0.58)
+    </span>
+    <span class="font-mono text-[10px] text-slate-500">Keys: [Space] Play/Pause • [←/→] Step • [D] Diagnostic RGB</span>
+  </div>
+
+  <!-- Auto-Play Timer Progress Line -->
+  <div class="w-full bg-slate-800 h-1 rounded-full mt-2 overflow-hidden">
+    <div id="story-progress-bar" class="bg-cyan-400 h-full w-0 transition-all duration-150"></div>
+  </div>
+</div>

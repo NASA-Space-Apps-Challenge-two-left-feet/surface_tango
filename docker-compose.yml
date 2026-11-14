@@ -1,0 +1,90 @@
+# docker-compose.yml
+services:
+  # 1. One-shot Zarr v3 & COG Pre-Warmer (runs only if manifest.json is missing or forced)
+  cache-warmer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sars-dance-medellin:2026
+    container_name: sars-cache-warmer
+    profiles: ["init", "live", "pitch"]
+    env_file: .env
+    volumes:
+      - ./local_cache:/app/local_cache
+      - ${HOME}/.netrc:/root/.netrc:ro
+      - ${HOME}/.config/earthengine:/root/.config/earthengine:ro
+    command: >
+      sh -c "if [ ! -f /app/local_cache/antioquia_aburra/manifest.json ]; then
+               echo '⚡ Pre-warming Antioquia Zarr v3 Cube & COGs...';
+               python scripts/prewarm_antioquia_cache.py;
+             else
+               echo '✅ Antioquia Zarr v3 Cube & COGs already warm.';
+             fi"
+
+  # 2. FastMCP Server 1: NISAR ASF Search, Ionospheric Correction & Cloud COG Subsetter
+  mcp-nisar-asf:
+    image: sars-dance-medellin:2026
+    container_name: sars-mcp-nisar-asf
+    profiles: ["live", "pitch"]
+    depends_on:
+      cache-warmer:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      - MCP_TRANSPORT=sse
+      - MCP_PORT=8001
+      - OFFLINE_DEMO_MODE=${OFFLINE_DEMO_MODE:-0}
+    volumes:
+      - ./local_cache:/app/local_cache
+      - ${HOME}/.netrc:/root/.netrc:ro
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+    ports:
+      - "8001:8001"
+    command: python mcp_servers/nisar_asf_mcp.py
+    restart: unless-stopped
+
+  # 3. FastMCP Server 2: Google Earth Engine InSAR & Polarimetric Physics Engine
+  mcp-gee-fusion:
+    image: sars-dance-medellin:2026
+    container_name: sars-mcp-gee-fusion
+    profiles: ["live", "pitch"]
+    depends_on:
+      cache-warmer:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      - MCP_TRANSPORT=sse
+      - MCP_PORT=8002
+      - OFFLINE_DEMO_MODE=${OFFLINE_DEMO_MODE:-0}
+    volumes:
+      - ./local_cache:/app/local_cache
+      - ${HOME}/.config/earthengine:/root/.config/earthengine:ro
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+    ports:
+      - "8002:8002"
+    command: python mcp_servers/gee_fusion_mcp.py
+    restart: unless-stopped
+
+  # 4. FastAPI SSE + LangGraph Orchestrator + 3-Panel MapLibre/Deck.gl Frontend
+  sars-web-orchestrator:
+    image: sars-dance-medellin:2026
+    container_name: sars-web-orchestrator
+    profiles: ["live", "pitch"]
+    depends_on:
+      - mcp-nisar-asf
+      - mcp-gee-fusion
+    env_file: .env
+    environment:
+      - USE_DOCKER_MCP_SSE=1
+      - NISAR_MCP_URL=http://mcp-nisar-asf:8001/sse
+      - GEE_MCP_URL=http://mcp-gee-fusion:8002/sse
+      - OFFLINE_DEMO_MODE=${OFFLINE_DEMO_MODE:-0}
+      - ENABLE_LLM_CACHE=1
+    volumes:
+      - ./local_cache:/app/local_cache
+      - ./static:/app/static
+      - ${HOME}/.config/earthengine:/root/.config/earthengine:ro
+    ports:
+      - "8000:8000"
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --workers 2
+    restart: unless-stopped
