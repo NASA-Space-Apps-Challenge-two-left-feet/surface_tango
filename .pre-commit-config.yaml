@@ -21,6 +21,7 @@ repos:
       - id: check-toml
       - id: check-added-large-files
         args: [--maxkb=1000]
+        exclude: ^uv\.lock$  # lock files are legitimately large
       - id: check-merge-conflict
       - id: detect-private-key
       # Trunk-based: main changes only through pull requests. This is the local guard
