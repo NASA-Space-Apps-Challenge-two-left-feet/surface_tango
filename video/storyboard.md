@@ -2,6 +2,17 @@
 
 Draft for #39. The hour-4 headline and its measured outcome are pending. Every bracketed shot is a placeholder for approved footage or text.
 
+## Cut approval
+
+| Decision | Fill after approval |
+|---|---|
+| Selected headline | [Earthquake, La Mojana, or coverage] |
+| Approved wording for the outcome | [Measured result or documented null] |
+| Evidence and approval reference | [Report path and comment or decision link] |
+| Submission and recording time in Bogotá | [Deadline D] and [D−6 h] |
+
+## Shot selection
+
 | Time in cut | Frame | Earthquake headline | La Mojana headline | Coverage headline |
 |---|---|---|---|---|
 | 0–4 s | [Event and headline card] | Show the approved event facts for the Eje Cafetero earthquake. | Introduce the La Mojana event and the approved comparison period. | Name the areas and time span covered by the discovery result. |
@@ -21,6 +32,18 @@ Draft for #39. The hour-4 headline and its measured outcome are pending. Every b
 | Coverage or null wording | Approved gate or hazard report |
 
 For each measured claim, record the source report, command, scene or granule IDs, denominator, and applicable interval alongside the selected frame. Use the final values and units from the source. The shot times are editing targets. The Spanish voice-over and English subtitles should follow the same approved outcome.
+
+## Recording copy
+
+Fill this sheet with the selected shots and exact text after approval. Use the same outcome in the map, voice-over, and subtitles.
+
+| Time in cut | Approved frame or asset | Exact on-screen text | Evidence reference |
+|---|---|---|---|
+| 0–4 s | [Event card] | [Headline and event facts] | [Event facts and gate] |
+| 4–10 s | [Slider take] | [Approved layer labels] | [Scene IDs and map view] |
+| 10–20 s | [Map take] | [Ranking, classes, or coverage] | [Report and source IDs] |
+| 20–27 s | [Outcome card] | [Measured result with units and interval, or documented null] | [Outcome report] |
+| 27–30 s | [Credits card] | [Team, sources, SI-assisted disclosure] | [Credit list] |
 
 ## Capture handoff for #43
 
