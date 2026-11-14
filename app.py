@@ -1,16 +1,17 @@
 # app.py
-import os
-import json
 import asyncio
-from typing import AsyncGenerator, List
+import json
+from collections.abc import AsyncGenerator
+
+import ee
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-import ee
 
-from agents.state import MultiHazardGraphState
 from agents.orchestrator import create_compiled_multi_hazard_graph
+from agents.state import MultiHazardGraphState
+from gee_math.ee_session import init_ee
 
 app = FastAPI(title="Dancing with the SARs - NISAR Multi-Agent SSE API")
 
@@ -21,19 +22,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ee.Initialize(
-    project=os.environ.get("GCP_PROJECT_ID", "spaceapps-medellin-2026"),
-    opt_url="https://earthengine-highvolume.googleapis.com",
-)
+init_ee()  # ADC identity + GCP_PROJECT_ID (gee_math/ee_session.py)
 
-def get_contextual_reference_tiles(bbox: List[float], start_date: str, end_date: str) -> dict:
+
+def get_contextual_reference_tiles(bbox: list[float], start_date: str, end_date: str) -> dict:
     """
-    Generates Google Earth Engine XYZ tile URLs for Panel 1 (Sentinel-2 Optical, showing cloud cover)
-    and Panel 2 (Sentinel-1 C-band 5.6cm VV/VH, showing canopy attenuation) to contrast with Panel 3 (NISAR L-band 24cm).
+    Generates Google Earth Engine XYZ tile URLs for Panel 1 (Sentinel-2 optical, showing cloud
+    cover) and Panel 2 (Sentinel-1 C-band 5.6 cm VV/VH, showing canopy attenuation) to contrast
+    with Panel 3 (NISAR L-band 24 cm).
     """
     aoi = ee.Geometry.Rectangle(bbox)
 
-    # Panel 1: Sentinel-2 Optical RGB (intentionally retaining cloudy scenes over Antioquia to prove SAR superiority)
+    # Panel 1: Sentinel-2 optical RGB, cloudy scenes kept as served
+    # TODO(frontend, #37): select scenes by a stated rule (date window + scene IDs), not to
+    # favour SAR; a cherry-picked cloudy scene would misrepresent the comparison.
     s2_optical = (
         ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
         .filterBounds(aoi)
@@ -53,7 +55,9 @@ def get_contextual_reference_tiles(bbox: List[float], start_date: str, end_date:
         .median()
         .clip(aoi)
     )
-    s1_map = s1_cband.getMapId({"min": -22, "max": -2, "palette": ["0b132b", "1c2541", "3a506b", "5bc0be", "ffffff"]})
+    s1_map = s1_cband.getMapId(
+        {"min": -22, "max": -2, "palette": ["0b132b", "1c2541", "3a506b", "5bc0be", "ffffff"]}
+    )
 
     return {
         "optical_s2_tile_url": s2_map["tile_fetcher"].url_format,
@@ -63,7 +67,7 @@ def get_contextual_reference_tiles(bbox: List[float], start_date: str, end_date:
 
 async def stream_agent_dag_events(
     region_name: str,
-    bbox: List[float],
+    bbox: list[float],
     start_date: str,
     end_date: str,
 ) -> AsyncGenerator[str, None]:
@@ -120,7 +124,9 @@ async def stream_hazards(
         },
     )
 
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def serve_ui():

@@ -1,19 +1,20 @@
 # scripts/prewarm_antioquia_cache.py
-import os
 import io
 import json
 import math
+import os
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
 
-import numpy as np
-import xarray as xr
-import rioxarray
-import rasterio
-from rasterio.transform import from_bounds
-from rasterio.enums import Resampling
 import earthaccess
 import ee
+import numpy as np
+import rioxarray
+import xarray as xr
+from rasterio.enums import Resampling
+from rasterio.transform import from_bounds
+
+from gee_math.ee_session import init_ee
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "local_cache" / "antioquia_aburra"
 COG_DIR = CACHE_DIR / "cogs"
@@ -30,13 +31,10 @@ DST_CRS = "EPSG:4326"
 
 def init_gee() -> bool:
     try:
-        ee.Initialize(
-            project=os.environ.get("GCP_PROJECT_ID", "spaceapps-medellin-2026"),
-            opt_url="https://earthengine-highvolume.googleapis.com",
-        )
+        init_ee()
         return True
     except Exception as exc:
-        print(f"[WARN] GEE High-Volume Auth unavailable ({exc}). Using local topographic baseline.")
+        print(f"[WARN] GEE unavailable ({type(exc).__name__}); GEE layers recorded as missing.")
         return False
 
 
@@ -56,13 +54,13 @@ def init_earthaccess() -> bool:
 
 def select_best_nisar_pairs_from_catalog(
     aoi_key: str = "1_aburra_medellin_bello",
-) -> Dict[str, Optional[Dict[str, Any]]]:
+) -> dict[str, dict[str, Any] | None]:
     """
     Reads nisar_colombia_granules_2026.json and selects the deepest co-registered
     Track/Frame stack for both GCOV (backscatter covariance) and GUNW (unwrapped phase).
     Returns {'gcov_post', 'gcov_pre', 'gunw_post', 'gunw_pre'}.
     """
-    selected: Dict[str, Optional[Dict[str, Any]]] = {
+    selected: dict[str, dict[str, Any] | None] = {
         "gcov_post": None,
         "gcov_pre": None,
         "gunw_post": None,
@@ -73,6 +71,7 @@ def select_best_nisar_pairs_from_catalog(
         print(f"[INFO] {DISCOVERED_CATALOG_PATH.name} not found. Running discovery script first...")
         try:
             from scripts.discover_nisar_colombia import search_nisar_across_colombia
+
             search_nisar_across_colombia()
         except Exception as exc:
             print(f"[WARN] Auto-discovery skipped ({exc}).")
@@ -85,12 +84,8 @@ def select_best_nisar_pairs_from_catalog(
     stacks = catalog.get(aoi_key, {}).get("track_frame_stacks", {})
 
     # Sort stacks by number of scenes descending so we pick a Track/Frame with repeat-pass pairs
-    gcov_stacks = [
-        (k, v) for k, v in stacks.items() if k.startswith("GCOV_") and len(v) >= 1
-    ]
-    gunw_stacks = [
-        (k, v) for k, v in stacks.items() if k.startswith("GUNW_") and len(v) >= 1
-    ]
+    gcov_stacks = [(k, v) for k, v in stacks.items() if k.startswith("GCOV_") and len(v) >= 1]
+    gunw_stacks = [(k, v) for k, v in stacks.items() if k.startswith("GUNW_") and len(v) >= 1]
     gcov_stacks.sort(key=lambda item: len(item[1]), reverse=True)
     gunw_stacks.sort(key=lambda item: len(item[1]), reverse=True)
 
@@ -116,10 +111,10 @@ def select_best_nisar_pairs_from_catalog(
 
 
 def stream_and_warp_nisar_h5_subdataset(
-    granule_meta: Optional[Dict[str, Any]],
+    granule_meta: dict[str, Any] | None,
     h5_subdataset_path: str,
     resampling: Resampling = Resampling.bilinear,
-) -> Tuple[Optional[np.ndarray], Optional[str]]:
+) -> tuple[np.ndarray | None, str | None]:
     """
     Streams ONLY the bounding box byte-range from a remote NASA Earthdata NISAR .h5 URL
     via GDAL /vsicurl/, reprojects from native UTM (e.g., EPSG:32618) to the exact
@@ -138,7 +133,7 @@ def stream_and_warp_nisar_h5_subdataset(
         if da.ndim == 3:
             da = da.isel(band=0)
 
-        # Reproject and clip simultaneously from native UTM (EPSG:32618) to target 512x512 EPSG:4326 grid
+        # Reproject and clip from native UTM (EPSG:32618) to the 512x512 EPSG:4326 grid
         da_warped = da.rio.reproject(
             dst_crs=DST_CRS,
             shape=(HEIGHT, WIDTH),
@@ -150,12 +145,17 @@ def stream_and_warp_nisar_h5_subdataset(
 
         # Verify non-empty swath intersection over AOI
         if np.count_nonzero(np.isfinite(arr)) < (WIDTH * HEIGHT * 0.05):
-            print(f"   [WARN] Swath coverage <5% over AOI for {scene_name}; band recorded as missing.")
+            print(
+                f"   [WARN] Swath coverage <5% over AOI for {scene_name}; band recorded as missing."
+            )
             return None, None
 
         return arr, scene_name
     except Exception as exc:
-        print(f"   [WARN] Remote HDF5 slice failed for {h5_subdataset_path} ({exc}); band recorded as missing.")
+        print(
+            f"   [WARN] Remote HDF5 slice failed for {h5_subdataset_path} ({exc}); "
+            "band recorded as missing."
+        )
         return None, None
 
 
@@ -215,7 +215,7 @@ def build_antioquia_offline_cube():
 
     y_coords = np.linspace(BBOX[3], BBOX[1], HEIGHT)
     x_coords = np.linspace(BBOX[0], BBOX[2], WIDTH)
-    provenance: Dict[str, str] = {}
+    provenance: dict[str, str] = {}
 
     def missing() -> np.ndarray:
         # No synthetic fallback: a band we could not fetch is all-NaN and marked "missing".
@@ -233,7 +233,9 @@ def build_antioquia_offline_cube():
     if gee_online:
         print("1. Pulling bare-earth FABDEM slope, CHIRPS 15d rain & ESA CCI AGB v6.0 via GEE...")
         aoi = ee.Geometry.Rectangle(BBOX)
-        fabdem = ee.ImageCollection("projects/sat-io/open-datasets/FABDEM").filterBounds(aoi).mosaic()
+        fabdem = (
+            ee.ImageCollection("projects/sat-io/open-datasets/FABDEM").filterBounds(aoi).mosaic()
+        )
         slope_deg = fetch_gee_layer_as_numpy(ee.Terrain.slope(fabdem).rename("slope"), "slope")
 
         chirps = (
@@ -254,12 +256,16 @@ def build_antioquia_offline_cube():
     else:
         print("1. GEE offline: FABDEM slope, CHIRPS and ESA CCI AGB recorded as missing.")
     slope_deg = take(slope_deg, "fabdem_slope", "GEE projects/sat-io/open-datasets/FABDEM")
-    rain_15d_mm = take(rain_15d_mm, "chirps_15d", "GEE UCSB-CHG/CHIRPS/DAILY 2026-10-29..2026-11-13")
+    rain_15d_mm = take(
+        rain_15d_mm, "chirps_15d", "GEE UCSB-CHG/CHIRPS/DAILY 2026-10-29..2026-11-13"
+    )
     agb_mgha = take(agb_mgha, "esa_agb", "GEE projects/sat-io/open-datasets/ESA/ESA_CCI_AGB")
 
-    # --- STEP 2: Discover & Slice Real NISAR GCOV and GUNW Granules from nisar_colombia_granules_2026.json ---
+    # --- STEP 2: slice real NISAR GCOV and GUNW granules (nisar_colombia_granules_2026.json) ---
     print("2. Inspecting discovered NISAR granules in nisar_colombia_granules_2026.json...")
-    pairs = select_best_nisar_pairs_from_catalog("1_aburra_medellin_bello") if earthdata_online else {}
+    pairs = (
+        select_best_nisar_pairs_from_catalog("1_aburra_medellin_bello") if earthdata_online else {}
+    )
 
     # 2A. Slice NISAR L2 GCOV (HHHH & HVHV Post-Event and Pre-Event)
     gcov_base = "/science/LSAR/GCOV/grids/frequencyA"
@@ -272,21 +278,31 @@ def build_antioquia_offline_cube():
     a, pre_id2 = stream_and_warp_nisar_h5_subdataset(pairs.get("gcov_pre"), f"{gcov_base}/HVHV")
     hvhv_pre = take(a, "gcov_hvhv_pre", pre_id2)
 
-    # 2B. Slice NISAR L2 GUNW (unwrappedPhase, ionosphericPhaseScreen, coherenceMagnitude, connectedComponents)
+    # 2B. Slice NISAR L2 GUNW: unwrappedPhase, ionosphericPhaseScreen, coherenceMagnitude,
+    # connectedComponents
     gunw_base = "/science/LSAR/GUNW/grids/frequencyA"
-    unw_arr, gunw_id = stream_and_warp_nisar_h5_subdataset(pairs.get("gunw_post"), f"{gunw_base}/unwrappedPhase")
-    iono_arr, iono_id = stream_and_warp_nisar_h5_subdataset(pairs.get("gunw_post"), f"{gunw_base}/ionosphericPhaseScreen")
-    coh_post, coh_id = stream_and_warp_nisar_h5_subdataset(pairs.get("gunw_post"), f"{gunw_base}/coherenceMagnitude")
+    unw_arr, gunw_id = stream_and_warp_nisar_h5_subdataset(
+        pairs.get("gunw_post"), f"{gunw_base}/unwrappedPhase"
+    )
+    iono_arr, iono_id = stream_and_warp_nisar_h5_subdataset(
+        pairs.get("gunw_post"), f"{gunw_base}/ionosphericPhaseScreen"
+    )
+    coh_post, coh_id = stream_and_warp_nisar_h5_subdataset(
+        pairs.get("gunw_post"), f"{gunw_base}/coherenceMagnitude"
+    )
     conn_comp, cc_id = stream_and_warp_nisar_h5_subdataset(
         pairs.get("gunw_post"), f"{gunw_base}/connectedComponents", resampling=Resampling.nearest
     )
-    coh_pre, gunw_pre_id = stream_and_warp_nisar_h5_subdataset(pairs.get("gunw_pre"), f"{gunw_base}/coherenceMagnitude")
+    coh_pre, gunw_pre_id = stream_and_warp_nisar_h5_subdataset(
+        pairs.get("gunw_pre"), f"{gunw_base}/coherenceMagnitude"
+    )
 
     iono_screen = take(iono_arr, "gunw_ionosphere", iono_id)
     if unw_arr is not None and iono_arr is not None:
         gunw_phase_corr = (unw_arr - iono_arr).astype(np.float32)
         provenance["gunw_phase_corr"] = f"{gunw_id} (ionosphere screen applied)"
-        # TODO(Aburrá lane, design doc Hazard 1): troposphere fit, LOS→downslope projection, noise-floor test.
+        # TODO(hazard modeling, design doc Hazard 1): troposphere fit, LOS->downslope
+        # projection, noise-floor test.
         downslope_disp_mm = (gunw_phase_corr * (-240.0 / (4.0 * math.pi))).astype(np.float32)
         provenance["los_disp_mm"] = provenance["gunw_phase_corr"]
     else:
@@ -305,7 +321,9 @@ def build_antioquia_offline_cube():
         "gunw_iono_gcs": save_array_as_cog(iono_screen, "nisar_gunw_iono.tif"),
         "gunw_coh_gcs": save_array_as_cog(gunw_coherence, "nisar_gunw_coherence.tif"),
         "gunw_conncomp_gcs": save_array_as_cog(conn_comp, "nisar_gunw_conncomp.tif"),
-        "coherence_coseismic_gcs": save_array_as_cog(coherence_coseismic, "nisar_gunw_coh_coseismic.tif"),
+        "coherence_coseismic_gcs": save_array_as_cog(
+            coherence_coseismic, "nisar_gunw_coh_coseismic.tif"
+        ),
         "gcov_hhhh_pre_gcs": save_array_as_cog(hhhh_pre, "nisar_gcov_hhhh_pre.tif"),
         "gcov_hvhv_pre_gcs": save_array_as_cog(hvhv_pre, "nisar_gcov_hvhv_pre.tif"),
         "gcov_hhhh_post_gcs": save_array_as_cog(hhhh_post, "nisar_gcov_hhhh_post.tif"),

@@ -52,10 +52,12 @@ def check_earthdata() -> str:
 def check_gee() -> str:
     import ee
 
-    project = os.environ["GCP_PROJECT_ID"]
-    ee.Initialize(project=project)
+    sys.path.insert(0, str(ROOT))
+    from gee_math.ee_session import init_ee
+
+    init_ee()
     ee.Number(1).getInfo()  # read-only round trip
-    return "ee.Initialize(project=<set>) and a read-only getInfo ok"
+    return "init_ee (ADC identity) and a read-only getInfo ok"
 
 
 def check_gcs() -> str:
