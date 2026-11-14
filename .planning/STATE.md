@@ -5,8 +5,8 @@ progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 31
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 6
 ---
 <!-- STATE-MD-SCHEMA:END:frontmatter -->
 
@@ -21,10 +21,10 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation)
-Plan: 0 of 7 in current phase
-Status: Ready to execute
-Last activity: 2026-11-14 — spec ingested into GSD Core planning (docs/designs/bailasar.md)
+Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
+Plan: 01-01 done (#16); 02-01 done (#23, gate report reports/gate.md)
+Status: In progress
+Last activity: 2026-11-14 — hour-2 gate: GUNW/GCOV exist over all 3 AOIs; quake R/C/K selected on tracks 11 and 47 (C is 24-day, R/K 12-day)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -37,7 +37,7 @@ Decisions are logged in the PROJECT.md Key Decisions table (D1–D17 of the desi
 ### Pending Todos
 
 - Owner: record the submission deadline D (plan 02-07)
-- Owner: PR #14 merge after `make setup` + `make ci`
+- Agents in flight (local branches, orchestrator reviews before push): quake DPM (opencode GLM-5.3), Aburrá InSAR (grok), La Mojana flood (grok2), cache builder (antigravity, manual)
 
 ### Blockers/Concerns
 
