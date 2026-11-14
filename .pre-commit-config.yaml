@@ -37,6 +37,17 @@ repos:
         args: [--baseline, .secrets.baseline]
         exclude: (\.lock|\.csv|\.parquet|\.pdf|\.tif|\.zarr/.*)$
 
+  # === Sync with trunk ===
+  # Blocks a commit on a branch that is behind origin/main; fix with `make sync`.
+  - repo: local
+    hooks:
+      - id: up-to-date-with-main
+        name: branch is up to date with origin/main
+        entry: scripts/check_up_to_date.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
   # === Evidence rules ===
   - repo: local
     hooks:

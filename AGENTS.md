@@ -60,6 +60,7 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 
 ```bash
 make setup                               # uv env + pre-commit (and commit-msg) hooks + .env from template
+make sync                                # rebase your branch onto the latest origin/main (do this before every commit)
 make worktree BRANCH=feat/quake-dpm      # new worktree from the latest origin/main
 make check                               # every pre-commit hook on every file (identical to CI)
 make test                                # tests that need no network or cache (what CI runs)
@@ -78,6 +79,7 @@ Run the relevant tests and the hooks before every commit. A failing hook is a re
   - `fix/mcp-sse-transport`
   - `docs/kb-gunw-layers`
 - Branches start from the **latest `origin/main`**. Before a PR, rebase your own branch onto `origin/main` (never rebase a shared branch).
+- **Always build on the latest trunk.** Run `make sync` (fetch + rebase your branch onto `origin/main`; fast-forward on `main`) **when you start a work session, before every commit and before every push**. A pre-commit hook (`up-to-date-with-main`) refuses a commit on a branch that is behind `origin/main` and tells you to run `make sync`; offline it warns and lets the commit through. If the rebase conflicts, resolve only files your lane owns and ask the owner about the rest; never `--no-verify` past the check.
 - **Never commit on `main`, locally or remotely.** The `no-commit-to-branch` hook refuses it. On a private free-plan repo GitHub cannot enforce branch protection, so the hook and the review rule are the guard.
 - Unfinished work merges hidden behind the panel states or a config flag in `config/bailasar.yaml`, never by keeping a branch open.
 - Integrate small and often: one task (issue) per branch, one PR per branch, merge the same hour if the gate is green.

@@ -39,7 +39,7 @@ jobs:
           echo "$TITLE" | grep -Eq '^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\([a-z0-9-]+\))?!?: .{1,72}$'
       - name: Hooks on changed files
         env:
-          SKIP: no-commit-to-branch
+          SKIP: no-commit-to-branch,up-to-date-with-main
         run: uvx pre-commit run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
       - name: Offline tests
         run: uv run --frozen pytest -q -m "not network and not cache"
