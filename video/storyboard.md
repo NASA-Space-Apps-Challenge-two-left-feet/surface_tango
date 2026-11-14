@@ -1,6 +1,6 @@
 # BailaSAR submission storyboard
 
-Draft for #39. The hour-4 headline and its measured outcome are pending. Every bracketed shot is a placeholder for approved footage or text.
+Storyboard for #39. The shot order and capture instructions are ready. Bracketed fields are reserved for approved footage, wording, or decisions.
 
 ## Cut approval
 
@@ -8,7 +8,8 @@ Draft for #39. The hour-4 headline and its measured outcome are pending. Every b
 |---|---|
 | Selected headline | [Earthquake, La Mojana, or coverage] |
 | Approved wording for the outcome | [Measured result or documented null] |
-| Evidence and approval reference | [Report path and comment or decision link] |
+| Headline decision from LEONOB2014 | [Decision link or entry in validation/README.md] |
+| Evidence from the science lane | [Report path and source IDs] |
 | Submission and recording time in Bogotá | [Deadline D] and [D−6 h] |
 
 ## Shot selection
@@ -44,6 +45,16 @@ Fill this sheet with the selected shots and exact text after approval. Use the s
 | 10–20 s | [Map take] | [Ranking, classes, or coverage] | [Report and source IDs] |
 | 20–27 s | [Outcome card] | [Measured result with units and interval, or documented null] | [Outcome report] |
 | 27–30 s | [Credits card] | [Team, sources, SI-assisted disclosure] | [Credit list] |
+
+## Direction for the capture
+
+- **Event card.** Start on a static card. Use the approved place name and headline as the first line. Hold the map reveal until the card has been read.
+- **Curtain.** Start with the comparison dividers visible. Drag across the same area so the layers remain aligned, then hold on the layer that supports the headline.
+- **Evidence.** Hold on the ranked barrios, flood layer, or coverage panel long enough to read its labels. Use the approved null or coverage screen if the gate disallows a measured map for the selected headline.
+- **Outcome.** Show one readable result card. For a measured outcome, include the unit, comparison or denominator, and applicable interval. For a null outcome, show the approved wording and name the missing input or evidence limit.
+- **Credits.** Reserve the final shot for team, data credits, and the SI-assisted disclosure. Use text credits to fit the available time.
+
+Before capture, confirm that each shot in the recording copy has an approval or evidence reference. Keep every unresolved frame marked as a placeholder in the worksheet.
 
 ## Capture handoff for #43
 
