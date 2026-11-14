@@ -18,7 +18,8 @@ dependencies = [
     "numpy",
     "fastmcp",
     "langgraph",
-    "langchain-anthropic",
+    "langchain-openai",
+    "langchain-mcp-adapters",
     "fastapi",
     "uvicorn",
     "pyyaml",
@@ -30,6 +31,7 @@ dev = ["pytest", "pre-commit", "commitizen", "ruff", "detect-secrets"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "network: needs network or credentials (never in CI)",
     "cache: needs a built local_cache/ (never in CI)",
@@ -40,6 +42,11 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Long LLM prompt strings from the imported baseline; rewritten under the bulletin
+# placeholder contract in #36, then remove this exemption.
+"agents/orchestrator.py" = ["E501"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"

@@ -20,7 +20,7 @@ SERVICES = {
     "earthdata": ["EARTHDATA_USERNAME", "EARTHDATA_PASSWORD", "EARTHDATA_TOKEN"],
     "gee": ["GCP_PROJECT_ID", "GEE_SERVICE_ACCOUNT", "GOOGLE_APPLICATION_CREDENTIALS"],
     "gcs": ["GCP_PROJECT_ID", "GCS_BUCKET", "GOOGLE_APPLICATION_CREDENTIALS"],
-    "llm": ["ANTHROPIC_API_KEY"],
+    "llm": ["NEBIUS_API_KEY", "FEATHERLESS_API_KEY", "OPENROUTER_API_KEY"],
 }
 
 
@@ -70,11 +70,29 @@ def check_gcs() -> str:
 
 
 def check_llm() -> str:
-    import anthropic
+    """List models on each configured provider (read-only); pass if any chain model is served."""
+    import json
+    import urllib.request
 
-    client = anthropic.Anthropic()
-    client.models.list(limit=1)  # read-only, no tokens generated
-    return "models.list ok"
+    import yaml
+
+    cfg = yaml.safe_load((ROOT / "config" / "bailasar.yaml").read_text(encoding="utf-8"))["llm"]
+    ok = []
+    for entry in cfg["chain"]:
+        provider = cfg["providers"][entry["provider"]]
+        key = os.environ.get(provider["api_key_env"])
+        if not key:
+            continue
+        req = urllib.request.Request(
+            provider["base_url"] + "/models", headers={"Authorization": f"Bearer {key}"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            served = {m["id"] for m in json.load(r).get("data", [])}
+        if entry["model"] in served:
+            ok.append(f"{entry['provider']}:{entry['model']}")
+    if not ok:
+        raise RuntimeError("no chain model is served by a provider with a key")
+    return "served: " + ", ".join(ok)
 
 
 CHECKS = {"earthdata": check_earthdata, "gee": check_gee, "gcs": check_gcs, "llm": check_llm}

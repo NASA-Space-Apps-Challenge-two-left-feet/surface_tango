@@ -1,16 +1,17 @@
 # agents/orchestrator.py
 import asyncio
 from pathlib import Path
-from langchain.chat_models import init_chat_model
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
-from langgraph.graph import StateGraph, START, END
 
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import create_react_agent
+
+from agents.llm import get_orchestrator_llm
 from agents.state import (
-    MultiHazardGraphState,
-    HazardAgentReport,
     CascadingMultiHazardBulletin,
+    HazardAgentReport,
+    MultiHazardGraphState,
 )
 
 SERVER_DIR = Path(__file__).resolve().parent.parent / "mcp_servers"
@@ -28,7 +29,8 @@ MCP_CONFIG = {
     },
 }
 
-llm = init_chat_model("anthropic:claude-sonnet-4-20250514", temperature=0.0)
+llm = get_orchestrator_llm()  # fallback chain from config/bailasar.yaml (llm:)
+
 
 async def build_and_run_multi_hazard_graph(initial_state: MultiHazardGraphState):
     client = MultiServerMCPClient(MCP_CONFIG)
@@ -72,6 +74,7 @@ async def build_and_run_multi_hazard_graph(initial_state: MultiHazardGraphState)
             result = await worker.ainvoke({"messages": [HumanMessage(content=msg)]})
             structured: HazardAgentReport = result["structured_response"]
             return {"hazard_reports": {domain_name: structured.model_dump()}}
+
         return _node
 
     landslide_node = make_domain_node(
@@ -115,7 +118,9 @@ async def build_and_run_multi_hazard_graph(initial_state: MultiHazardGraphState)
         human_prompt = HumanMessage(
             content=f"Region: {state['region_name']}\nReports: {state['hazard_reports']}"
         )
-        bulletin: CascadingMultiHazardBulletin = await structured_llm.ainvoke([sys_prompt, human_prompt])
+        bulletin: CascadingMultiHazardBulletin = await structured_llm.ainvoke(
+            [sys_prompt, human_prompt]
+        )
         return {"final_bulletin": bulletin.model_dump()}
 
     # Build the Parallel Fan-Out / Fan-In StateGraph
@@ -144,6 +149,7 @@ async def build_and_run_multi_hazard_graph(initial_state: MultiHazardGraphState)
 
     graph = builder.compile()
     return await graph.ainvoke(initial_state)
+
 
 if __name__ == "__main__":
     # Example invocation over the Aburra Valley / Bello / Medellin Northern Slopes

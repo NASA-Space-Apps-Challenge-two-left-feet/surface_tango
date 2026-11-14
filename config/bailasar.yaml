@@ -12,3 +12,19 @@ breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool at the hour-2 ga
 features:            # hide unfinished work behind flags instead of long-lived branches
   mathlab_corrections: false
   story_chapter_4_synthesis: false
+llm:   # orchestrator chain, tried in order; entries without a key in .env are skipped
+  temperature: 0.0
+  timeout_s: 60
+  max_retries: 1
+  providers:
+    nebius: {base_url: "https://api.tokenfactory.nebius.com/v1", api_key_env: NEBIUS_API_KEY}  # pragma: allowlist secret
+    featherless: {base_url: "https://api.featherless.ai/v1", api_key_env: FEATHERLESS_API_KEY}  # pragma: allowlist secret
+    openrouter: {base_url: "https://openrouter.ai/api/v1", api_key_env: OPENROUTER_API_KEY}  # pragma: allowlist secret
+  chain:   # Featherless preferred; Nebius fallback; OpenRouter last (limited credits)
+    - {provider: featherless, model: zai-org/GLM-5.3}                # primary
+    - {provider: featherless, model: moonshotai/Kimi-K3.1-Pro}       # reasoning, same provider
+    - {provider: featherless, model: zai-org/GLM-5.3-Flash}          # cheap, same provider
+    - {provider: nebius, model: moonshotai/Kimi-K3.1-Pro}            # second provider
+    - {provider: nebius, model: deepseek-ai/DeepSeek-V4-Pro-0813}
+    - {provider: openrouter, model: moonshotai/kimi-k3.1-pro}        # last resort (limited credits)
+    - {provider: openrouter, model: deepseek/deepseek-v4-pro-0813}
