@@ -9,7 +9,7 @@ secrets/
 *service-account*.json
 
 # Data never enters git
-local_cache/
+local_cache
 *.zarr/
 *.tif
 *.h5
