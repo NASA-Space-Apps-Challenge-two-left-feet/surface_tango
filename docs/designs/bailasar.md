@@ -31,7 +31,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 - **The curtain slider is the "whoa."** On the same hillside or the same flooded forest, the optical panel shows cloud, the C-band panel shows decorrelated noise, and the L-band panel shows the signal. One drag of the slider makes the radar-physics argument with no words.
 - **Each disaster is analyzed at home, by the people who live there.** The team presents in Medellín, about the Aburrá slopes, the coffee-region quake and La Mojana. That "hometown context" is what the challenge rewards.
 - **First-aid ranking with a scorecard.** The quake chapter doesn't stop at a damage map. It ranks barrios for first-aid deployment, then scores the ranking against reported damage and against a population-only baseline. Few teams will show that a radar result beat a naive baseline, or honestly say that it didn't.
-- **The agents explain; they never invent.** The LangGraph synthesis writes an ES/EN bulletin for UNGRD/DAGRD, and every number in it is copied from a deterministic tool output.
+- **The agents explain; they never invent.** The LangGraph synthesis writes an ES/EN bulletin for UNGRD/DAGRD, and every number in it is rendered from a deterministic tool output or a sourced event constant.
 
 ## Constraints
 
@@ -54,7 +54,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 1. **NISAR record window.** The public L-band archive covers acquisitions from **Jun 17 2026** onward. Validated L2 GCOV/GUNW were released Nov 6 2026, and earlier products may be *provisional*. Every granule records its version, and the UI labels provisional data.
 2. **Build priority and headline.** The build priority is (1) Aburrá landslides, (2) the Aug 10 2026 quake, (3) La Mojana flood. **The 30-second video headlines the quake**, because it is the largest event inside the NISAR record and can be validated against published damage. Biomass is dropped from scope (TODO).
 3. **Aburrá.** NISAR GUNW for Jun–Nov 2026 shows **currently** moving slopes. The Granizal (Bello) debris flow of **Jun 24 2025** predates NISAR and serves only as historical context and validation. If the velocity field doesn't beat the noise floor, the UI says so.
-4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó); SGC gives a depth of **96 km**. A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking = DPM × building footprints × WorldPop × hospitals/roads. Murindó/Romeral and GOFF surface rupture move to TODO.
+4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó); SGC gives a depth of **96 km**. A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking: the frozen formula in Hazard 2 (built-up-pixel DPM × WorldPop × hospital distance; footprints only classify pixels). Murindó/Romeral and GOFF surface rupture move to TODO.
 5. **Flood.** Over Colombia, L-band is **dual-pol HH/HV**, so the flood physics is HH change detection against a dry baseline plus HAND gating:
    - darker HH means open water;
    - brighter HH with a stable HV/HH ratio means flooded vegetation.
@@ -77,7 +77,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 - **Converged:**
   - The video is quake-only.
   - The headline number must beat a **WorldPop-only baseline** at the same k.
-  - The headline number must also pass a **control pair that misses Aug 10**, plus an inside-vs-outside building footprint check.
+  - The headline number must also pass a **control pair that misses Aug 10** (now: the built-up vs non-built excess test in Hazard 2).
   - Gate at hour 2 on granule existence.
   - If radar loses, the honest comparison becomes the headline.
 - **Physics points from Grok** (the formula is checked; the product details are unverified until the hour-2 gate):
@@ -102,7 +102,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 ### Repository (from the team's generated layout, with required changes)
 
 ```
-sars-dance-medellin/
+surface_tango/
 ├── Dockerfile, docker-compose.yml, Makefile   # keep: make up / pitch / prewarm / test-dag / logs / down
 ├── app.py                                    # FastAPI SSE + local Zarr XYZ tile server (keep)
 ├── agents/
@@ -122,7 +122,8 @@ sars-dance-medellin/
 │   ├── prewarm_antioquia_cache.py            # CHANGE: DELETE the radar synthesizer; real granules only
 │   ├── watch_zarr_telemetry.py, tmux_mission_control.sh   # keep (cheap, demo-day visibility)
 ├── web/ (MapLibre + Deck.gl + story map + /math-lab)
-└── validation/                               # NEW: baselines, control pairs, scorecards (CSV + JSON)
+├── config/bailasar.yaml                      # NEW (eng review R4): AOIs, thresholds, k, weights, pair IDs, breaker budgets
+└── validation/                               # NEW: README.md (pre-registration), scoring.py, ALLOWLIST.md, event_facts.json, scorecards
 ```
 
 ### Data layer
@@ -165,6 +166,7 @@ sars-dance-medellin/
   | No GUNW over Aburrá | Aburrá ships as a coverage statement + Granizal context only |
   | No HH+HV GCOV over La Mojana (other pols, or none) | Flood ships as a coverage statement; if the quake also failed, the video headline is the Aburrá/La Mojana curtain slider plus the documented gate results ("what NISAR covers over Colombia, Jun–Nov 2026") |
   | Coherence posting coarser than 20 m | Quake units stay at barrio level (see Hazard 2); no change in method |
+  | A needed pair exists only as RSLC/GSLC, not GUNW | Treat as missing. Generating coherence from RSLC (ISCE3) is out of scope for this hackathon (TODO) |
 - **Ingest path:** keep the zero-download design. `asf_search`/`earthaccess` → HDF5 subset via `/vsicurl/` or `h5py` + `fsspec` → COG (EPSG:4326) on GCS → `ee.Image.loadGeoTIFF`, plus a local Zarr v3 cube per AOI.
 - **`cache_guard.py` (circuit breaker, 1.8 s):**
   - On timeout, serve **only real pre-staged tiles and precomputed statistics** from the Zarr cube.
@@ -275,7 +277,8 @@ sars-dance-medellin/
 - **Synthesis output:** a bilingual `CascadingMultiHazardBulletin` (ES/EN) plus GeoJSON for UNGRD/DAGRD, with the "SI-Assisted Analytics" badge.
 - **Bulletin contract:**
   - **Placeholders, not digits.** The LLM writes ES and EN prose with placeholders such as `{eq.precision_radar}` or `{flood.class2_ha}`, referencing tool-output keys. It may not write digits.
-  - **Event constants** (Aug 10 2026, M7.4, 96 km, place names with numbers) come from an allow-list, `validation/event_facts.json`. Each entry has its primary source: USGS event ID, SGC bulletin.
+  - **Unit and place names** (e.g. "Comuna 13") are rendered through placeholders from the ranking output; **sensor names** (Sentinel-1, Sentinel-2) are on the allow-list.
+  - **Event constants** (Aug 10 2026, M7.4, 96 km) come from an allow-list, `validation/event_facts.json`. Each entry has its primary source: USGS event ID, SGC bulletin.
   - **Locale rendering.** A renderer fills the placeholders from the tool outputs with per-locale formatting: ES uses a decimal comma, EN a decimal point, with rounding rules per key and units appended.
   - **Check, at generation and again at serve time** (including for cached bulletins): reject the bulletin if
     - the LLM text contains any digit outside a placeholder or allow-listed constant;
@@ -320,9 +323,9 @@ Spanish voice-over with English subtitles. No NASA logo. Every number on screen 
 | Lane | People | Owns |
 |---|---|---|
 | Data | 1 | discovery gate, ingest, Zarr/COG cache (synthesizer removed), cache_guard |
-| Quake science | 2 | DPM, masking, footprint aggregation, ranking, scorecard + control pair |
+| Quake science | 2 | DPM, masking, built-up/non-built pixel classification, ranking, scorecard + control pass |
 | Aburrá + Flood science | 1 | landslide noise-floor test and HKLSI labelling; flood classes and hectares |
-| Agents/MCP | 1 | two FastMCP servers, LangGraph graph, bulletin with verbatim-number check |
+| Agents/MCP | 1 | two FastMCP servers, LangGraph graph, bulletin contract (placeholders, locale renderer, digit/key/hash check, event_facts.json) |
 | Frontend + video | 1 | mission control, curtain slider, story map, math-lab corrections, 30 s video |
 
 - **Hour 2 gate:** real `nisar_colombia_granules_2026.json` exists. Every branch follows the gate decision table in the Data layer section.
@@ -372,7 +375,7 @@ Spanish voice-over with English subtitles. No NASA logo. Every number on screen 
 2. Data lane: run the discovery gate (the Assignment).
 3. Delete the radar synthesizer from `prewarm_antioquia_cache.py` before anyone builds the cache.
 4. Quake lane: commit the full pre-registration (formula, unit, positive label, source, k, R/C/K IDs, comparison rule) to `validation/README.md` before any co-event coherence is viewed.
-5. Agents lane: retarget `orchestrator.py` to 3 agents and add the verbatim-number check.
+5. Agents lane: retarget `orchestrator.py` to 3 agents and implement the bulletin contract (placeholders, renderer, digit/key/hash check).
 6. Frontend lane: re-sequence the story map, apply the math-lab corrections and draft the video storyboard with placeholder frames clearly marked.
 7. Hour 14: gate review; lock the video script to the measured outcome.
 
@@ -668,3 +671,1004 @@ issues verified: 3 of 3
 
 Verification is deterministic: a fix counts when its `applied_text` is in the current design and absent from the round-3 snapshot. It confirms applied edits, never a review verdict; no reviewer was launched past the cap.
 <!-- gstack:office-hours:concerns:end -->
+
+## Eng Review (plan-eng-review, 2026-11-14) — Scope record
+
+Target: docs/designs/bailasar.md (this file), commit 11242b8.
+Scope record: feature answers: none proposed (scope set by user in office hours, D2/D7 of that session); structure: B Original arrangement (D1, user answer "Original arrangement"); accepted scope: full plan as written, two MCP processes on 8001/8002, 4 compose services; pending remedies: none yet.
+
+### Scope Challenge findings
+
+1. [CRITICAL] (confidence: 9/10) docs/designs/bailasar.md:102-126: the repository tree marks files as `CHANGE`/`keep` (`orchestrator.py`, `cache_guard.py`, `prewarm_antioquia_cache.py`, ...), but the repo contains only `.gitignore` and this doc (`git ls-files`, commit 11242b8). No lane has a baseline to change. Reviewer: plan-eng-review.
+2. [CRITICAL] (confidence: 8/10) docs/designs/bailasar.md:135 and :381: the hour-2 gate runs `discover_nisar_colombia.py`, but no hour-0 prerequisites are listed. Probe on this machine: `asf_search`, `earthaccess`, `ee`, `zarr`, `rioxarray`, `h5py`, `fastmcp`, `langgraph` are not installed. Earthdata Login, a GEE project and a GCS bucket are needed and unlisted. Reviewer: plan-eng-review.
+3. [INFORMATIONAL] (confidence: 8/10) docs/designs/bailasar.md:261-267: the MCP transport is unspecified. The generated servers use SSE (original brief: "Port 8001, SSE"). FastMCP docs mark SSE deprecated and recommend Streamable HTTP for new projects; the MCP spec deprecated HTTP+SSE on 2025-03-26. Reviewer: plan-eng-review (web search).
+4. Factual correction, no question needed: docs/designs/bailasar.md:195 and Open Questions. ASF NISAR docs state that GUNW carries coherence magnitude at 20 m and 80 m posting, unwrapped phase at 80 m, and an ionosphere phase screen that is included but not applied by default. The "20 m expected" and "provided ionosphere screen" assumptions hold; the posting open question is answered.
+
+Premise table (unverified=3):
+
+| premise | claim | receipt | verdict |
+|---|---|---|---|
+| NISAR public window | acquisitions from Jun 17 2026 | docs/designs/bailasar.md:54 (ASF notice, web) | verified |
+| validated L2 release | Nov 6 2026 | docs/designs/bailasar.md:54 (Earthdata alert, web) | verified |
+| quake depth | 96 km | docs/designs/bailasar.md:57 (SGC via secondary source) | verified (secondary) |
+| dual-pol over Colombia | HH/HV baseline | docs/designs/bailasar.md:58 (NASA polarimetry page) | verified (plan-level) |
+| GUNW posting / iono layer | 20/80 m, iono not applied | docs/designs/bailasar.md:195 (ASF GUNW docs, web) | verified |
+| no S-band over Colombia | absence of evidence | docs/designs/bailasar.md:62 | unverified |
+| barrio-level damage reports exist | open | docs/designs/bailasar.md:239 | unverified |
+| pre-Oct-21 products provisional | Grok claim | docs/designs/bailasar.md:87 | unverified |
+
+REALITY: premise-table finding 8 claims, 3 unverified (S-band absence, barrio reports, provisional cutoff) docs/designs/bailasar.md:54
+REALITY: already-done pass remote origin is empty (git ls-remote returns nothing); nothing pre-built docs/designs/bailasar.md:1
+REALITY: surface-check finding Python libs not installed; MCP SSE transport deprecated; rg/docker/make present docs/designs/bailasar.md:168
+REALITY: binding-decisions pass no logged branch decisions; binding user choices are recentered architecture and Original arrangement (D1) docs/designs/bailasar.md:100
+REALITY: numbers pass thresholds tagged uncalibrated, 1.8 s and latency are targets not measurements docs/designs/bailasar.md:253
+REALITY: deferred-asks pass no linked issue docs/designs/bailasar.md:333
+REALITY: pr-count pass no ship-policy file; default one PR per wave, lanes branch per lane docs/designs/bailasar.md:318
+
+## Decision ledger
+
+### R1: Import the generated code as a baseline before lanes start
+Finding: Scope Challenge #1, CRITICAL, 9/10, docs/designs/bailasar.md:102-126, plan-eng-review
+Plan baseline: Next Step 1 commits only this doc; the tree assumes the generated files exist (original proposal).
+Runtime evidence: `git ls-files` shows only .gitignore and this doc; remote empty.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R1 baseline source | unspecified (files assumed present) | import team's generated code as first code commit, synthesizer removed in that same commit | each lane regenerates its files from this spec |
+| R2 hour-0 prereqs | pending | pending | pending |
+| R3 MCP transport | pending | pending | pending |
+| Structure | Original arrangement (D1) | Original arrangement | Original arrangement |
+Question D2:
+D2 — Where does the code that the plan says to "CHANGE" come from?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (repo tree, lines 102-126).
+ELI10: The plan says "change orchestrator.py", "delete the synthesizer in prewarm_antioquia_cache.py", and so on, but those files are not in the repo: they only exist inside your Gemini chat export. Either someone imports that generated code as the starting commit, or each lane regenerates its part from this spec.
+Stakes if we pick wrong: six lanes regenerating in parallel produce six incompatible interfaces; importing unreviewed code risks carrying the synthesizer or other bad assumptions in.
+Recommendation: A because one shared baseline commit gives every lane the same interfaces, and removing the synthesizer in that same commit enforces the no-synthetic-data rule from minute one.
+Completeness: A=9/10, B=6/10
+Pros / cons:
+A) Import baseline (recommended)
+  ✅ All six lanes start from identical file names, tool names and state schema
+  ✅ The synthesizer is deleted in the import commit, so it never exists in history
+  ❌ Unreviewed generated code enters main; lanes must still read what they inherit
+  (human: ~1h / CC: ~10 min)
+B) Regenerate per lane
+  ✅ No unreviewed generated code; every file written against the corrected spec
+  ✅ No dependency on extracting code from the chat export
+  ❌ Interfaces between lanes drift; integration cost lands at hour 14
+  (human: ~1 day / CC: ~1h across lanes)
+Net: shared baseline with inherited risk versus clean files with integration drift.
+Header: Baseline
+Options:
+A) Import baseline (recommended)
+Import the team's generated code as the first code commit, with the radar synthesizer removed in that same commit; lanes branch from it.
+B) Regenerate per lane
+Each lane regenerates its files from this spec; no generated code is imported.
+
+State: approved
+Actual answer: A) Import baseline (D2, user answer "A) Import baseline (recommended)")
+Accepted scope: import the team's generated code as the first code commit, with the radar synthesizer removed in that same commit; lanes branch from it.
+History: none
+
+### R2: Hour-0 prerequisites before the hour-2 gate
+Finding: Scope Challenge #2, CRITICAL, 8/10, docs/designs/bailasar.md:135 and :381, plan-eng-review
+Plan baseline: no prerequisites listed (original proposal).
+Runtime evidence: on this machine asf_search, earthaccess, ee, zarr, rioxarray, h5py, fastmcp, langgraph are not installed; credentials unknown.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R1 baseline source | approved: import baseline (D2) | import baseline | import baseline |
+| R2 hour-0 prereqs | none listed | pinned dependency file committed with the baseline + checklist of Earthdata Login, GEE project, GCS bucket, each verified by one non-mutating call, before the gate | each engineer installs and authenticates ad hoc |
+| R3 MCP transport | pending | pending | pending |
+Question D3:
+D3 — Add an hour-0 prerequisites step before the hour-2 data gate?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (hour-2 gate, lines 135 and 381).
+ELI10: The very first task, running the NISAR granule search, needs Python libraries and three logins (NASA Earthdata, a Google Earth Engine project, a Google Cloud Storage bucket). None of the libraries are installed here and the plan never lists the logins. A short hour-0 checklist makes sure the gate can actually run, with one harmless test call per login.
+Stakes if we pick wrong: the hour-2 gate stalls on a missing token or package and the whole team waits.
+Recommendation: A because the gate is the critical path and a pinned dependency file plus three verified logins removes its most likely failure.
+Completeness: A=9/10, B=5/10
+Pros / cons:
+A) Hour-0 checklist (recommended)
+  ✅ Pinned dependency file in the baseline commit: every engineer gets the same versions
+  ✅ Each login proven by one read-only call before the gate starts, not during it
+  ❌ Costs 20-40 minutes before any science starts
+  (human: ~40min / CC: ~10min)
+B) Ad hoc setup
+  ✅ No upfront step; engineers start immediately
+  ✅ Nothing extra to write in the plan
+  ❌ Version drift and missing tokens surface mid-gate, on the critical path
+  (no extra effort)
+Net: 30 minutes of setup now versus a stalled critical path later.
+Header: Hour-0 prereqs
+Options:
+A) Hour-0 checklist (recommended)
+Commit a pinned dependency file with the baseline and add an hour-0 checklist (Earthdata Login, GEE project, GCS bucket), each verified by one non-mutating call before the hour-2 gate.
+B) Ad hoc setup
+Engineers install packages and authenticate on their own; the plan lists no prerequisites.
+
+State: approved
+Actual answer: A) Hour-0 checklist (D3, user answer "A) Hour-0 checklist (recommended)")
+Accepted scope: commit a pinned dependency file with the baseline and add an hour-0 checklist (Earthdata Login, GEE project, GCS bucket), each verified by one non-mutating call before the hour-2 gate.
+History: none
+
+### R3: MCP transport for the two FastMCP servers
+Finding: Scope Challenge #3, INFORMATIONAL, 8/10, docs/designs/bailasar.md:261-267, plan-eng-review (web search: FastMCP docs mark SSE deprecated; MCP spec deprecated HTTP+SSE 2025-03-26)
+Plan baseline: transport unspecified in this doc; generated code and original brief use SSE (original proposal).
+Runtime evidence: unknown (generated code not yet in repo; R1 imports it).
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R1 baseline source | approved (D2) | import baseline | import baseline |
+| R2 hour-0 prereqs | approved (D3) | checklist | checklist |
+| R3 MCP transport | SSE (generated) | Streamable HTTP on 8001/8002 for both servers and the orchestrator client | keep SSE as generated |
+| Structure | Original arrangement (D1) | two processes | two processes |
+Question D4:
+D4 — Which transport should the two MCP servers speak?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (MCP servers, lines 261-267).
+ELI10: The generated servers talk to the LangGraph agents over "SSE", an older MCP connection style that the FastMCP docs and the MCP spec now mark deprecated in favor of "Streamable HTTP". Switching is a one-word change on each server and on the client. Keeping SSE works today but builds on the deprecated path. The browser-facing FastAPI SSE stream is separate and unaffected.
+Stakes if we pick wrong: a library update during the hackathon could change SSE behavior and break agent-to-tool calls; a half-done switch (server HTTP, client SSE) breaks them immediately.
+Recommendation: A because it is a one-line change per side and keeps the agent-tool link on the supported transport.
+Completeness: A=9/10, B=7/10
+Pros / cons:
+A) Streamable HTTP (recommended)
+  ✅ Supported transport per FastMCP docs and the current MCP spec
+  ✅ One-word change per server plus the orchestrator client config, same ports
+  ❌ Generated code must be edited consistently on both ends or calls fail
+  (human: ~30min / CC: ~5min)
+B) Keep SSE
+  ✅ Zero changes to the imported generated code
+  ✅ Still functional: SSE is deprecated, not removed
+  ❌ Builds the demo on a deprecated transport that libraries are phasing out
+  (no effort)
+Net: a tiny consistent edit now versus staying on the deprecated path.
+Header: MCP transport
+Options:
+A) Streamable HTTP (recommended)
+Switch both FastMCP servers (8001/8002) and the orchestrator's MCP client to Streamable HTTP; the browser-facing FastAPI SSE stream is unchanged.
+B) Keep SSE
+Keep the generated SSE transport on both servers and the client.
+
+State: approved
+Actual answer: B) Keep SSE (D4, user answer "B) Keep SSE")
+Accepted scope: none (no change; SSE stays on both servers and the client, as generated)
+History: none
+
+Scope Challenge result: scope accepted as-is (no feature cuts; structure: Original arrangement, D1). Dispositions: #1 accepted (D2), #2 accepted (D3), #3 rejected, keep SSE (D4), #4 factual correction recorded.
+
+### Section 1 — Architecture
+
+```
+            hour-0 checklist (R2)            hour-2 gate
+ Earthdata ─┐                                    │
+ GEE proj ──┼─> discover_nisar_colombia.py ──> nisar_colombia_granules_2026.json ──> decision table
+ GCS bucket ┘                                    │
+                                                 v
+ ASF S3 (GCOV/GUNW HDF5) ──h5py/fsspec──> prewarm (no synthesizer) ──> COG on GCS ──> ee.Image.loadGeoTIFF
+                                                 │                                          │
+                                                 v                                          v
+                                       local Zarr v3 cube  <── S1/S2 tiles + GEE stats pre-staged
+                                                 │
+   mcp-nisar-asf :8001 (SSE) ──┐   cache_guard (1.8 s) wraps every tool
+   mcp-gee-fusion :8002 (SSE) ─┤──> validation/scoring.py (ranking, precision@k, Wilson, block bootstrap)
+                               v
+   LangGraph: nisar_ingestion -> [landslide | earthquake | flood] -> cross_hazard_synthesis
+                               v
+   bulletin (placeholders -> locale renderer -> digit/key/hash check) -> app.py (FastAPI SSE) -> MapLibre/Deck.gl
+```
+
+Design-twice: the plan's new boundaries are `cache_guard` and `validation/scoring.py`. Second shape considered: cache as a separate tile service owning provenance vs. the chosen decorator inside each MCP tool. Pick: decorator (one owner per tool call, smaller surface), provided provenance is produced by one function. Red flags:
+- Hand-synced list / information leakage (R4): AOI bounding boxes and the pre-registered parameters appear in several modules (docs/designs/bailasar.md:130-134 AOIs used by discover, prewarm, MCP tools and frontend; :245-253 thresholds used by flood math, sensitivity sweep, bulletin labels, math-lab).
+- No other flags found at plan level.
+
+Findings:
+1. [CRITICAL] (confidence: 7/10) docs/designs/bailasar.md:130-134, :245-253 — AOIs, thresholds, k, pair IDs are named in at least four components with no single source; an edit in one leaves the others stale, and pre-registration is unenforceable.
+2. [INFORMATIONAL] (confidence: 6/10, medium confidence, verify) docs/designs/bailasar.md:169 — one fixed 1.8 s breaker for every tool. GEE map-id/tile generation and HDF5 range reads can legitimately exceed it, so live mode may fall back to cache constantly; no measured latency exists.
+3. [CRITICAL] (confidence: 8/10) .gitignore:1 contains only `.gstack/` — the plan needs Earthdata tokens, a GEE service account key and GCS credentials, and a `local_cache/`; nothing keeps them out of a repo that must become public before submission.
+
+### R4: One source for AOIs and pre-registered parameters
+Finding: Section 1 #1, CRITICAL, 7/10, docs/designs/bailasar.md:130-134 and :245-253, plan-eng-review
+Plan baseline: AOIs and parameters are written into each component (original proposal).
+Runtime evidence: unknown (generated code not yet imported).
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R4 config source | per component | one `config/bailasar.yaml` (AOI bboxes, thresholds, HAND, k, ranking weights, pair IDs) loaded by every component; validation/README.md references its committed hash | keep per-component values |
+| R1/R2/R3 | approved (D2, D3, D4) | unchanged | unchanged |
+Question D5:
+D5 — Put AOIs and the pre-registered parameters in one config file?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (AOIs lines 130-134, thresholds 245-253).
+ELI10: The same numbers (AOI boxes, the -18 dB / -5.5 dB / +3 dB thresholds, HAND 18 m, k, ranking weights, pair IDs) are used by the discovery script, cache builder, MCP tools, bulletin labels and math-lab. If each keeps its own copy, someone edits one and the others silently disagree, and "frozen before results" cannot be checked. One config file, committed with its hash in validation/README.md, fixes both.
+Stakes if we pick wrong: the scorecard is computed with different parameters than the pre-registered ones and nobody notices until a judge asks.
+Recommendation: A because one committed config makes the pre-registration checkable and removes four copies of the same numbers.
+Completeness: A=9/10, B=5/10
+Pros / cons:
+A) One config file (recommended)
+  ✅ Every component reads the same AOIs and thresholds from one committed file
+  ✅ Pre-registration is provable: validation/README.md records the config's git hash
+  ❌ Generated code must be edited to read the config instead of its constants
+  (human: ~2h / CC: ~15min)
+B) Per-component values
+  ✅ No edits to the imported generated code
+  ✅ Each lane stays independent
+  ❌ Values drift between components; the frozen-parameter claim is unverifiable
+  (no effort)
+Net: one small refactor versus an unverifiable pre-registration.
+Header: Config source
+Options:
+A) One config file (recommended)
+Create config/bailasar.yaml with AOI bboxes, thresholds, HAND, k, ranking weights and pair IDs; every component loads it; validation/README.md records its committed hash.
+B) Per-component values
+Keep AOIs and parameters as constants inside each component.
+
+State: approved
+Actual answer: A) One config file (D5, user answer "A) One config file (recommended)")
+Accepted scope: create config/bailasar.yaml with AOI bboxes, thresholds, HAND, k, ranking weights and pair IDs; every component loads it; validation/README.md records its committed hash.
+History: none
+
+### R5: Per-tool breaker budgets from measured latency
+Finding: Section 1 #2, INFORMATIONAL, 6/10 (medium confidence, verify), docs/designs/bailasar.md:169, plan-eng-review
+Plan baseline: one fixed 1.8 s circuit breaker for every tool (original proposal).
+Runtime evidence: unknown; no latency measured for GEE map-id, tile or HDF5 range reads.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R5 breaker budget | 1.8 s for every tool | at the hour-2 gate, measure p50/p95 latency of each live tool (10 calls each) and set each tool's budget to its measured p95 plus 0.5 s, recorded in config/bailasar.yaml | keep 1.8 s for every tool |
+| R4 config | approved (D5) | config/bailasar.yaml | config/bailasar.yaml |
+Question D6:
+D6 — Keep one 1.8 s timeout for every tool, or set each tool's timeout from measured latency?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (cache_guard, line 169).
+ELI10: The circuit breaker switches to the offline cache when a live call takes longer than 1.8 seconds. Some calls, like asking Earth Engine for a map layer or reading part of a big NASA file, may normally take longer than that, so "live mode" would quietly serve cached data most of the time. Measuring each tool's real speed at the hour-2 gate and setting its own limit avoids that.
+Stakes if we pick wrong: the live demo shows cached results while claiming live, or a slow tool hangs the UI.
+Recommendation: A because ten timed calls per tool at the gate replace a guessed number with a measured one.
+Completeness: A=9/10, B=6/10
+Pros / cons:
+A) Measured per-tool budgets (recommended)
+  ✅ Each tool's limit is its measured p95 plus 0.5 s, recorded in config/bailasar.yaml
+  ✅ Live mode really is live; the "cached" banner appears only on real slowness
+  ❌ Adds ~15 minutes of timing calls to the hour-2 gate
+  (human: ~30min / CC: ~10min)
+B) Fixed 1.8 s
+  ✅ Matches the generated cache_guard as is
+  ✅ Nothing to measure or configure
+  ❌ Slow-but-healthy tools fall back to cache constantly in live mode
+  (no effort)
+Net: fifteen minutes of measurement versus a breaker tuned by guess.
+Header: Breaker budget
+Options:
+A) Measured per-tool budgets (recommended)
+At the hour-2 gate, time 10 calls per live tool and set each tool's breaker budget to its measured p95 + 0.5 s in config/bailasar.yaml.
+B) Fixed 1.8 s
+Keep one 1.8 s budget for every tool.
+
+State: approved
+Actual answer: A) Measured per-tool budgets (D6, user answer "A) Measured per-tool budgets (recommended)")
+Accepted scope: at the hour-2 gate, time 10 calls per live tool and set each tool's breaker budget to its measured p95 + 0.5 s in config/bailasar.yaml.
+History: none
+
+### R6: Keep credentials and the cache out of git
+Finding: Section 1 #3, CRITICAL, 8/10, .gitignore:1 (`.gstack/` only), plan-eng-review
+Plan baseline: no secrets policy; the repo must become public before submission (docs/designs/bailasar.md:5).
+Runtime evidence: .gitignore contains only `.gstack/`.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R6 secrets hygiene | none | .gitignore adds `.env`, `*.json` key files under `secrets/`, `local_cache/`; credentials only via env vars documented in `.env.example`; a gitleaks (or `gstack-redact`) scan runs before the repo is made public | no change |
+Question D7:
+D7 — Add a secrets and cache policy before the repo goes public?
+Project/branch/task: surface_tango on main, plan-eng-review of .gitignore:1 and docs/designs/bailasar.md:5.
+ELI10: The build needs a NASA Earthdata token, a Google Earth Engine service-account key and Google Cloud credentials, plus a big local cache folder. Right now .gitignore only hides gstack's own folder, and the repo must turn public before submission. One careless `git add .` under deadline pressure would publish the keys. Ignoring them, loading them only from environment variables, and scanning before going public prevents that.
+Stakes if we pick wrong: a leaked GEE or GCS key on a public repo can be abused within minutes and may get the project's cloud account suspended mid-hackathon.
+Recommendation: A because it is a few lines of config and one scan, against a key leak that is hard to undo once public.
+Completeness: A=10/10, B=3/10
+Pros / cons:
+A) Secrets policy (recommended)
+  ✅ Keys and cache can never be committed by a stray git add under deadline pressure
+  ✅ A secret scan gates the private-to-public switch before submission
+  ❌ Each engineer must set env vars from .env.example instead of pasting keys in code
+  (human: ~20min / CC: ~5min)
+B) No change
+  ✅ Nothing to set up
+  ✅ Engineers keep whatever local setup they have
+  ❌ One accidental commit publishes credentials when the repo turns public
+  (no effort)
+Net: twenty minutes of hygiene versus an irreversible key leak.
+Header: Secrets policy
+Options:
+A) Secrets policy (recommended)
+Add .env, secrets/ and local_cache/ to .gitignore; load credentials only from env vars documented in .env.example; run a secret scan before the repo is made public.
+B) No change
+Keep the current .gitignore and no secrets policy.
+
+State: approved
+Actual answer: A) Secrets policy (D7, user answer "A) Secrets policy (recommended)")
+Accepted scope: add .env, secrets/ and local_cache/ to .gitignore; load credentials only from env vars documented in .env.example; run a secret scan before the repo is made public.
+History: none
+
+Section 1 dispositions: #1 accepted (D5), #2 accepted (D6), #3 accepted (D7).
+
+### Section 2 — Code quality
+
+Factual corrections applied (no behavior change; superseded text aligned with the frozen sections): Premise 4 ranking wording, lane table (Quake science, Agents/MCP), Next Step 5, "What Makes This Cool" bulletin sentence, Cross-Model footprint-check wording, repository tree now lists config/ and the validation/ files.
+
+Findings:
+1. [INFORMATIONAL] (confidence: 7/10) docs/designs/bailasar.md:173 and :285-296 — `cache_guard` returns a "not cached" error and the gate table defines coverage/null branches, but the frontend section defines no visible state for them. A panel could render blank or spin forever on a "not cached" error, a gate-failed AOI or a documented null.
+
+### R7: Explicit UI states for not-cached, gate-failed and null results
+Finding: Section 2 #1, INFORMATIONAL, 7/10, docs/designs/bailasar.md:173 and :285-296, plan-eng-review
+Plan baseline: frontend lists labels PROVISIONAL / cached / SI badge only (original proposal).
+Runtime evidence: unknown (frontend not yet imported).
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R7 UI error states | undefined | every map panel and chapter renders one of: live, cached (banner), not cached (message + tool name), gate result (coverage/null statement from the gate JSON), error (message + retry); never blank | leave to the frontend lane |
+Question D8:
+D8 — Define what each panel shows when data is missing, not cached, or a documented null?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (cache_guard line 173, frontend 285-296).
+ELI10: The plan already decides that missing data stays missing and that some regions may ship as "no coverage" or "no motion detected". But it never says what the screen shows then. Without a rule, a panel can go blank or spin forever during the live demo, which looks broken instead of honest.
+Stakes if we pick wrong: a judge sees an empty panel and assumes the app crashed, when the truth was a measured null.
+Recommendation: A because five named states make honesty visible and cost little frontend work.
+Completeness: A=9/10, B=5/10
+Pros / cons:
+A) Five explicit states (recommended)
+  ✅ Every panel shows live, cached, not cached, gate result or error; never blank
+  ✅ Nulls and coverage gaps become on-screen statements the video can capture
+  ❌ Frontend lane must wire each state to the cache_guard and gate JSON fields
+  (human: ~3h / CC: ~20min)
+B) Leave to frontend lane
+  ✅ No extra spec work now
+  ✅ Frontend lane decides styling in context
+  ❌ Missing-data paths likely untested; blank panels on demo day
+  (no effort now)
+Net: a small UI contract now versus blank panels at the worst moment.
+Header: UI states
+Options:
+A) Five explicit states (recommended)
+Every map panel and story chapter renders exactly one of: live, cached (banner), not cached (message + tool name), gate result (coverage/null statement from the gate JSON), error (message + retry); never blank.
+B) Leave to frontend lane
+No UI state contract; the frontend lane decides.
+
+State: approved
+Actual answer: A) Five explicit states (D8, user answer "A) Five explicit states (recommended)")
+Accepted scope: every map panel and story chapter renders exactly one of: live, cached (banner), not cached (message + tool name), gate result (coverage/null statement from the gate JSON), error (message + retry); never blank.
+History: none
+
+Section 2 dispositions: #1 accepted (D8); factual corrections recorded.
+
+### Section 3 — Tests
+
+Framework: none detected (repo holds only this doc and .gitignore). All paths below are proposed; no existing tests.
+
+```
+CODE PATHS (proposed)                                      USER FLOWS
+[+] validation/scoring.py                                  [+] Quake chapter (story map Ch2)
+  ├── percentile_rank / radar & baseline score             ├── [GAP] [→E2E] Gate full triplet -> scorecard card renders
+  │   └── [GAP] ties, NaN units, <20 built-up px excluded  ├── [GAP] [→E2E] Uninformative branch -> statement, no number
+  ├── precision_at_k + Wilson CI                           └── [GAP]        Radar-loses branch -> "what radar added" wording
+  │   └── [GAP] k=10% min 5; prevalence 10-70% gate        [+] Offline pitch
+  ├── barrio-block bootstrap (seeded) + E, E_C - E_K       ├── [GAP] [→E2E] make pitch with network off: every demo view
+  │   └── [GAP] beats rule: 3 conditions, no-K/post-K      └── [GAP]        Not-cached request -> "not cached" state (R7)
+[+] gee_math/earthquake_dpm_math.py                        [+] Bulletin
+  ├── Z vs non-built mu/sigma, clamp after                 ├── [GAP] [→EVAL] ES/EN prose quality with placeholders
+  └── [GAP] built-up >=50% / non-built <=10% classes       └── [GAP]        Stale hash -> bulletin rejected at serve time
+[+] gee_math/flood_polarimetric_math.py
+  ├── [GAP] driest-date pick; (fw-fd)/fw < 0.2 -> no baseline; fw = 0
+  └── [GAP] Class 1/2 thresholds read from config; +-1 dB sweep
+[+] bulletin contract (renderer + checker)
+  ├── [GAP] digit outside placeholder -> reject; missing key -> reject
+  └── [GAP] ES decimal comma / EN point rendering
+[+] mcp_servers/cache_guard.py
+  ├── [GAP] timeout > per-tool budget -> cache with provenance
+  └── [GAP] not cached -> explicit error, never synthesized
+[+] scripts/discover_nisar_colombia.py -> decision table
+  └── [GAP] each table row from a fixture granule list
+[+] data-path scan
+  └── [GAP] rg pattern over code paths returns nothing (CI-style check)
+
+COVERAGE: 0/22 paths tested (0%) | all proposed | GAPS: 22 (3 E2E, 1 eval)
+```
+
+Required proof of approved behavior (carried forward, not re-asked): the scoring formula, beats rule, informative-scorecard gate, DPM normalization, flood baseline rule, bulletin contract, cache_guard provenance/not-cached, gate decision table, config loading (R4), per-tool budgets (R5), UI states (R7). The open choice is the test framework and where tests live.
+
+### R8: Test framework for the required proofs
+Finding: Section 3, INFORMATIONAL, 9/10, docs/designs/bailasar.md (no test framework or tests proposed; `git ls-files` shows none), plan-eng-review
+Plan baseline: no tests specified beyond `make test-dag` smoke test (original proposal).
+Runtime evidence: no framework, no tests in repo.
+Comparison grid:
+| Choice | Current | A | B |
+|---|---|---|---|
+| R8 framework | none | pytest under tests/ with fixture granule lists and small synthetic-free fixture rasters cut from real cached tiles; `make test` runs unit tests; E2E `make pitch` offline check run once before recording the video | only `make test-dag` smoke test |
+Question D9:
+D9 — Use pytest for the required proofs, or rely on the smoke test only?
+Project/branch/task: surface_tango on main, plan-eng-review of docs/designs/bailasar.md (Section 3 test diagram).
+ELI10: The scorecard math, the "radar beats baseline" rule, the bulletin checker and the cache fallback are exactly the pieces a judge's question would hit, and a silent bug there produces a wrong headline number. pytest with small fixtures cut from real cached tiles can check each rule in seconds. The existing plan only has a smoke test that the agents run end to end.
+Stakes if we pick wrong: a sign or threshold bug in scoring.py ships in the 30-second video's one number.
+Recommendation: A because the headline number depends on about a dozen pure functions that pytest checks in seconds.
+Completeness: A=9/10, B=4/10
+Pros / cons:
+A) pytest + required proofs (recommended)
+  ✅ Each frozen rule (scoring, beats, gates, bulletin, cache) has a test that fails if it regresses
+  ✅ Fixtures are cut from real cached tiles, so no synthetic data enters tests either
+  ❌ Takes test-writing time from the science lanes during the sprint
+  (human: ~1 day / CC: ~1.5h)
+B) Smoke test only
+  ✅ No test time during the sprint
+  ✅ make test-dag still proves the graph runs end to end
+  ❌ A wrong precision@k or beats-rule bug passes silently into the video
+  (no effort)
+Net: ninety minutes of tests versus an unchecked headline number.
+Header: Test framework
+Options:
+A) pytest + required proofs (recommended)
+pytest under tests/ covering the 22 diagrammed paths with fixtures cut from real cached tiles; make test runs them; one offline make pitch E2E check before recording the video.
+B) Smoke test only
+Keep only make test-dag; no unit tests.
+
+State: approved
+Actual answer: A) pytest + required proofs (D9, user answer "A) pytest + required proofs (recommended)")
+Accepted scope: pytest under tests/ covering the 22 diagrammed paths with fixtures cut from real cached tiles; make test runs them; one offline make pitch E2E check before recording the video.
+History: none
+
+Section 3 dispositions: framework accepted (D9); 22 gaps become the required test list (Test Plan artifact). Bulletin prose quality [→EVAL] stays optional and is not in accepted scope.
+
+### Section 4 — Performance
+
+1. [INFORMATIONAL] (confidence: 6/10, medium confidence, verify) docs/designs/bailasar.md:168 — GUNW/GCOV granules are multi-GB HDF5; AOI subsetting over the network depends on the files' chunk layout, and the cache build time for 3 AOIs is unknown. Covered by R5: the hour-2 gate times one AOI subset per product and the data lane schedules the cache build from that measurement. No new choice.
+2. [INFORMATIONAL] (confidence: 7/10) docs/designs/bailasar.md:225 — the barrio-block bootstrap's replicate count and seed are unspecified; with ~30-300 barrios, 2,000 replicates is seconds of CPU. As necessary implementation of the approved pre-registration (D5 config), the replicate count and seed live in config/bailasar.yaml. No new choice.
+3. No N+1 or database paths: storage is files (COG, Zarr, JSON). Tile serving reads the local Zarr cube; scale unknown until the cache is built.
+
+Section 4 dispositions: #1 covered by R5 (D6); #2 carried into R4 (D5) config; #3 no issue.
+
+## Outside Voice (native Claude subagent, Plan type; outside_status: unavailable, Codex not installed)
+
+15 findings (2 Critical, 6 High, 5 Medium, 2 Low), presented in full in the session. Applied directly, no new behavior choice:
+- #15: tree root renamed to `surface_tango/`.
+- #12: gate table row added: a pair available only as RSLC/GSLC counts as missing; RSLC processing → TODO.
+- #11: the bulletin allow-list includes sensor names, and unit/place names render via placeholders. Needed for the approved bulletin contract (office-hours R1-11 fix) to accept valid text.
+- #10: the hour-0 checklist (R2, D3) also lists the LLM provider key for the synthesis agent and the routing dependency/road network for hospital distance, so the approved checklist covers every credential and dependency the approved flow needs.
+
+Pending choices: #1-#8 (R9-R16). #9, #13 and #14 are listed as unresolved below unless answered.
+
+### R9: Ground-truth and polygon gate with a timebox
+Finding: Outside Voice #1, CRITICAL, confidence 8/10, docs/designs/bailasar.md:213-219 and the Open Questions, native subagent
+Plan baseline: the hour-2 gate checks granules only; the pre-registration must name a damage source before C coherence is viewed.
+Runtime evidence: unknown; no damage-report source or barrio polygons have been located.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R9 ground-truth gate | none | hour-2 gate also checks a named, dated barrio-level damage source and official barrio polygons; hard timebox hour 4; if missing, pre-register "scorecard uninformative" and unblock C viewing | no gate (current) | 1 person searches for 45 min, then return to this choice | leave unresolved |
+Question D10:
+D10 — Add a timeboxed check for damage reports and barrio polygons?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #1 (docs/designs/bailasar.md:213-219).
+ELI10: The quake scorecard needs two things nobody has found yet: a public list of damaged buildings by barrio, and official barrio boundaries for Pereira, Armenia and Manizales. The rules also forbid looking at the post-quake radar until that source is named. If the search drags on, the quake lane, the frontend and the video all wait. A hard deadline (hour 4) with a fallback of "uninformative" unblocks everyone.
+Stakes if we pick wrong: the headline lane deadlocks waiting for a source that may not exist.
+Recommendation: A because a timebox turns an open-ended search into a known branch by hour 4.
+Completeness: A=9/10, B=4/10, C=6/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ Ground truth and polygons are checked by hour 4, or the scorecard is declared uninformative
+  ✅ Nobody waits on C-pair viewing past hour 4
+  ❌ May declare the scorecard uninformative before a slow-to-find source turns up
+  (human: ~1h / CC: ~10min)
+B) Keep this row's current value
+  ✅ No extra gate step
+  ✅ The search continues as long as needed
+  ❌ The quake lane can stall with no deadline
+C) Investigate before choosing
+  ✅ 45 minutes of searching shows whether a source exists before committing
+  ✅ No rule change until the result is known
+  ❌ Adds a decision round-trip; the remedy stays pending
+D) Defer this proposed change only
+  ✅ Keeps focus on other choices now
+  ✅ Leaves the current plan untouched
+  ❌ Stays an unresolved risk on the critical path
+Net: a hard deadline with a fallback versus an open-ended search on the critical path.
+Header: Ground-truth gate
+Options:
+A) Apply this change (recommended)
+The hour-2 gate also checks a named, dated barrio-level damage source and official barrio polygons; hard timebox hour 4; if either is missing, pre-register "scorecard uninformative" and unblock C viewing.
+B) Keep this row's current value
+No ground-truth gate; the search has no deadline.
+C) Investigate before choosing
+One person searches for 45 minutes, then this choice returns; no rule change yet.
+D) Defer this proposed change only
+Leave this unresolved; no change now.
+
+State: approved
+Actual answer: A) Apply this change (D10, user answer "A) Apply this change (recommended)")
+Accepted scope: the hour-2 gate also checks a named, dated barrio-level damage source and official barrio polygons; hard timebox hour 4; if either is missing, pre-register "scorecard uninformative" and unblock C viewing.
+History: none
+
+### R10: Power check and headline decision at hour 4
+Finding: Outside Voice #2, CRITICAL, confidence 7/10, docs/designs/bailasar.md:204-240 (k = 10%, shared population term in both rankings), native subagent
+Plan baseline: the video script locks at hour 14 to whatever the scorecard shows.
+Runtime evidence: unknown; the expected unit and positive counts are not yet computed.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R10 headline timing | locked at hour 14 | at pre-registration (by hour 4, R9), compute expected evaluated units, positives, prevalence and k from polygons and ground truth only (no C-pair viewing); if the scorecard cannot be informative or k < 5, choose the headline at hour 4 (La Mojana L-vs-C, or the DPM map with its stated limits) | hour 14 (current) | spend 30 min estimating power, then return | leave unresolved |
+| R9 ground-truth gate | approved (D10) | unchanged | unchanged | unchanged | unchanged |
+Question D11:
+D11 — Decide the video headline at hour 4 from a power check, instead of at hour 14?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #2 (docs/designs/bailasar.md:204-240).
+ELI10: The reviewer showed the quake number is likely to come out "uninformative" or "no gain". The quake was deep, so damage is sparse. With only 5-10 top barrios, scores jump in steps of 0.1-0.2. And both rankings share the same population term, so they mostly pick the same barrios. You can count barrios and damaged barrios at hour 4 without looking at any radar result, and know early whether the quake headline can work at all.
+Stakes if we pick wrong: the team learns at hour 14 that the headline is unreachable, with no time left to build another.
+Recommendation: A because counting units and positives costs minutes, reads no radar results, and moves the headline decision ten hours earlier.
+Completeness: A=9/10, B=5/10, C=7/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ Headline chosen by hour 4 from counts that do not peek at radar results
+  ✅ The video lane gets ten more hours on the headline that can actually land
+  ❌ May drop the quake headline before seeing what the radar shows
+  (human: ~1h / CC: ~10min)
+B) Keep this row's current value
+  ✅ The quake keeps its chance as headline until real results exist
+  ✅ No planning change
+  ❌ A likely-uninformative outcome is discovered only at hour 14
+C) Investigate before choosing
+  ✅ 30 minutes of estimating expected n and positives before committing
+  ✅ Keeps the headline rule unchanged meanwhile
+  ❌ Another decision round-trip; the remedy stays pending
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ Focus stays on other choices
+  ❌ The headline risk stays open on the critical path
+Net: an early, peek-free headline decision versus waiting for the result itself.
+Header: Headline timing
+Options:
+A) Apply this change (recommended)
+By hour 4, compute expected evaluated units, positives, prevalence and k from polygons and ground truth only; if the scorecard cannot be informative or k < 5, choose the video headline then (La Mojana L-vs-C, or the DPM map with stated limits).
+B) Keep this row's current value
+The video script locks at hour 14 to whatever the scorecard shows.
+C) Investigate before choosing
+Spend 30 minutes estimating expected units and positives, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; no change now.
+
+State: approved
+Actual answer: A) Apply this change (D11, user answer "A) Apply this change (recommended)")
+Accepted scope: by hour 4, compute expected evaluated units, positives, prevalence and k from polygons and ground truth only; if the scorecard cannot be informative or k < 5, choose the video headline then (La Mojana L-vs-C, or the DPM map with stated limits).
+History: none
+
+### R11: Make the offline demo runnable from the public repo
+Finding: Outside Voice #3, HIGH, confidence 8/10, docs/designs/bailasar.md:361 and :367 vs approved D7 (`local_cache/` gitignored), native subagent
+Plan baseline: `make pitch` runs offline; `local_cache/` is gitignored (D7); the demo URL is optional.
+Runtime evidence: unknown; the cache size is not yet known.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R11 cache distribution | not distributed | publish the built cache (tiles, stats, provenance manifest with granule/scene IDs) as a GitHub Release asset, split under 2 GB per file; `make fetch-cache` downloads it; the README documents it. Publishing happens only with the owner's go-ahead at submission time | none (current) | measure cache size after the build, then return | leave unresolved |
+| R6 secrets policy | approved (D7) | unchanged (`local_cache/` stays out of git) | unchanged | unchanged | unchanged |
+Question D12:
+D12 — Ship the offline cache as a release download so the public repo can run its own demo?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #3 (docs/designs/bailasar.md:361, :367).
+ELI10: You decided the cache folder stays out of git (correct, it's large and generated). But then anyone who clones the public repo, judges included, gets no cache, and running live needs your NASA and Google logins. A GitHub Release file with the cache and its source-ID manifest, plus a `make fetch-cache` command, lets the repo actually run. The cache holds real public NASA/ESA-derived tiles, no keys.
+Stakes if we pick wrong: a judge clones the repo, runs it, and gets errors or empty panels.
+Recommendation: A because a release asset keeps git clean while making the open-source demo reproducible.
+Completeness: A=9/10, B=4/10, C=6/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ Anyone can run `make fetch-cache && make pitch` with no credentials
+  ✅ The provenance manifest ships with the cache, so every tile traces to a granule ID
+  ❌ Needs a release upload near submission; files over 2 GB must be split
+  (human: ~1h / CC: ~10min)
+B) Keep this row's current value
+  ✅ Nothing extra to publish
+  ✅ No release management during the sprint
+  ❌ The public repo cannot run its own demo without private credentials
+C) Investigate before choosing
+  ✅ Knowing the real cache size first may favor a bucket over a release
+  ✅ No commitment yet
+  ❌ Leaves distribution open until after the cache build
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ Revisit at submission time
+  ❌ Risk of discovering at submission that the repo cannot run
+Net: one release upload versus a public repo that only runs on the team's laptops.
+Header: Cache release
+Options:
+A) Apply this change (recommended)
+Publish the built cache (tiles, stats, provenance manifest) as a GitHub Release asset split under 2 GB per file; add `make fetch-cache`; document it in the README; publish only with the owner's go-ahead at submission.
+B) Keep this row's current value
+The cache is not distributed; the demo runs only where the cache was built.
+C) Investigate before choosing
+Measure the cache size after the build, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; no change now.
+
+State: approved
+Actual answer: A) Apply this change (D12, user answer "A) Apply this change (recommended)")
+Accepted scope: publish the built cache (tiles, stats, provenance manifest) as a GitHub Release asset split under 2 GB per file; add `make fetch-cache`; document it in the README; publish only with the owner's go-ahead at submission.
+History: none
+
+### R12: Separate the frozen pre-registration from operational config (reopens R4 detail)
+Finding: Outside Voice #4, HIGH, confidence 8/10. R4 (D5) records the hash of the whole config/bailasar.yaml, while R5 (D6) writes measured budgets into the same file. Native subagent.
+Plan baseline: R4 approved (D5): one config file whose committed hash is recorded in validation/README.md.
+Runtime evidence: unknown (the file does not exist yet).
+Reason for reopening: concrete new risk. Every operational edit changes the recorded hash, so the freeze proof breaks or gets quietly re-recorded.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R12 pre-registration file | one file, whole-file hash (D5) | frozen parameters (thresholds, HAND, k, weights, pair IDs, bootstrap seed and replicates, positive-label rule) move to config/preregistered.yaml, whose hash validation/README.md records; config/bailasar.yaml keeps operational settings (AOI tiling, breaker budgets, ports) and imports the frozen file | keep one file (D5 as is) | try a hashed `preregistered:` block inside the one file, then return | leave unresolved |
+| R4 single source | approved (D5) | still a single source for each value | unchanged | unchanged | unchanged |
+| R5 budgets | approved (D6) | written to config/bailasar.yaml | same file as the frozen values | unchanged | unchanged |
+Question D13:
+D13 — Split the frozen pre-registration into its own hashed file?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #4 (R4/D5 and R5/D6 interaction).
+ELI10: You chose one config file whose hash proves the parameters were frozen before results. You also chose to write measured timeouts into that same file. So every timeout tweak changes the hash, and the "frozen" proof either breaks or someone re-records it, which makes it worthless. Putting the frozen science values in their own file, and hashing only that, keeps the proof honest while the operational settings keep changing.
+Stakes if we pick wrong: a judge or teammate asks "were these thresholds fixed before you saw results?" and the hash history can't show it.
+Recommendation: A because two files, each with one owner, keep the freeze proof valid however often the timeouts change.
+Completeness: A=9/10, B=4/10, C=7/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ The pre-registration hash changes only if a frozen science value changes
+  ✅ Timeouts and AOI tiling can be tuned freely without touching the proof
+  ❌ Two config files instead of one; loaders must read both
+  (human: ~30min / CC: ~5min)
+B) Keep this row's current value
+  ✅ One file, as approved in D5
+  ✅ Simplest loader
+  ❌ Every timeout edit invalidates the recorded freeze hash
+C) Investigate before choosing
+  ✅ A hashed block inside one file might be enough
+  ✅ Keeps one file if it works
+  ❌ Block-level hashing needs extra tooling; the remedy stays pending
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ D5 stands as approved
+  ❌ The freeze proof stays fragile
+Net: two clean files versus a freeze proof broken by routine tuning.
+Header: Prereg split
+Options:
+A) Apply this change (recommended)
+Move frozen values (thresholds, HAND, k, weights, pair IDs, bootstrap seed and replicates, positive-label rule) to config/preregistered.yaml, hashed in validation/README.md; config/bailasar.yaml keeps operational settings and imports it.
+B) Keep this row's current value
+Keep one config/bailasar.yaml with a whole-file hash, as approved in D5.
+C) Investigate before choosing
+Try a hashed `preregistered:` block inside the one file, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; D5 stands.
+
+State: approved
+Actual answer: A) Apply this change (D13, user answer "A) Apply this change (recommended)")
+Accepted scope: move frozen values (thresholds, HAND, k, weights, pair IDs, bootstrap seed and replicates, positive-label rule) to config/preregistered.yaml, hashed in validation/README.md; config/bailasar.yaml keeps operational settings and imports it.
+History: R4 approved D5 (one file, whole-file hash); reopened for the D5×D6 interaction.
+
+### R13: When to measure per-tool budgets (reopens R5 timing)
+Finding: Outside Voice #5, HIGH, confidence 8/10. R5 (D6) measures at the hour-2 gate, before the MCP tools and cache_guard are wired. Native subagent.
+Plan baseline: R5 approved (D6): time 10 calls per live tool at the hour-2 gate and set the budget to p95 + 0.5 s.
+Runtime evidence: at hour 2 only the baseline import and deps exist (R1, R2); the tools do not run end to end yet.
+Reason for reopening: concrete sequencing risk. The measurement has nothing to measure at hour 2.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R13 measure timing | at the hour-2 gate (D6) | keep 1.8 s as the default until the tools run end to end; take the same 10-call p95 + 0.5 s measurement at first end-to-end integration (target hour 8-10) and write it to config/bailasar.yaml | at hour 2 (D6 as is) | check at hour 2 which tools are callable, then return | leave unresolved |
+| R5 budget rule | approved p95 + 0.5 s (D6) | unchanged | unchanged | unchanged | unchanged |
+| R12 file | approved (D13) | operational file | operational file | unchanged | unchanged |
+Question D14:
+D14 — Measure the tool timeouts at first end-to-end integration instead of at hour 2?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #5 (R5/D6 timing).
+ELI10: You chose to set each tool's timeout from ten real timed calls. But at hour 2 the tools are not wired up yet: the code was just imported and the logins just checked. Keep the 1.8 s default until the tools actually run end to end (around hour 8-10), then take the same measurement and write it to config. Same rule, just at a time when there is something to measure.
+Stakes if we pick wrong: the hour-2 gate stalls trying to time tools that do not run yet, or someone records meaningless numbers.
+Recommendation: A because it keeps your measured-budget rule and moves only the timing to when the tools exist.
+Completeness: A=9/10, B=5/10, C=7/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ The same p95 + 0.5 s rule, measured on tools that actually run
+  ✅ The hour-2 gate stays focused on data and ground truth
+  ❌ Until about hour 8, live mode uses the 1.8 s default
+  (human: ~30min / CC: ~10min)
+B) Keep this row's current value
+  ✅ Exactly as approved in D6
+  ✅ Budgets decided early
+  ❌ Nothing callable to time at hour 2
+C) Investigate before choosing
+  ✅ Check which tools are callable at hour 2 before deciding
+  ✅ No change yet
+  ❌ Another round-trip; the remedy stays pending
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ D6 stands
+  ❌ The sequencing conflict stays in the plan
+Net: the same measurement at a time when it means something, versus a schedule it can't meet.
+Header: Measure timing
+Options:
+A) Apply this change (recommended)
+Keep 1.8 s as the default until the tools run end to end; take the 10-call p95 + 0.5 s measurement at first end-to-end integration (target hour 8-10) and write it to config/bailasar.yaml.
+B) Keep this row's current value
+Measure at the hour-2 gate, as approved in D6.
+C) Investigate before choosing
+Check at hour 2 which tools are callable, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; D6 stands.
+
+State: approved
+Actual answer: B) Keep this row's current value (D14, user answer "B) Keep this row's current value")
+Accepted scope: none (no change; R5/D6 stands: measure at the hour-2 gate).
+History: R5 approved D6 (measure at the hour-2 gate); reopened for sequencing.
+
+### R14: Hand-built inputs for pure-logic tests (reopens R8 fixture rule)
+Finding: Outside Voice #6, HIGH, confidence 8/10. R8 (D9) requires fixtures cut from real cached tiles, which do not exist until the cache build, so logic tests arrive around hour 14. Native subagent.
+Plan baseline: R8 approved (D9): pytest covering 22 paths with fixtures cut from real cached tiles.
+Runtime evidence: no cache yet; scoring/bulletin/gate logic needs known expected values that real tiles cannot provide.
+Reason for reopening: concrete sequencing risk. The tests that protect the headline number would land after it is computed.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R14 fixture rule | real-tile fixtures for all tests (D9) | pure-logic tests (precision@k, Wilson, bootstrap, beats rule, informative gate, bulletin checker, gate decision table, flood baseline rule) use small hand-written arrays with hand-computed expected values, written before the cache exists; real-tile fixtures only for gee_math pipeline checks. Hand-written arrays live only in tests/ and are listed in validation/ALLOWLIST.md as test inputs, never as data | real tiles for everything (D9 as is) | try one logic test each way, then return | leave unresolved |
+| R8 framework | approved pytest (D9) | unchanged | unchanged | unchanged | unchanged |
+Question D15:
+D15 — Allow small hand-written arrays for the pure-logic tests?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #6 (R8/D9 fixtures).
+ELI10: You chose pytest with fixtures cut from real cached radar tiles. That works for checking the radar math pipeline, but not for the scoring rules: to test precision@k or the "beats" rule you need tiny inputs where you already know the right answer, like 6 barrios where exactly 3 are damaged. Real tiles don't give you a known answer, and they don't exist until the cache is built, hours in. Hand-written test arrays are not fake radar data: they live only in tests/ and never reach a map, number or video.
+Stakes if we pick wrong: the tests that protect the headline number arrive after the number is computed.
+Recommendation: A because known-answer inputs are the only way to test the scoring rules, and they can be written in the first hours.
+Completeness: A=9/10, B=5/10, C=7/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ Scoring, beats-rule and bulletin tests exist before any result is computed
+  ✅ Hand-written arrays stay in tests/, listed in ALLOWLIST.md, and never reach the app
+  ❌ Narrows the no-synthetic rule with a test-only exception the team must respect
+  (human: ~2h / CC: ~20min)
+B) Keep this row's current value
+  ✅ No exception to the no-synthetic rule at all
+  ✅ Exactly as approved in D9
+  ❌ Logic tests wait for the cache and cannot assert known answers
+C) Investigate before choosing
+  ✅ Compare one test each way before committing
+  ✅ No rule change yet
+  ❌ Another round-trip; the remedy stays pending
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ D9 stands
+  ❌ Tests of the headline logic keep landing late
+Net: known-answer tests early, under a test-only exception, versus late tests with no expected values.
+Header: Test inputs
+Options:
+A) Apply this change (recommended)
+Pure-logic tests use small hand-written arrays with hand-computed expected values, written before the cache exists; real-tile fixtures only for gee_math pipeline checks; hand-written arrays live only in tests/ and are listed in validation/ALLOWLIST.md.
+B) Keep this row's current value
+All tests use fixtures cut from real cached tiles, as approved in D9.
+C) Investigate before choosing
+Write one logic test each way, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; D9 stands.
+
+State: approved
+Actual answer: A) Apply this change (D15, user answer "A) Apply this change (recommended)")
+Accepted scope: pure-logic tests use small hand-written arrays with hand-computed expected values, written before the cache exists; real-tile fixtures only for gee_math pipeline checks; hand-written arrays live only in tests/ and are listed in validation/ALLOWLIST.md.
+History: R8 approved D9 (real-tile fixtures for all tests); reopened for sequencing and known-answer testing.
+
+### R15: Backward schedule and per-lane minimum output
+Finding: Outside Voice #7, HIGH, confidence 8/10, docs/designs/bailasar.md:318-331 (lanes and gates stop at hour 14; office-hours R3-11 unresolved), native subagent
+Plan baseline: gates at hour 2 and hour 14 only; no submission deadline hour, freeze or minimum output per lane.
+Runtime evidence: the submission deadline hour is not recorded in this doc; the owner must state it from the official 2026 event schedule.
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R15 schedule | none after hour 14 | the owner records the official submission deadline (D) in the doc; backward milestones: feature freeze D−8 h, video recording D−6 h, edit + Spanish VO + English subtitles D−4 h, secret scan → repo public → cache release (owner go-ahead) → project page D−2 h. Minimum output per lane: Data = gate JSON + cache for the headline AOI; Quake = scorecard or documented uninformative; Aburrá+Flood = one measured result or null statement each; Agents/MCP = make test-dag green + one rendered bulletin; Frontend+video = headline chapter + 30 s video. First cut if a lane slips: math-lab corrections, then story chapter 4 | no schedule (current) | owner checks the official deadline first, then return | leave unresolved |
+Question D16:
+D16 — Add a backward schedule from the submission deadline and a minimum output per lane?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #7 (lanes and gates, lines 318-331).
+ELI10: The plan says what happens at hour 2 and hour 14, then nothing. The submission still needs a feature freeze, video recording, editing with Spanish voice and English subtitles, the secret scan, making the repo public, the cache release and the project page. Working backward from the official deadline gives each of those a slot. A minimum output per lane says what "done enough" means if a lane slips.
+Stakes if we pick wrong: the last hours collapse into a rush where the video or the public repo misses the deadline.
+Recommendation: A because the judged deliverables all sit after hour 14, where the plan currently has no milestones.
+Completeness: A=9/10, B=3/10, C=6/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ Freeze, recording, editing and publishing each get a slot counted back from the deadline
+  ✅ Each lane knows its minimum shippable output and what gets cut first
+  ❌ Requires the owner to confirm the official deadline hour now
+  (human: ~20min / CC: ~5min)
+B) Keep this row's current value
+  ✅ No extra planning now
+  ✅ Lanes keep full flexibility
+  ❌ Video, publishing and the release crowd into the last hours
+C) Investigate before choosing
+  ✅ Confirm the official deadline before drawing milestones
+  ✅ No change yet
+  ❌ Another round-trip; the remedy stays pending
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ Revisit at hour 14
+  ❌ The post-hour-14 gap stays open
+Net: twenty minutes of backward planning versus an unplanned final stretch.
+Header: Backward schedule
+Options:
+A) Apply this change (recommended)
+Owner records the official submission deadline D; milestones: freeze D−8h, video recording D−6h, edit + VO + subtitles D−4h, secret scan → public → cache release → project page D−2h; minimum output per lane as listed in the grid; first cut: math-lab corrections, then story chapter 4.
+B) Keep this row's current value
+No schedule after hour 14; no per-lane minimum.
+C) Investigate before choosing
+Owner checks the official deadline first, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; no change now.
+
+State: approved
+Actual answer: A) Apply this change (D16, user answer "A) Apply this change (recommended)")
+Accepted scope: owner records the official submission deadline D; milestones: freeze D−8h, video recording D−6h, edit + VO + subtitles D−4h, secret scan → public → cache release → project page D−2h; minimum output per lane as listed in the R15 grid; first cut: math-lab corrections, then story chapter 4.
+History: none
+
+### R16: Let the headline view render without the agent stack
+Finding: Outside Voice #8, HIGH, confidence 7/10, docs/designs/bailasar.md:307-317 (the video is captured from mission control, which depends on app.py, LangGraph, two SSE MCP servers, cache_guard and Zarr), native subagent
+Plan baseline: mission control drives every view through the agent/MCP stack (D1 keeps the architecture).
+Runtime evidence: unknown (stack not yet built).
+Comparison grid:
+| Choice | Current | A | B | C | D |
+|---|---|---|---|---|---|
+| R16 headline render path | through agents/MCP only | the headline chapter and its curtain slider can also render directly from validation/ outputs and cached tiles via app.py's tile server; agent and bulletin panels are optional on that view (they show the D8 error/not-cached state if down). Architecture unchanged (D1) | agent stack required (current) | after first integration, check stack stability, then return | leave unresolved |
+| Structure | Original arrangement (D1) | unchanged | unchanged | unchanged | unchanged |
+| R7 UI states | approved (D8) | reused for optional panels | unchanged | unchanged | unchanged |
+Question D17:
+D17 — Let the headline chapter render straight from validation outputs and cached tiles?
+Project/branch/task: surface_tango on main, plan-eng-review outside-voice #8 (video, lines 307-317).
+ELI10: The 30-second video is recorded from mission control, and mission control currently needs the whole stack running: FastAPI, LangGraph, both MCP servers, the cache guard and Zarr. But every number in the video comes from the validation outputs, not from the agents. If the headline chapter can also draw directly from those outputs and the cached tiles, an agent or MCP crash at recording time cannot block the one deliverable the judges see. The architecture stays the same; the agents just stop being a hard dependency for that one view.
+Stakes if we pick wrong: a LangGraph or MCP failure during the recording slot blocks the video, the judged deliverable.
+Recommendation: A because the agents add no number to the video, so they should not be able to stop it.
+Completeness: A=9/10, B=5/10, C=6/10, D=3/10
+Pros / cons:
+A) Apply this change (recommended)
+  ✅ The video can be recorded even if the agent or MCP layer is down
+  ✅ The agent panels still appear when healthy, with the D8 states when not
+  ❌ The frontend needs a second data path for the headline view
+  (human: ~2h / CC: ~15min)
+B) Keep this row's current value
+  ✅ One data path; every view goes through the agent stack
+  ✅ The demo shows the full architecture working end to end
+  ❌ Any failure in the agent stack blocks the video recording
+C) Investigate before choosing
+  ✅ See how stable the stack is after first integration
+  ✅ No frontend change yet
+  ❌ The decision moves late, near the recording slot
+D) Defer this proposed change only
+  ✅ No change now
+  ✅ D1 architecture untouched
+  ❌ Single point of failure on the judged deliverable
+Net: a second render path for one view versus a video that depends on every service being up.
+Header: Video path
+Options:
+A) Apply this change (recommended)
+The headline chapter and its curtain slider can also render directly from validation/ outputs and cached tiles via app.py's tile server; agent and bulletin panels are optional there and show the D8 states if down; architecture unchanged.
+B) Keep this row's current value
+Mission control renders every view only through the agent/MCP stack.
+C) Investigate before choosing
+After first integration, check stack stability, then return to this choice.
+D) Defer this proposed change only
+Leave this unresolved; no change now.
+
+State: approved
+Actual answer: B) Keep this row's current value (D17, user answer "B) Keep this row's current value")
+Accepted scope: none (no change; mission control renders every view through the agent/MCP stack).
+History: none
+
+Cross-model tension dispositions: #1 accepted (D10), #2 accepted (D11), #3 accepted (D12), #4 accepted (D13), #5 rejected, D6 stands (D14), #6 accepted (D15), #7 accepted (D16), #8 rejected, agent stack stays the render path (D17); #10, #11, #12, #15 applied as corrections; #9, #13, #14 unresolved (below).
+
+TODOS: no TODOS.md exists. The "TODO next tasks" list (items 1-10) carries its exact prior disposition: the owner directed in office hours that out-of-scope elements be listed as TODO next tasks. No new TODO proposals came from this review beyond the RSLC-coherence fallback, which is already folded into the gate table as out of scope.
+
+Approval readiness: PASS. Checked: R1 (D2), R2 (D3), R3 (D4), R4 (D5), R5 (D6), R6 (D7), R7 (D8), R8 (D9), R9 (D10), R10 (D11), R11 (D12), R12 (D13), R13 (D14), R14 (D15), R15 (D16), R16 (D17). Structure: D1.
+
+### NOT in scope
+- Generating coherence from RSLC/GSLC with ISCE3: not feasible in the time left; a missing pair counts as missing.
+- Bulletin prose-quality LLM eval: optional, not approved.
+- Single-process MCP (smaller arrangement): the owner kept two processes (D1).
+- Streamable HTTP transport: the owner kept SSE (D4).
+- Render path for the headline view that bypasses the agents: the owner kept the agent stack as the render path (D17).
+- TODO next tasks 1-10: carried from office hours.
+
+### What already exists
+- Nothing in this repo except this doc and .gitignore. The team's generated code (an earlier Gemini session) becomes the baseline via R1/D2, with the synthesizer removed.
+- Reuse targets (Layer 1): asf_search/earthaccess for discovery, h5py+fsspec for HDF5 subsetting, ee.Image.loadGeoTIFF for COGs on GCS, FastMCP, LangGraph StateGraph fan-out with an `operator.or_` reducer, pytest. GUNW already ships coherence (20/80 m) and an ionosphere screen (not applied): reuse them and do not recompute.
+
+### Failure modes
+| Path | Realistic failure | Test / handling | User sees |
+|---|---|---|---|
+| hour-2 gate | missing R/C/K pairs or ground truth | decision table + R9 timebox; gate tests from fixture lists | gate-result state (D8) |
+| scoring | wrong k, clamp order or bootstrap unit | known-answer pytest (D15) | correct or uninformative card |
+| cache_guard | live call slow at the hour-2-measured budget | budget tests; "cached" banner | cached banner |
+| offline pitch | uncached view | make pitch offline E2E (D9) | "not cached" state |
+| bulletin | digit/key/hash violation | checker tests at generation and serve | error state with retry |
+| agent stack at recording | LangGraph or MCP down | D8 error state; no bypass (D17) | error panel, video blocked until fixed |
+Critical gaps (no test, no handling, silent): 0. Accepted risk: the video depends on the agent stack (D17).
+
+### Worktree parallelization strategy
+| Step | Modules touched | Depends on |
+|---|---|---|
+| S1 baseline import + deps + secrets policy | repo root, scripts/, config/ | — |
+| S2 gate + ground truth + power check | scripts/, validation/ | S1 |
+| S3 quake science + scoring | gee_math/, validation/ | S1, frozen config from S2 |
+| S4 Aburrá + flood science | gee_math/ | S1 |
+| S5 MCP + LangGraph + bulletin | mcp_servers/, agents/ | S1 |
+| S6 frontend + video | web/, app.py | S1 (data from S3/S4 later) |
+| S7 tests | tests/ | S1 (logic tests), S3/S4 (pipeline fixtures) |
+Lane A: S1 → S2. Lanes B-F (S3, S4, S5, S6, S7) after S1. Conflict flags: config/preregistered.yaml is owned by the Quake lane after S2; gee_math/ is shared by S3/S4 (separate files); validation/ is shared by S2/S3 (README owned by S2, scoring.py owned by S3).
+Execution order: run S1. Then launch S2-S7 in parallel. Merge S2 before S3 views any C-pair coherence.
+
+## Implementation Tasks
+Synthesized from this review's findings. Each task derives from a specific finding above. Run with Claude Code or Codex; checkbox as you ship.
+
+- [ ] **T1 (P1, human: ~1h / CC: ~10min)** — repo — Import the generated code as the baseline commit with the radar synthesizer deleted
+  - Surfaced by: Scope Challenge #1 (R1, D2)
+  - Files: all generated files; scripts/prewarm_antioquia_cache.py
+  - Verify: `rg -n 'synthesiz' scripts/ gee_math/ mcp_servers/ app.py` returns nothing
+- [ ] **T2 (P1, human: ~40min / CC: ~10min)** — setup — Pin deps and run the hour-0 checklist (Earthdata, GEE, GCS, LLM key, routing dependency)
+  - Surfaced by: Scope Challenge #2 (R2, D3); Outside Voice #10
+  - Files: pyproject.toml (or requirements lock), .env.example
+  - Verify: one read-only call per credential succeeds
+- [ ] **T3 (P1, human: ~20min / CC: ~5min)** — repo — Secrets policy: .gitignore (.env, secrets/, local_cache/), env-only credentials, scan before going public
+  - Surfaced by: Section 1 #3 (R6, D7)
+  - Files: .gitignore, .env.example
+  - Verify: `git check-ignore .env local_cache/x`; gitleaks/gstack-redact clean before going public
+- [ ] **T4 (P1, human: ~2h / CC: ~15min)** — config — Create config/preregistered.yaml (frozen, hashed) and config/bailasar.yaml (operational); every component loads them
+  - Surfaced by: Section 1 #1 (R4, D5); Outside Voice #4 (R12, D13)
+  - Files: config/, validation/README.md
+  - Verify: test asserts no hardcoded threshold/AOI; README hash matches `git hash-object config/preregistered.yaml`
+- [ ] **T5 (P1, human: ~1h / CC: ~10min)** — gate — Hour-2 gate plus ground-truth/polygon check timeboxed to hour 4; power check and headline decision at hour 4
+  - Surfaced by: Outside Voice #1, #2 (R9 D10, R10 D11)
+  - Files: scripts/discover_nisar_colombia.py, validation/README.md
+  - Verify: gate JSON committed; README records the source, n units, positives, k and the headline choice
+- [ ] **T6 (P2, human: ~30min / CC: ~10min)** — cache_guard — Time 10 calls per live tool at the hour-2 gate; set budgets to p95 + 0.5 s in config/bailasar.yaml
+  - Surfaced by: Section 1 #2 (R5, D6; timing kept by D14)
+  - Files: mcp_servers/cache_guard.py, config/bailasar.yaml
+  - Verify: budgets present with timing log
+- [ ] **T7 (P2, human: ~3h / CC: ~20min)** — frontend — Five panel states (live, cached, not cached, gate result, error); never blank
+  - Surfaced by: Section 2 #1 (R7, D8)
+  - Files: web/
+  - Verify: offline E2E shows each state
+- [ ] **T8 (P1, human: ~2h / CC: ~20min)** — tests — Known-answer pytest for scoring, beats rule, informative gate, bulletin checker, gate table and flood baseline (hand-written arrays in tests/ only)
+  - Surfaced by: Section 3 (R8 D9, R14 D15)
+  - Files: tests/, validation/ALLOWLIST.md
+  - Verify: `make test` green
+- [ ] **T9 (P2, human: ~1d / CC: ~1h)** — tests — Real-tile pipeline checks for gee_math and an offline `make pitch` E2E before recording
+  - Surfaced by: Section 3 (R8, D9)
+  - Files: tests/
+  - Verify: `make test`; network-off `make pitch` walkthrough
+- [ ] **T10 (P2, human: ~1h / CC: ~10min)** — release — `make fetch-cache` plus a cache release asset with provenance manifest (publish only on the owner's go-ahead)
+  - Surfaced by: Outside Voice #3 (R11, D12)
+  - Files: Makefile, README.md
+  - Verify: fresh clone → fetch-cache → make pitch works offline
+- [ ] **T11 (P1, human: ~20min / CC: ~5min)** — plan — Record the official submission deadline D and the backward milestones; per-lane minimum outputs
+  - Surfaced by: Outside Voice #7 (R15, D16)
+  - Files: docs/designs/bailasar.md
+  - Verify: milestones listed with clock times
+- [ ] **T12 (P2, human: ~30min / CC: ~5min)** — bulletin — Allow-list sensor names; render unit/place names via placeholders
+  - Surfaced by: Outside Voice #11 (applied correction)
+  - Files: agents/, validation/event_facts.json
+  - Verify: checker test passes "Sentinel-1" and "Comuna 13" bulletins
+
+### Unresolved decisions that may bite you later
+- Outside Voice #9: compute the NISAR math locally from Zarr vs. via GCS → Earth Engine (two compute paths; GCS billing on the hour-0 path). Not asked.
+- Outside Voice #13: venue bandwidth for the cache build (name one engineer on a reliable connection). Not asked.
+- Outside Voice #14: pre-registration details still open (CHIRPS ratio floor and K check; minimum count of non-built reference pixels; post-event K pairing direction; gate table rows apply cumulatively). Settle before pre-registration. Not asked.
+
+### Completion summary
+- Step 0: Scope Challenge — scope accepted as-is
+- Reality rows: 7/7 applicable rows emitted (PLAN_REALITY complete), 3 unverified premises
+- Architecture Review: 3 issues found
+- Code Quality Review: 1 issue found (+6 factual corrections)
+- Test Review: diagram produced, 22 gaps identified
+- Performance Review: 2 issues found (both covered by existing decisions)
+- NOT in scope: written
+- What already exists: written
+- TODOS.md updates: 0 items proposed (existing TODO list carried by prior disposition)
+- Failure modes: 0 critical gaps flagged
+- Unresolved decisions: 3 in this review
+- Outside voice: Codex not installed → native Claude subagent (Plan) completed; outside_status unavailable (no external provider coverage)
+- Parallelization: 6 lanes, 5 parallel / 1 sequential (S1 first)
+- Lake Score: 1/16
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Outside Review | codex (not installed) → native Claude subagent, plan-eng-review | Independent 2nd opinion | 1 | unavailable | 15 findings (native fallback, not outside coverage): 6 accepted, 2 rejected, 4 applied as corrections, 3 unresolved |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES OPEN | 28 issues, 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+- **OUTSIDE COVERAGE:** codex, plan-review phase, not installed → outside_status unavailable; a native Claude Plan subagent completed within the 5-minute limit (15 findings). No external-provider coverage.
+- **CROSS-MODEL:** not applicable (no completed external review).
+- **VERDICT:** No review CLEAR yet. Eng review ran with issues open (mapped to tasks T1-T12); eng review required.
+
+**UNRESOLVED DECISIONS:**
+- Outside Voice #9: NISAR math computed locally from Zarr vs via GCS → Earth Engine
+- Outside Voice #13: venue bandwidth owner for the cache build
+- Outside Voice #14: CHIRPS floor/K check, non-built pixel minimum, post-event K pairing, cumulative gate rows
