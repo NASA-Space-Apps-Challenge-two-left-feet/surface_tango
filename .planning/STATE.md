@@ -37,7 +37,8 @@ Decisions are logged in the PROJECT.md Key Decisions table (D1–D17 of the desi
 ### Pending Todos
 
 - Owner: record the submission deadline D (plan 02-07)
-- Agents in flight (local branches, orchestrator reviews before push): quake DPM (opencode GLM-5.3), Aburrá InSAR (grok), La Mojana flood (grok2), cache builder (antigravity, manual)
+- Agents in flight (branches feat/data-*; handoffs in briefs/feat/; orchestrator reviews before merge): quake DPM #31 (opencode GLM-5.3), Aburrá InSAR #33 (grok), La Mojana flood #34 (grok2), cache builder #30 (antigravity), Sentinel tiles #30 (unassigned)
+- Math-lab blocker for #41 (SaritaRpo): #55 import Gemini artifact (needs owner export) and #56 rebuild fallback in static/mathlab-rebuild/, both in Antigravity
 
 ### Blockers/Concerns
 
