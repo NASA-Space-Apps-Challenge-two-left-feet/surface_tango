@@ -21,6 +21,7 @@ from rasterio.warp import reproject
 
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
+from mcp_servers.decision import DecisionConfigError, product_for_aoi, roster
 from video.report_facts import ReportFactError, load_pitch_facts
 
 app = FastAPI(title="Dancing with the SARs - NISAR Multi-Agent SSE API")
@@ -312,6 +313,27 @@ def bulletin():
         "serving_model": sections.get("serving_model"),
         "provenance": "reports/bulletin_demo.md (live LangGraph run, #162)",
     }
+
+
+@app.get("/api/decision")
+def decision_board():
+    """Evidence-state response postures for every configured AOI. No new numbers."""
+    try:
+        return roster(cache_root=CACHE_ROOT)
+    except DecisionConfigError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
+@app.get("/api/decision/{aoi}")
+def decision_aoi(aoi: str):
+    """One AOI's posture, copied from its own hazard envelopes."""
+    try:
+        product = product_for_aoi(aoi, cache_root=CACHE_ROOT)
+    except DecisionConfigError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    if product is None:
+        raise HTTPException(404, "Unknown AOI")
+    return product
 
 
 FLOOD_EVIDENCE = CACHE_ROOT / "mojana" / "flood_evidence.json"

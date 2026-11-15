@@ -319,6 +319,7 @@ function openLiveView() {
   activeStory = "";
   chapterSelect.value = "";
   storyResult.hidden = true;
+  window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: "" } }));
   hideFloodTimeline();
   hideVerdictCard();
   physicsInspector.style.display = "";
@@ -339,6 +340,7 @@ async function openStoryChapter(chapter) {
   const request = new AbortController();
   storyRequest = request;
   activeStory = chapter;
+  window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: chapter } }));
   playFeetTransition(chapter);
   ++currentInspection;
   physicsInspector.style.display = "none";

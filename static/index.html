@@ -232,6 +232,15 @@
           <option value="earthquake">3 · Eje Cafetero earthquake</option>
           <option value="synthesis">4 · Cross-hazard synthesis</option>
         </select>
+        <section id="decision-card" class="dec-card" aria-live="polite" aria-label="Response posture">
+          <div class="dec-head">
+            <h2 class="dec-kicker">Response posture</h2>
+            <span id="decision-state" class="dec-state">Not cached</span>
+          </div>
+          <div id="decision-body">
+            <p class="dec-note">Loading the evidence-state lights.</p>
+          </div>
+        </section>
         <div id="aoi-navigator" class="mt-3" tabindex="0" aria-label="Area of interest navigator">
           <div class="flex items-center justify-between mb-1">
             <span class="aoi-title">AREAS OF INTEREST</span>
@@ -804,8 +813,62 @@
     .aoi-empty { font-size: 11px; color: #6b7280; }
     @keyframes aoi-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { .aoi-detail { animation: none; } }
+
+    /* Response posture — evidence states, not a fatality scale.
+       The story panel sits above the curtain handles (z-index 50) so the
+       hectare line is readable where the Optical | C-band pill crosses it. */
+    #comparison-viewport > section[aria-label="Story map"] { z-index: 60; max-height: 80vh; }
+    .dec-card { margin-top: 10px; padding: 8px; border: 1px solid #2b3240; border-radius: 8px; background: #0b0f16; }
+    .dec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .dec-kicker { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa4b2; font-weight: 600; }
+    .dec-state { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #cbd5e1; border: 1px solid #3a4150; border-radius: 999px; padding: 1px 6px; }
+    .dec-state-live { color: #5eead4; border-color: #0f766e; }
+    .dec-state-gate-result { color: #fde68a; border-color: #a16207; }
+    .dec-state-not-cached, .dec-state-error { color: #f59e8c; border-color: #F04A23; }
+    .dec-lights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 8px 0; }
+    .dec-light { display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 44px; padding: 4px 2px; border: 1px dashed #3a4150; border-radius: 6px; opacity: 0.55; }
+    .dec-light.is-on { opacity: 1; border-style: solid; }
+    .dec-lamp { width: 8px; height: 8px; border-radius: 999px; background: #475569; }
+    .dec-light-label { font-size: 8px; line-height: 1.2; text-align: center; color: #cbd5e1; }
+    .dec-deploy_assessment.is-on { border-color: #F04A23; background: #3b140c; }
+    .dec-deploy_assessment.is-on .dec-lamp { background: #F04A23; }
+    .dec-provisional.is-on { border-color: #f5b942; background: #3b2a08; }
+    .dec-provisional.is-on .dec-lamp { background: #f5b942; }
+    .dec-not_assessed.is-on { border-color: #94a3b8; background: #1e293b; }
+    .dec-not_assessed.is-on .dec-lamp { background: #94a3b8; }
+    .dec-monitor.is-on { border-color: #22d3ee; background: #083344; }
+    .dec-monitor.is-on .dec-lamp { background: #22d3ee; }
+    .dec-action { font-size: 12px; font-weight: 650; margin-top: 4px; color: #fff; }
+    .dec-action-dispatch_life_safety { color: #fecaca; }
+    .dec-action-preposition_assessment { color: #fde68a; }
+    .dec-action-no_dispatch { color: #a5f3fc; }
+    .dec-note, .dec-src, .dec-clearance { font-size: 10px; line-height: 1.35; color: #94a3b8; margin-top: 4px; }
+    .dec-clearance { color: #f59e8c; }
+    .dec-facts { margin-top: 6px; }
+    .dec-fact { display: grid; grid-template-columns: 88px 1fr; gap: 4px; margin-top: 3px; }
+    .dec-term { font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
+    .dec-detail { font-size: 10.5px; color: #e5e7eb; }
+    .dec-aoi { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .dec-aoi-name { font-size: 12px; font-weight: 600; color: #fff; }
+    .dec-back, .dec-board-btn { background: transparent; color: #cbd5e1; border: 1px solid #3a4150; border-radius: 6px; font-size: 10px; padding: 2px 6px; cursor: pointer; }
+    .dec-board { list-style: none; margin: 6px 0 0; padding: 0; }
+    .dec-board-row { margin-top: 4px; }
+    .dec-board-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 6px; min-height: 36px; text-align: left; }
+    .dec-pip { font-size: 8px; letter-spacing: 0.04em; text-transform: uppercase; border-radius: 999px; padding: 1px 5px; border: 1px solid #3a4150; white-space: nowrap; }
+    .dec-pip.dec-provisional { color: #fde68a; border-color: #f5b942; }
+    .dec-pip.dec-monitor { color: #a5f3fc; border-color: #22d3ee; }
+    .dec-pip.dec-not_assessed, .dec-pip.dec-out_of_scope, .dec-pip.dec-product { color: #cbd5e1; border-color: #64748b; }
+    .dec-pip.dec-deploy_assessment { color: #fecaca; border-color: #F04A23; }
+    .dec-hazards, .dec-lifelines, .dec-lines, .dec-nota { list-style: none; margin: 6px 0 0; padding: 0; }
+    .dec-hazard, .dec-lifeline, .dec-line { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; margin-top: 4px; }
+    .dec-hazard-name, .dec-lifeline-name, .dec-line-esf { font-size: 10px; color: #e5e7eb; }
+    .dec-fold { margin-top: 6px; }
+    .dec-fold summary { font-size: 10px; color: #cbd5e1; cursor: pointer; }
+    .dec-lifeline.is-check .dec-lifeline-name { color: #fde68a; }
+    @media (prefers-reduced-motion: reduce) { .dec-card, .dec-light { transition: none; } }
   </style>
   <script src="/static/story-map.js"></script>
   <script src="/static/aoi-nav.js"></script>
+  <script src="/static/decision.js"></script>
 </body>
 </html>
