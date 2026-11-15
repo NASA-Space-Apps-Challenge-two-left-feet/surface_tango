@@ -12,11 +12,12 @@ const storyPanels = [
 ];
 const comparisonLabels = ["Sentinel-2 optical", "Sentinel-1 C-band", "NISAR L-band"];
 const quakeLabels = ["Sentinel-2 post-event optical", "NISAR pre-event coherence", "NISAR co-event coherence loss"];
-const chapterTools = {
-  landslide: "analyze_landslide_kinematics",
-  earthquake: "rank_first_aid_barrios",
-  flood: "analyze_flood_inundation",
-  synthesis: "cross_hazard_synthesis",
+const chapterAreas = { landslide: "aburra", earthquake: "eje_cafetero", flood: "mojana" };
+const pendingResults = {
+  landslide: "Aburrá displacement is available as context. The noise-floor verdict is pending.",
+  earthquake: "The quake coverage decision is pending.",
+  flood: "The La Mojana result is unavailable.",
+  synthesis: "No measured cross-hazard links have been published.",
 };
 const resultStates = { live: "Live", cached: "Cached", gate: "Gate result" };
 let storyRequest;
@@ -26,17 +27,19 @@ function setCurtainLabels(chapter) {
   storyPanels.forEach(({ id }, index) => {
     document.getElementById(`${id}-label`).textContent = labels[index];
   });
-  document.getElementById("handle-label-1").textContent = `◀ ${labels[0]} | ${labels[1]} ▶`;
-  document.getElementById("handle-label-2").textContent = `◀ ${labels[1]} | ${labels[2]} ▶`;
+  const short = chapter === "earthquake" ? ["Optical", "Pre-event", "Co-event"] : ["Optical", "C-band", "L-band"];
+  document.getElementById("handle-label-1").textContent = `◀ ${short[0]} | ${short[1]} ▶`;
+  document.getElementById("handle-label-2").textContent = `◀ ${short[1]} | ${short[2]} ▶`;
   return labels;
 }
 
-function showStoryResult(state, summary, source = "") {
+function showStoryResult(state, summary, source = "", provenance = "") {
   storyResult.hidden = false;
   document.getElementById("story-state").textContent = state;
   document.getElementById("story-summary").textContent = summary;
   const citation = document.getElementById("story-source");
   citation.textContent = source;
+  citation.title = provenance;
   citation.hidden = !source;
   storyRetry.hidden = state !== "Error";
 }
@@ -55,13 +58,27 @@ function isMapPoint(point) {
 
 function usableTile(panel) {
   if (typeof panel?.tile_url !== "string" || !panel.tile_url.trim()) return false;
-  const tile = new URL(panel.tile_url, location.origin);
+  let tile;
+  try { tile = new URL(panel.tile_url, location.origin); } catch { return false; }
   if (!["http:", "https:"].includes(tile.protocol)) return false;
   if (panel.state === "cached") return tile.origin === location.origin;
   return panel.state === "live";
 }
 
-function drawMeasuredOverlays(chapter, result) {
+function drawMeasuredOverlays(chapter, result, evidence) {
+  const water = result.open_water;
+  if (chapter === "flood" && water && evidence && !usableTile(result.panels?.[2])
+      && water.granule === evidence.granule && water.date === evidence.date
+      && water.geojson?.type === "FeatureCollection" && water.geojson.features?.length) {
+    deckOverlay.setProps({ layers: [new deck.GeoJsonLayer({
+      id: "measured-open-water",
+      data: water.geojson,
+      stroked: false,
+      getFillColor: [14, 165, 233, 220],
+    })] });
+    panelStatus("nisar", "Cached", `Open water · ${water.date}`, water.granule);
+    return;
+  }
   if (chapter === "earthquake" && Array.isArray(result.ranked_barrios)) {
     const barrios = result.ranked_barrios.filter(({ position, rank }) =>
       isMapPoint(position) && Number.isInteger(rank) && rank > 0
@@ -89,6 +106,31 @@ function drawMeasuredOverlays(chapter, result) {
       getTargetColor: [249, 115, 22],
       getWidth: 2,
     })] });
+  }
+}
+
+async function readStoryInput(path, signal) {
+  const response = await fetch(path, { signal, cache: "no-store" });
+  if (response.status === 404) return {};
+  if (!response.ok) throw new Error("Story input unavailable");
+  return response.json();
+}
+
+function cachedChapterPanels(chapter, references, los) {
+  const panels = [references.s2, references.s1, los];
+  if (chapter === "earthquake") {
+    // The middle panel changes to NISAR pre-event coherence in this layout.
+    panels[1] = null;
+  }
+  return panels;
+}
+
+function fitChapter(bounds) {
+  if (!Array.isArray(bounds) || bounds.length !== 4) return;
+  const [west, south, east, north] = bounds;
+  if (isMapPoint([west, south]) && isMapPoint([east, north]) && west < east && south < north) {
+    mapNisar.jumpTo({ pitch: 0, bearing: 0 });
+    mapNisar.fitBounds([[west, south], [east, north]], { padding: 40, duration: 0 });
   }
 }
 
@@ -122,39 +164,46 @@ async function openStoryChapter(chapter) {
   const labels = setCurtainLabels(chapter);
   deckOverlay.setProps({ layers: [] });
   resetStoryPanels(labels, "Not cached", "Awaiting chapter tiles");
-  showStoryResult("Not cached", `Awaiting approved output from ${chapterTools[chapter]}.`);
+  showStoryResult("Not cached", pendingResults[chapter]);
 
   try {
-    const response = await fetch("/api/story-results", { signal: request.signal, cache: "no-store" });
-    if (response.status === 404) return;
-    if (!response.ok) throw new Error("Story results unavailable");
-    const results = await response.json();
+    const aoi = chapterAreas[chapter];
+    const [evidenceByChapter, results, references, los] = await Promise.all([
+      readStoryInput("/static/story-evidence.json", request.signal),
+      readStoryInput("/api/story-results", request.signal),
+      aoi ? readStoryInput(`/api/sentinel-tiles/${aoi}`, request.signal) : {},
+      chapter === "landslide" ? readStoryInput("/api/local-tiles/landslide", request.signal) : null,
+    ]);
     if (request.signal.aborted) return;
-    const result = results[chapter];
-    if (!result) return;
+
+    const evidence = evidenceByChapter[chapter];
+    const result = { ...evidence, ...results[chapter] };
     const state = Object.hasOwn(resultStates, result.state) && resultStates[result.state];
-    if (!state || !result.summary?.trim() || !result.source?.trim()) {
-      throw new Error("Story result requires a state, summary, and evidence source");
+    if (state && result.summary?.trim() && result.source?.trim()) {
+      showStoryResult(state, result.summary, result.source, [evidence?.granule, evidence?.command].filter(Boolean).join(" · "));
     }
-    showStoryResult(state, result.summary, result.source);
-    if (Array.isArray(result.bounds) && result.bounds.length === 4) {
-      const [west, south, east, north] = result.bounds;
-      if (isMapPoint([west, south]) && isMapPoint([east, north]) && west < east && south < north) {
-        mapNisar.fitBounds([[west, south], [east, north]], { padding: 40, duration: 0 });
-      }
-    }
-    if (result.state === "gate") {
-      resetStoryPanels(labels, state, "See coverage decision");
-      return;
-    }
+    fitChapter(result.bounds ?? result.open_water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
+    const cached = cachedChapterPanels(chapter, references, los);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
-      const panel = result.panels?.[index];
+      const approved = result.panels?.[index];
+      const panel = usableTile(approved) ? approved : cached[index];
       if (usableTile(panel)) {
-        setTileLayer(map, sourceId, panel.tile_url);
-        panelStatus(id, resultStates[panel.state], labels[index]);
+        const options = panel.bounds ? { bounds: panel.bounds, minzoom: panel.minzoom, maxzoom: panel.maxzoom } : {};
+        setTileLayer(map, sourceId, panel.tile_url, options);
+        const detail = [labels[index], panel.date].filter(Boolean).join(" · ");
+        panelStatus(id, resultStates[panel.state], detail, (panel.scene_ids ?? panel.granule_ids ?? []).join(", "));
+      } else if (chapter === "earthquake" && index === 1) {
+        const image = result.pre_event_coherence;
+        if (image?.url?.startsWith("data:image/png;base64,") && typeof image.granule === "string"
+            && Array.isArray(image.corners) && image.corners.length === 4 && image.corners.every(isMapPoint)) {
+          setTileLayer(map, sourceId, image.url, { type: "image", url: image.url, coordinates: image.corners });
+          panelStatus(id, "Cached", [labels[index], image.dates?.join(" to ")].filter(Boolean).join(" · "), image.granule);
+        }
+      } else if (chapter === "earthquake" && index === 2) {
+        panelStatus(id, "Not cached", "Co-event coherence withheld");
       }
     });
-    drawMeasuredOverlays(chapter, result);
+    drawMeasuredOverlays(chapter, result, evidence);
   } catch {
     if (request.signal.aborted) return;
     resetStoryPanels(labels, "Error", "Use Retry in Story map");

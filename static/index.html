@@ -371,7 +371,10 @@
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId);
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
       if (!tileUrl) return;
-      mapInstance.addSource(sourceId, { type: "raster", tiles: [tileUrl], tileSize: 256, ...options });
+      const source = options.type === "image"
+        ? options
+        : { type: "raster", tiles: [tileUrl], tileSize: 256, ...options };
+      mapInstance.addSource(sourceId, source);
       mapInstance.addLayer({ id: sourceId, type: "raster", source: sourceId, paint: { "raster-opacity": 0.85 } });
     }
 
