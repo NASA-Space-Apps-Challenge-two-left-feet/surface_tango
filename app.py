@@ -2,12 +2,14 @@
 import asyncio
 import json
 import os
+import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 
 import ee
 import numpy as np
+import rasterio
 import xarray as xr
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,6 +139,139 @@ def pitch_facts():
         return load_pitch_facts()
     except (OSError, ReportFactError) as error:
         raise HTTPException(500, f"Report facts unavailable: {error}") from error
+
+
+BULLETIN_REPORT = Path(__file__).resolve().parent / "reports" / "bulletin_demo.md"
+BULLETIN_SECTIONS = {
+    "es": "## ES — Historia ciudadana",
+    "en": "## EN — Decision-maker brief",
+}
+
+
+def parse_bulletin_report(text):
+    """Split the merged live-run report into its ES/EN sections and serving metadata."""
+    sections = {}
+    for language, header in BULLETIN_SECTIONS.items():
+        start = text.find(header)
+        if start == -1:
+            continue
+        start += len(header)
+        end = text.find("\n## ", start)
+        sections[language] = text[start : end if end != -1 else len(text)].strip()
+    model_line = next(
+        (line.strip() for line in text.splitlines() if line.startswith("**Serving model:**")),
+        None,
+    )
+    sections["serving_model"] = model_line
+    return sections
+
+
+@app.get("/api/bulletin")
+def bulletin():
+    """The bilingual bulletin from the recorded live graph run (reports/bulletin_demo.md)."""
+    try:
+        text = BULLETIN_REPORT.read_text(encoding="utf-8")
+    except OSError as error:
+        raise HTTPException(404, "Bulletin report unavailable") from error
+    sections = parse_bulletin_report(text)
+    if "es" not in sections or "en" not in sections:
+        raise HTTPException(500, "Bulletin report malformed")
+    return {
+        "state": "cached",
+        "badge": "SI-Assisted Analytics",
+        "citizen_story_es": sections["es"],
+        "decision_maker_brief_en": sections["en"],
+        "serving_model": sections.get("serving_model"),
+        "provenance": "reports/bulletin_demo.md (live LangGraph run, #162)",
+    }
+
+
+FLOOD_EVIDENCE = CACHE_ROOT / "mojana" / "flood_evidence.json"
+
+
+def flood_series_entry():
+    """Per-date measured water-pixel counts from the serialized flood evidence artifact."""
+    try:
+        artifact = json.loads(FLOOD_EVIDENCE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    dates = []
+    for entry in artifact.get("dates", []):
+        if not isinstance(entry, dict) or not isinstance(entry.get("date"), str):
+            continue
+        if not isinstance(entry.get("n_water"), int) or not isinstance(entry.get("n_valid"), int):
+            continue
+        if entry["n_valid"] <= 0:
+            continue  # a date with no valid pixels carries no measured area
+        dates.append(
+            {
+                "date": entry["date"],
+                "n_water": entry["n_water"],
+                "n_valid": entry["n_valid"],
+                "granule_ids": entry.get("granule_ids", []),
+            }
+        )
+    display = artifact.get("water_extent", {})
+    return {
+        "state": "live" if artifact.get("baseline", {}).get("accepted") else "gate result",
+        "dates": dates,
+        "display_date": display.get("reference_date"),
+        "display_ha": display.get("value_ha"),
+        "pixel_area_m2": display.get("pixel_area_m2"),
+        "granule_ids": artifact.get("provenance", {}).get("granule_ids", []),
+    }
+
+
+@app.get("/api/flood-series")
+def flood_series():
+    """The measured La Mojana open-water series, per date, from the evidence artifact."""
+    series = flood_series_entry()
+    if series is None:
+        raise HTTPException(404, "Flood evidence artifact unavailable")
+    return series
+
+
+@app.get("/api/flood-mask/{date}.png")
+def flood_mask(date: str):
+    """Render one date's measured water mask as an RGBA image overlay."""
+    if not re.fullmatch(r"2026-\d{2}-\d{2}", date):
+        raise HTTPException(404, "Invalid date")
+    path = CACHE_ROOT / "mojana" / f"water_extent_{date}.tif"
+    if not path.is_file():
+        raise HTTPException(404, f"No water mask for {date}")
+    with rasterio.open(path) as src:
+        grid = src.read(1)
+    water = grid == 1
+    height, width = grid.shape
+    rgba = np.zeros((height, width, 4), dtype=np.uint8)
+    rgba[water] = [53, 196, 181, 200]
+    png = MemoryFile()
+    with rasterio.open(
+        png,
+        "w",
+        driver="PNG",
+        width=width,
+        height=height,
+        count=4,
+        dtype="uint8",
+    ) as dst:
+        dst.write(rgba.transpose(2, 0, 1))
+    return Response(png.read(), media_type="image/png", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/flood-mask")
+def flood_mask_bounds(date: str = Query(...)):
+    """Bounds and pixel posting for one date's mask, for the image overlay."""
+    if not re.fullmatch(r"2026-\d{2}-\d{2}", date):
+        raise HTTPException(404, "Invalid date")
+    path = CACHE_ROOT / "mojana" / f"water_extent_{date}.tif"
+    if not path.is_file():
+        raise HTTPException(404, f"No water mask for {date}")
+    with rasterio.open(path) as src:
+        west, south, east, north = rasterio.warp.transform_bounds(
+            src.crs, "EPSG:4326", *src.bounds, densify_pts=21
+        )
+    return {"date": date, "bounds": [west, south, east, north]}
 
 
 @app.get("/api/cache-bands/{aoi}")

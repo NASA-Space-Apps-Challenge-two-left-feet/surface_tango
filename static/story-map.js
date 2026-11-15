@@ -22,6 +22,86 @@ const pendingResults = {
 const resultStates = { live: "Live", cached: "Cached", gate: "Gate result" };
 let storyRequest;
 
+// --- Measured La Mojana open-water timeline (flood chapter only) ---
+const floodTimeline = document.getElementById("flood-timeline");
+const floodTimelineState = { series: null, selected: "" };
+
+function floodStatsReadout(date) {
+  const entry = floodTimelineState.series?.dates?.find(item => item.date === date);
+  if (!entry) return "";
+  const series = floodTimelineState.series;
+  const ha = series.pixel_area_m2 && series.pixel_area_m2 > 0
+    ? `${(entry.n_water * series.pixel_area_m2 / 10000).toLocaleString("es-CO", { maximumFractionDigits: 0 })} ha` : "";
+  return `${entry.n_water.toLocaleString("es-CO")} water px of ${entry.n_valid.toLocaleString("es-CO")} valid${ha ? " · " + ha : ""}`;
+}
+
+function selectFloodDate(date) {
+  const entry = floodTimelineState.series?.dates?.find(item => item.date === date);
+  if (!entry || !floodTimelineState.bounds) return;
+  floodTimelineState.selected = date;
+  const url = `/api/flood-mask/${date}.png`;
+  const [west, south, east, north] = floodTimelineState.bounds;
+  setTileLayer(mapNisar, "nisar-active-raster", url, {
+    type: "image",
+    url,
+    coordinates: [[west, north], [east, north], [east, south], [west, south]],
+  });
+  panelStatus("nisar", "Cached", `Open water · ${date}`, entry.granule_ids.join(", "));
+  const readout = document.getElementById("flood-readout");
+  if (readout) {
+    readout.textContent = `${date} · ${floodStatsReadout(date)} (measured)`;
+    readout.hidden = false;
+  }
+  document.querySelectorAll("#flood-timeline button").forEach(button => {
+    button.classList.toggle("flood-date-active", button.dataset.date === date);
+  });
+}
+
+async function loadFloodTimeline() {
+  try {
+    const [series, bounds] = await Promise.all([
+      fetch("/api/flood-series", { cache: "no-store" }).then(response => {
+        if (!response.ok) throw new Error("series unavailable");
+        return response.json();
+      }),
+      fetch("/api/flood-mask?date=2026-06-17", { cache: "no-store" }).then(response => {
+        if (!response.ok) throw new Error("mask bounds unavailable");
+        return response.json();
+      }),
+    ]);
+    if (!series?.dates?.length || !bounds?.bounds) throw new Error("incomplete series");
+    floodTimelineState.series = series;
+    floodTimelineState.bounds = bounds.bounds;
+    const rail = floodTimeline.querySelector("div");
+    const max = Math.max(...series.dates.map(item => item.n_water));
+    floodTimeline.hidden = false;
+    rail.innerHTML = "";
+    series.dates.forEach(entry => {
+      const button = document.createElement("button");
+      button.dataset.date = entry.date;
+      button.className = "flood-date";
+      button.style.flexGrow = "1";
+      button.innerHTML = `
+        <span class="flood-date-label">${entry.date.slice(5)}</span>
+        <span class="flood-date-bar" style="height:${Math.max(3, (entry.n_water / max) * 56)}px"></span>`;
+      button.title = `${entry.date} · ${floodStatsReadout(entry.date)} · ${entry.granule_ids[0] ?? ""}`;
+      button.addEventListener("click", () => selectFloodDate(entry.date));
+      rail.appendChild(button);
+    });
+    selectFloodDate(series.display_date ?? series.dates[0].date);
+  } catch (error) {
+    console.error("flood timeline unavailable:", error);
+    floodTimeline.hidden = true;
+  }
+}
+
+function hideFloodTimeline() {
+  console.trace("hideFloodTimeline called");
+  floodTimeline.hidden = true;
+  const readout = document.getElementById("flood-readout");
+  if (readout) readout.hidden = true;
+}
+
 function setCurtainLabels(chapter) {
   const labels = chapter === "earthquake" ? quakeLabels : comparisonLabels;
   storyPanels.forEach(({ id }, index) => {
@@ -176,6 +256,7 @@ function openLiveView() {
   activeStory = "";
   chapterSelect.value = "";
   storyResult.hidden = true;
+  hideFloodTimeline();
   physicsInspector.style.display = "";
   maps.forEach(map => map.resize());
   setCurtainLabels("");
@@ -201,6 +282,7 @@ async function openStoryChapter(chapter) {
   deckOverlay.setProps({ layers: [] });
   resetStoryPanels(labels, "Not cached", "Awaiting chapter tiles");
   showStoryResult("Not cached", pendingResults[chapter]);
+  if (chapter !== "flood") hideFloodTimeline();
 
   try {
     const aoi = chapterAreas[chapter];
@@ -239,9 +321,13 @@ async function openStoryChapter(chapter) {
     const cached = cachedChapterPanels(chapter, references, landslide.value);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
       if (chapter === "earthquake" && index === 2) {
-        // C and K stay sealed until the pre-registration freeze, whatever the cache holds.
+        // The freeze unsealed C/K; the panel states what the cache actually holds.
         const status = bands.value?.bands?.coherence_C?.status ?? "withheld";
-        panelStatus(id, "Not cached", `Co-event coherence C/K sealed · manifest: ${status}`);
+        if (status === "cached") {
+          panelStatus(id, "Cached", `Co-event coherence · unsealed after the pre-registration freeze · manifest: cached`);
+        } else {
+          panelStatus(id, "Not cached", `Co-event coherence C/K · manifest: ${status}`);
+        }
         return;
       }
       const approved = hasStagedEvidence ? cachedResult.panels?.[index] : null;
@@ -265,6 +351,9 @@ async function openStoryChapter(chapter) {
       }
     });
     drawMeasuredOverlays(chapter, { ...(hasStagedEvidence ? cachedResult : {}), open_water: water }, evidence);
+    if (chapter === "flood" && !request.signal.aborted) {
+      await loadFloodTimeline();
+    }
   } catch {
     if (request.signal.aborted) return;
     resetStoryPanels(labels, "Error", "Use Retry in Story map");
