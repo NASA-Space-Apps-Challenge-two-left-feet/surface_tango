@@ -95,7 +95,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 
 ## Architecture
 
-Software architecture as merged on `main` — what runs today. Grey dotted boxes are planned or not built yet, per the Status table.
+Software architecture as merged on `main` — what runs today. Grey dotted boxes are the pieces not finished yet (the final video cut and the end-to-end live demo), per the Status table.
 
 ```mermaid
 flowchart LR
@@ -105,8 +105,8 @@ flowchart LR
         PUB["OSM hospitals & roads ·<br/>published damage reports"]
     end
     subgraph SERVERS["Two FastMCP servers · SSE"]
-        M1["mcp-nisar-asf :8001 (planned)<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
-        M2["mcp-gee-fusion :8002 (planned)<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
+        M1["mcp-nisar-asf :8001 (live)<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
+        M2["mcp-gee-fusion :8002 (live)<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
     end
     GUARD["cache_guard (mcp_servers/cache_guard.py)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
     subgraph GRAPH["LangGraph · agents/"]
@@ -121,8 +121,8 @@ flowchart LR
         TILES["tiles/ S1+S2 curtain XYZ PNGs<br/>transparent outside AOI and no-data"]
         PAIRS["pairs/ curated scene pairs"]
     end
-    UI["app.py FastAPI :8000 (not cached)<br/>MapLibre mission control<br/>panels: live · cached · not cached ·<br/>gate result · error"]
-    VIDEO["video/ 30-second submission (planned)"]
+    UI["app.py FastAPI :8000 (cached)<br/>MapLibre mission control<br/>panels: live · cached · not cached ·<br/>gate result · error"]
+    VIDEO["video/ 30-second submission (draft)"]
 
     NISAR -.-> M1
     GEE -.-> M2
@@ -136,7 +136,7 @@ flowchart LR
     PUB -.-> S
     UI -.-> VIDEO
     LIVE["live-mode SSE serving of both servers<br/>E2E offline demo"]:::pending -.-> UI
-    class M1,M2,GUARD,IN,L,Q,F,S,UI,VIDEO pending
+    class VIDEO pending
     classDef pending fill:#eee,stroke:#999,color:#666,stroke-dasharray:5 5
 ```
 

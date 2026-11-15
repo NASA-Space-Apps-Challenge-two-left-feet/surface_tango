@@ -15,7 +15,7 @@ Shot times are editing targets. The voice-over is **English, AI-generated** (no 
 | 0–4 s | [Record title and English bulletin] | La Mojana, Colombia · Open water mapped with NISAR | In La Mojana, we mapped open water with radar. |
 | 4–10 s | [Record the synchronized curtain slider] | Sentinel-2 optical and Sentinel-1 C-band · 28 Jun 2026. NISAR L-band · 17 Jun 2026 · PROVISIONAL. | The Sentinel scenes give context. NISAR shows the open water. |
 | 10–15 s | [Record the timeline scrub and June NISAR water mask] | 17 Jun 2026 · 4,487 ha (measured, rounded) · 5,539 of 197,758 valid pixels · PROVISIONAL. | NISAR mapped June open water. |
-| 15–21 s | [Record a separate July comparison card] | 11 Jul 2026 · 3,351 of 4,946 NISAR open-water pixels with valid Sentinel-1, missed by the Sentinel-1 threshold (measured, uncalibrated threshold) · PROVISIONAL. | In July, the Sentinel-1 threshold missed some of the open water. |
+| 15–21 s | [Record a separate July comparison card] | 11 Jul 2026 · 3,351 of 4,946 NISAR open-water pixels with valid Sentinel-1, missed by the Sentinel-1 threshold (measured, uncalibrated threshold) · 10 dates: median miss fraction 0.64 (measured, PROVISIONAL, uncalibrated) · PROVISIONAL. | On the same uncalibrated cut, Sentinel-1 missed 3,351 of 4,946 open-water pixels NISAR saw — a median of 0.64 across ten dates. |
 | 21–27 s | [Record the outcome card] | Absolute open water · 2,799–6,726 ha (threshold sensitivity, measured, rounded) · Uncalibrated thresholds · No validated flood change · PROVISIONAL. | The range depends on the threshold. The dry reference cannot support a change estimate. |
 | 27–30 s | [Record credits card] | Surface Tango · Two Left Feet · NISAR / ASF DAAC · Copernicus Sentinel-1/2 · SI-Assisted Analytics | — |
 
