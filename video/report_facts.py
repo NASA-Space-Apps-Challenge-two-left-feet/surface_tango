@@ -142,7 +142,23 @@ def aburra_facts(root: Path = ROOT) -> dict:
     verdict = _section(text, "Verdict", ABURRA)
     line = _line(verdict, r"No motion detected above ([\d.]+) mm \((\d+) pairs\)", ABURRA)
     command = _line(verdict, r"Command: `([^`]+)`", ABURRA).group(1)
-    exceeds = re.findall(r"^\| Track [^|]+\|.*\| (yes|no) \|$", verdict, re.MULTILINE)
+    table = verdict.splitlines()
+    header = next((row for row in table if row.startswith("| Stack |")), None)
+    if header is None:
+        raise ReportFactError(f"{ABURRA}: per-track null table is missing")
+    columns = [cell.strip() for cell in header.split("|")[1:-1]]
+    try:
+        null_column = columns.index("Exceeds sign-flip null")
+    except ValueError as error:
+        raise ReportFactError(f"{ABURRA}: sign-flip null column is missing") from error
+    exceeds = []
+    for row in table:
+        if not row.lower().startswith("| track "):
+            continue
+        cells = [cell.strip() for cell in row.split("|")[1:-1]]
+        if len(cells) != len(columns) or cells[null_column] not in {"yes", "no"}:
+            raise ReportFactError(f"{ABURRA}: invalid per-track null row")
+        exceeds.append(cells[null_column])
     if not exceeds:
         raise ReportFactError(f"{ABURRA}: no per-track null rows found")
     return {

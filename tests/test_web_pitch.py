@@ -21,6 +21,7 @@ def test_facts_keep_their_report_line_and_source():
         report = (ROOT / "reports/mojana.md").read_text(encoding="utf-8")
         assert fact["report_line"] in report
     assert facts["landslide"]["noise_floor_mm"]["source"] == "reports/aburra.md#verdict"
+    assert facts["landslide"]["exceeds_null"] is False
     assert facts["earthquake"]["scorecard"] == "uninformative"
 
 
