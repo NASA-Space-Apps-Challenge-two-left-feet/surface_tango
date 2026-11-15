@@ -23,23 +23,29 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home is the orchestrator again (resumed 2026-11-15 ~03:40 UTC from the opencode session-2 handback). Snapshot refreshed 2026-11-15 03:55 UTC.
-Last activity: #87 merged by claude-home after review (search_nisar_granules budget 1.2 s, measured n=10); #86 sent back with changes requested (pairs list breaks the #85 loader path `quake.pairs.coevent_C`; needs a line in validation/README.md "Differences from blob 8d91f1d"). Jack merged #91 himself (landslide noise_floor keys, with the differences table); prereg blob is now `2434302`.
+Status: claude-home orchestrating. Snapshot refreshed 2026-11-15 ~05:00 UTC.
+Last activity (since 03:55 UTC, all squash-merged into main):
+- #95 LangSmith tracing; #96, #97 Maru's scoring functions and ground-truth research (cherry-picked without her repo-wide formatting commit).
+- #98 La Mojana lane: open water per date measured; change classes degenerate.
+- #102 Jack's power check: **scorecard uninformative**. Headline **La Mojana flood**, ratified by LEONOB2014.
+- #88, #90, #93 Esteban's drafts (submission text, Granizal gloss, README fixes with a mermaid parse check; offline tests 180).
+- #103 Alice's #100/#101, brought from her `develop` branch without the develop-workflow commit, plus the fix for the gee-fusion import crash (209 tests).
+- Draft pre-release `cache-2026-11-15` for the team: 3 AOIs, C-pair coherence and `quake/` withheld.
 
-#### Agents (2026-11-15 03:52 UTC)
+#### Agents (2026-11-15 ~05:00 UTC)
 | Agent | Lane / issue | State |
 |---|---|---|
-| grok | Aburrá InSAR #33 (`feat/data-aburra-insar`) | finished; fa8dcfc, 25 commits ahead of its remote, 8 behind main; not pushed; awaits claude-home review (slope fix 9aa36a7, noise floor 9.105 mm provisional) |
-| grok2 | La Mojana flood #34 (`feat/data-mojana-flood`) | finished; 74007f5, 29 ahead, 5 behind main; interactive session still open (pid 27364); awaits review |
-| opencode | public-readiness audit #46 | done (#83); its TUI session is still open in the audit worktree |
-| Antigravity A/B | cache builder #30 (#78), Sentinel tiles #30 (#65) | done and merged; #65 still needs the deep review (Gemini Flash rule) |
+| grok | Aburrá InSAR #33 | **Waiting for the owner to resume it.** Review found the keep-rule passes noise (~25 % kept, signs ~50/50). The calibration fix is in its brief (bea4f0a, local). Not pushed. |
+| grok2 | La Mojana #34 | Done, merged (#98). Its interactive session is still open (pid 27364). |
+| opencode | Quake DPM v2 #31 (`feat/quake-dpm-v2`) | Running. 56faa44 adds pyarrow; DPM module and tests in progress. |
+| Antigravity A/B | cache #78, tiles #65 | Done. #65's deep review is still owed. |
 
-#### Team (unmerged work, 2026-11-15 03:52 UTC)
-- **Jack4Codes:** #86 (changes requested). #85, #87, #91 merged.
-- **Maru816:** `codex/issue-18-scoring` (scoring.py + 250-line tests, #18), `codex/issue-24-ground-truth` (reports/ground_truth*.md + an Armenia audit script, #24), `codex/repo-lint-cleanup`. No PRs yet, 13 behind main, and each carries a repo-wide formatting commit (4e02807) touching ~30 files including other lanes' gee_math files: ask Maru to drop it and open one PR per issue.
-- **EstebanOchoaedos:** drafts #72/#73 (flood/landslide via the shared loader + fixture harness; rebased today, still overlap the two grok lanes), #88 submission text, #90 Granizal gloss, #93 README fixes; branch `docs/kb-quake-depth-usgs` (depth 116 km from the USGS preferred origin) has no PR: it would resolve the open 96 vs 116 km question in event-2026-08-10-earthquake-v2.md.
-- **alicealanapineda-byte:** nothing pushed for #20, #21, #36 (SSE, cache_guard, bulletin, LangGraph): the agents/MCP lane is the largest gap.
-- **SaritaRpo:** nothing pushed; her storyboard and run sheet landed through Esteban (#68, #69), the offline rehearsal through #71.
+#### Team (2026-11-15 ~05:00 UTC)
+- **Jack4Codes:** #102 merged. #86 still has changes requested (pairs shape vs the loader; hash differences line). Freeze #26 next.
+- **Maru816:** #96 and #97 merged. `codex/repo-lint-cleanup` not taken (it would collide with the agent lanes). #32 becomes a documented null.
+- **EstebanOchoaedos:** #88, #90, #93 merged. #72/#73 conflict with #98 and the pending Aburrá lane, so they get reconciled after Aburrá. `docs/kb-quake-depth-usgs` has no PR.
+- **alicealanapineda-byte:** #20/#21 now on main via #103. Asked (on #100) to target main, not `develop`. Next suggested: rewire `analyze_flood_inundation` to the La Mojana outputs.
+- **SaritaRpo:** pulling the cache to verify #22, then #37. Storyboard lock #39 can follow the ratified headline.
 
 Progress: [░░░░░░░░░░] 0%
 
