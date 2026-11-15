@@ -298,6 +298,8 @@ surface_tango/
   - The biomass chapter goes to TODO.
 - **Labels:** "PROVISIONAL" where applicable, "cached" when served from the fallback, and the SI badge on bulletins.
 
+> **Scope change (2026-11-14, owner):** the `/math-lab` was an experimental learning artifact for the team, not part of the deployment. It is out of scope (issues #41, #55, #56 closed). The section below is kept for history only.
+
 ### `/math-lab` (keep the existing 5-module artifact, with corrections)
 
 - **Module 1:** label S-band "not available over Colombia" (it stays as a physics comparison).

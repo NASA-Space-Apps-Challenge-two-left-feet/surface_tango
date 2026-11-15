@@ -18,7 +18,7 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 | `mcp_servers/` (live GEE/ASF tools) | Cloud tools (Jack4Codes) | Tool timing, pair set, ranking/scoring tools |
 | `mcp_servers/cache_guard.py`, transport, `agents/`, `validation/event_facts.json` | Agents/MCP (alicealanapineda-byte) | SSE servers, cache_guard, LangGraph, bulletin |
 | `tests/fixtures/`, cache release, `README.md`, `docs/kb/` verification | Cloud checks + docs (EstebanOchoaedos) | Real-tile checks, release assets, KB, README |
-| `static/`, `app.py`, `video/` | Frontend + video (SaritaRpo) | Mission control, slider, story map, math-lab, 30 s video |
+| `static/`, `app.py`, `video/` | Frontend + video (SaritaRpo) | Mission control, slider, story map, 30 s video |
 | `tests/test_<area>.py` | Owner of `<area>` | Each lane owns its own test files |
 | `docs/kb/` | Everyone (append) | Living knowledge base (see below) |
 | `status/<lane>.md` | Each lane | Short status, updated before every sync |
@@ -109,7 +109,7 @@ make worktree BRANCH=feat/quake-dpm      # -> ../surface_tango-worktrees/feat-qu
 ```
 
 - **Types:** `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `style`, `revert`.
-- **Scopes:** `gate`, `cache`, `config`, `quake`, `scoring`, `landslide`, `flood`, `mcp`, `agents`, `bulletin`, `web`, `mathlab`, `video`, `kb`, `ci`, `deps`, `release`. Omit the scope when a change spans the repository.
+- **Scopes:** `gate`, `cache`, `config`, `quake`, `scoring`, `landslide`, `flood`, `mcp`, `agents`, `bulletin`, `web`, `video`, `kb`, `ci`, `deps`, `release`. Omit the scope when a change spans the repository.
 - **Description:** imperative, lowercase, no trailing period, at most 72 characters.
 - **Breaking changes** (a change to a frozen parameter, tool schema or output contract is one): put `!` before the colon and add a `BREAKING CHANGE:` footer.
 - One logical change per commit. Never mix a refactor with a behaviour change.
