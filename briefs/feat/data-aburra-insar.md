@@ -45,6 +45,21 @@ Resume order: review your diff, finish the known-answer tests (iono subtraction,
 - New README rule (AGENTS.md "README kept current"): `README.md` is not in your file list, so don't edit it. Instead, add a short "README rows" subsection to your Report with the setup/run command and the Status-table row (component · state · issue · report) for the orchestrator to paste.
 - Run long jobs (live downloads, GEE exports) in the foreground, or poll them to completion. The CLI ends background work after its wait timeout.
 
+## Update 2026-11-15 ~05:30 UTC (orchestrator review): calibrate the keep-rule before any verdict
+**Review finding.** `noise_floor()` keeps a pixel when *any* two date-independent pairs agree in sign with |LOS| > RMS. With 8–9 pairs per track there are about 28 such pair combinations per pixel, so pure noise passes often: one pair alone exceeds its RMS on roughly a third of noise pixels. The run kept 46,009 of 176,859 px on ascending and 42,508 of 176,859 px on descending (≈ 25 %). The signs are near 50/50 (ascending 21,737 downhill vs 24,272 uphill), which is what noise looks like. The report's verdict line, "kept downslope rates on 88517 pixels", reads like a detection and **must not ship as is**.
+
+**Do this (keep the pre-registered rule; add its null calibration):**
+1. **Empirical false-positive rate.** Apply the *same* `noise_floor()` rule to the stable valley-floor pixels: the noise sample, which is excluded from detection. Report the kept fraction there per track, with its denominator. That is the rule's false-positive rate on pixels that are not moving.
+2. **Sign-flip null.** Rerun the rule with each pair's sign randomly flipped, using a fixed seed and 200 draws, on the hillslope pixels. Report the mean and the 95th percentile of the kept fraction.
+3. **Verdict.**
+   - If the hillslope kept fraction is not above both nulls (above the stable-pixel rate and above the sign-flip 95th percentile), the verdict is exactly `null_motion_sentence(...)`: "no motion detected above X mm (n pairs)". In that case also state the two null rates.
+   - Only a kept fraction clearly above both nulls, *and* spatially clustered (report the size of the largest connected cluster), may be described as candidate motion. Even then it is "candidate, PROVISIONAL", never "detected".
+4. **Tests.** Add a known-answer test: pure Gaussian noise across 8 independent pairs must yield the null verdict under the calibrated rule.
+5. **Report and README row.** Report the per-pair RMS, the median noise floor (keep 9.105 mm if unchanged), both null rates, the hillslope kept fraction, the verdict and a "README rows" subsection.
+6. **Config.** `config/preregistered.yaml` now has `landslide.noise_floor: {min_pairs: 2, require_sign_agreement: true}` (#91). Read those keys; don't change them. The calibration is a diagnosis on top of the frozen rule, not a new threshold.
+
+The branch was rebased onto main by the orchestrator (fa8dcfc → current). Run `make sync` and `make ci`, commit (Refs: #33), and don't push.
+
 ## Report (append to the end of this file when done)
 What you built, commands run with their output tail, measured numbers with IDs, what you could not do, open questions.
 
