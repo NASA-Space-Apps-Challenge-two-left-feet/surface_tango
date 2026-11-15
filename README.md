@@ -1,12 +1,222 @@
-# BailaSAR: NISAR L-band observatory for cascading disasters in Colombia
+<div align="center">
 
-BailaSAR is a hackathon project for the NASA Space Apps challenge **"Dancing with the SARs"**, built in Medellín to investigate cascading disasters in Colombia using public radar observations and contextual datasets. Its intended focus is landslides in the Aburrá Valley, earthquake damage assessment and first-aid ranking in the Eje Cafetero, and flooding at La Mojana / Caregato. The goal is to make surface-change evidence understandable through a mission-control map and tool-grounded bulletins; the status below distinguishes available discovery evidence from analysis and demo features still pending integration.
+# Surface Tango
 
-> **Evidence rules.** No synthetic or fabricated data. Missing pixels and bands remain missing (NaN, shown as "no data"), never zero-filled. Measured results require the producing command, source granule or scene IDs, denominators and applicable intervals; estimates must be labelled. Agents write prose with `{placeholders}` filled from tool outputs. Only public data is permitted; no personal data or secrets. See [AGENTS.md](AGENTS.md).
+### A NISAR L-band multi-agent observatory for cascading disasters in Colombia
+
+**Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
+Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
+NISAR L-band data, with a ranked first-aid answer and no number without a source?**
+
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
+[![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![uv](https://img.shields.io/badge/uv-managed-DE5FE9)](https://docs.astral.sh/uv/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+<br>
+[![FastMCP](https://img.shields.io/badge/FastMCP-2%20SSE%20servers-4F46E5)](mcp_servers/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-hazard%20agents-1C3C3C?logo=langchain&logoColor=white)](agents/)
+[![Earth Engine](https://img.shields.io/badge/Earth%20Engine-Python%20API-34A853)](gee_math/ee_session.py)
+[![NISAR](https://img.shields.io/badge/NISAR-L--band%20GUNW%20%C2%B7%20GCOV-8B5CF6)](https://nisar-docs.asf.alaska.edu/gunw/)
+[![raster stack](https://img.shields.io/badge/raster%20stack-Zarr%20v3%20%C2%B7%20COGs-0F766E)](scripts/build_cache.py)
+[![FastAPI](https://img.shields.io/badge/FastAPI-mission%20control-009688?logo=fastapi&logoColor=white)](app.py)
+<br>
+[![hour-2 gate](https://img.shields.io/badge/hour--2%20gate-251%20NISAR%20granules-0F766E)](reports/gate.md)
+[![real-data cache](https://img.shields.io/badge/real--data%20cache-3%20AOIs%20%C2%B7%2047%20bands-0F766E)](briefs/feat/data-cache-builder.md)
+[![offline tests](https://img.shields.io/badge/offline%20tests-57%20passing-0F766E)](tests/)
+[![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-9333EA)](reports/gate.md)
+[![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-D97706)](validation/ALLOWLIST.md)
+[![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%20hashed-2563EB)](validation/README.md)
+
+<sub>Team **two left feet** · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia · private until the submission · agency names are attribution, never endorsement or logos</sub>
+
+</div>
+
+---
+
+> **Evidence rules.** No synthetic or fabricated data. Missing pixels and bands remain missing (NaN, shown as "no data"), never zero-filled. Measured results require the producing command, source granule or scene IDs, denominators and applicable intervals; estimates must be labelled. Agents write prose with `{placeholders}` filled from tool outputs. Only public data; no personal data or secrets. Frozen parameters live only in [config/preregistered.yaml](config/preregistered.yaml), hashed in [validation/README.md](validation/README.md). See [AGENTS.md](AGENTS.md).
+
+## The problem, the answer, the impact
+
+- **The problem.** Colombia's cascading disasters — an earthquake that primes landslides, rain that drives both — are read after the fact from single scenes. The first public NISAR L-band archive opened on 2026-06-17 (ASF DAAC), but nobody has time to pair interferograms over three cities, distinguish motion from ionosphere and decorrelation, and rank where first aid should go — with numbers that can be defended.
+- **The answer.** A multi-agent observatory over three cascading-disaster lanes — Aburrá Valley landslides, Eje Cafetero earthquake damage, La Mojana/Caregato flooding — where two FastMCP servers wrapped by a budgeted cache_guard do the geospatial computation, three LangGraph hazard agents interrogate them, and a synthesis agent writes an ES/EN bulletin whose every number came from a tool output or a sourced event constant. Every panel answers **live · cached · not cached · gate result · error** — never blank.
+- **The impact.** One honest, measured radar result understandable in a 30-second video; **a null verdict is a valid headline.** Pre-registered scoring compares the quake ranking against a population-only baseline, so the map has to beat geography itself to claim skill.
+
+## What the data says so far (hour-2 gate, measured)
+
+Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover_nisar_colombia.py` (ASF, anonymous, read-only). Full evidence: [reports/gate.md](reports/gate.md), saved catalog `nisar_colombia_granules_2026.json`.
+
+| AOI (`config/bailasar.yaml`) | GUNW | GCOV | GOFF | Streams |
+|---|---:|---:|---:|---|
+| 1 · Aburrá (Medellín, Bello, Copacabana) | 20 | 24 | 3 | PR 38 · UR 9 |
+| 2 · Eje Cafetero (Pereira, Armenia, Manizales) | 19 | 24 | 3 | PR 38 · UR 8 |
+| 3 · La Mojana / Caregato | 68 | 82 | 8 | PR 134 · UR 24 |
+| **total** | **107** | **130** | **14** | all provisional |
+
+- **Quake R/C/K triplets exist on both tracks** (11 descending frame 86; 47 ascending frame 4): R and K 12-day baselines, **C spans 2026-08-10 at 24 days** — the Aug 1 / Aug 4 acquisitions are missing, so every quake number reports the mismatch next to it ("closest available, mismatch recorded"). IDs in `quake_triplets`.
+- **Dual-pol flooding is open**: 78 DHDH (HH/HV) GCOVs over La Mojana; the post-event Eje Cafetero GCOV is single-pol `SHSH`, so its cross-pol band is honestly `missing`.
+- All products are **provisional (PR/UR, CRID P05023)** — every view and the video carry PROVISIONAL. No validated products exist in the window.
+- GUNW ionosphere screens are present and **applied by our pipeline** ([docs/kb/nisar-gunw-ionosphere-screen-applied.md](docs/kb/nisar-gunw-ionosphere-screen-applied.md)); CHIRPS rain windows arrive weeks late and stay `missing` rather than synthesized ([docs/kb/chirps-daily-publication-lag.md](docs/kb/chirps-daily-publication-lag.md)).
+
+## Status
+
+States: **live** · **cached** · **not cached** · **planned** · **dropped**. No completed integration is claimed without evidence.
+
+| Component | State | Issue / PR | Report |
+|---|---|---|---|
+| NISAR discovery gate (search script and saved catalog) | live | #23, #52 | [Gate report](reports/gate.md) |
+| Real-data cache builder — COGs + Zarr v3 + provenance manifest (3 AOIs) | cached | #30, #78 | [Builder brief](briefs/feat/data-cache-builder.md) |
+| Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
+| Quake damage proxy (track 11; C-pass statistics withheld until the freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
+| Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
+| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | planned (SSE integration) | #10, #79 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
+| LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
+| Pre-registration and power check (fields pending) | planned | #25 | pending |
+| First-aid ranking and scorecard | planned | #32 | pending |
+| Aburrá landslide noise-floor test | planned | #33 | pending (branch under review) |
+| La Mojana flood classes (dual-pol HH/HV, bounded reads) | planned | #34 | pending (branch under review) |
+| Local Zarr tile server | not cached | #22 | shared cube + manifest required |
+| Mission-control UI, curtain slider and story map | not cached | #22, #37 | [frontend status](status/frontend-video.md) |
+| Submission video (30 s) | planned | — | pending |
+| Biomass agent · GOFF rupture · split-spectrum ionosphere · S-band fusion · `/math-lab` | dropped | #41, #55, #56 | — |
+
+## Architecture
+
+Software architecture as merged on `main` — what runs today. Grey dotted boxes are not built yet.
+
+```mermaid
+flowchart LR
+    subgraph DATA["Public data · provisional NISAR window from 2026-06-17"]
+        NISAR["NISAR L2 GUNW / GCOV<br/>ASF DAAC · Earthdata · CRID P05023"]
+        GEE["Google Earth Engine<br/>FABDEM · CHIRPS · Sentinel-1/2 ·<br/>ESA CCI AGB · WorldPop · JRC water"]
+        PUB["OSM hospitals & roads ·<br/>published damage reports"]
+    end
+    subgraph SERVERS["Two FastMCP servers · SSE"]
+        M1["mcp-nisar-asf :8001<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
+        M2["mcp-gee-fusion :8002<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
+    end
+    GUARD["cache_guard (mcp_servers/cache_guard.py)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
+    subgraph GRAPH["LangGraph · agents/"]
+        IN["nisar_ingestion"]
+        L["landslide_agent"]
+        Q["earthquake_agent"]
+        F["flood_agent"]
+        S["cross_hazard_synthesis<br/>ES/EN bulletin · {placeholders}<br/>SI-Assisted badge"]
+    end
+    subgraph CACHE["local_cache/&lt;aoi&gt;/ · never in git"]
+        ZARR[("cogs/*.tif · Zarr v3 cube<br/>manifest.json: per-band granule IDs,<br/>status, finite ratios")]
+        TILES["tiles/ S1+S2 curtain XYZ PNGs<br/>transparent outside AOI and no-data"]
+        PAIRS["pairs/ curated scene pairs"]
+    end
+    UI["app.py FastAPI :8000<br/>MapLibre mission control<br/>panels: live · cached · not cached ·<br/>gate result · error"]
+    VIDEO["video/ 30-second submission"]
+
+    NISAR --> M1
+    GEE --> M2
+    M1 --- GUARD
+    M2 --- GUARD
+    GUARD <--> ZARR & TILES & PAIRS
+    IN --> L & Q & F
+    L & Q & F <-->|budgeted tool calls| GUARD
+    L & Q & F --> S
+    S --> UI
+    PUB -.-> S
+    UI --> VIDEO
+    LIVE["live-mode SSE serving of both servers<br/>E2E offline demo"]:::pending -.-> UI
+    classDef pending fill:#eee,stroke:#999,color:#666
+```
+
+- **Agents route, tools compute:** numeric bulletin content comes only from deterministic tool outputs or sourced event constants in [validation/event_facts.json](validation/event_facts.json). LLM text interpolates `{placeholders}`.
+- **Cache guard:** the fallback serves only real pre-staged tiles with provenance, or an explicit "not cached" error. The breaker default in [config/bailasar.yaml](config/bailasar.yaml) is an estimate, not a measured latency; per-tool p95 budgets are being measured (#28).
+- Frozen thresholds, ranking parameters and pair choices live only in [config/preregistered.yaml](config/preregistered.yaml); operational settings in [config/bailasar.yaml](config/bailasar.yaml). Design and binding decisions: [docs/designs/bailasar.md](docs/designs/bailasar.md).
+
+## Data flow
+
+From public granule to bulletin, with the file names that do each step. Grey boxes are out of scope (dropped) or pending.
+
+```mermaid
+flowchart TB
+    DISC["scripts/discover_nisar_colombia.py<br/>asf_search · anonymous · read-only"] --> GATE[("hour-2 gate · 2026-11-14<br/>nisar_colombia_granules_2026.json<br/>+ reports/gate.md<br/>(107 GUNW · 130 GCOV · 14 GOFF)")]
+    GATE -->|"quake_triplets R/C/K ·<br/>per-AOI GUNW/GCOV stacks"| BUILD
+    subgraph BUILD["scripts/build_cache.py · one call per AOI (#30, #78)"]
+        direction TB
+        NISAR_H5["NISAR L2 HDF5 streamed from ASF<br/>Earthdata Bearer token · bbox-sliced<br/>frequencyB 80 m grid preferred"]
+        GEE_L["GEE: FABDEM slope · CHIRPS rain · ESA CCI AGB<br/>gee_math/ee_session.init_ee()"]
+        ASM["band assembly · reproject to EPSG:4326 512×512<br/>ionosphere screen applied → los_disp_mm<br/>connectedComponents nearest-resampled<br/>missing band → all-NaN + 'missing'"]
+        NISAR_H5 --> ASM
+        GEE_L --> ASM
+    end
+    CHIRPS["CHIRPS Daily · published weeks late"] -.->|"late-2026 windows return 0 images<br/>band recorded 'missing', never synthesized"| BUILD
+    BUILD --> CACHE[("local_cache/&lt;aoi&gt;/<br/>cogs/*.tif · &lt;aoi&gt;_sar_cube.zarr · manifest.json<br/>per-band: granule ID or 'missing',<br/>finite pixel count & ratio · build 2026-11-14")]
+    CACHE --> TILES["scripts/prestage_tiles.py (#65)<br/>rule-selected Sentinel-1 + Sentinel-2 XYZ PNGs<br/>(COPERNICUS/S2_SR_HARMONIZED)<br/>transparent outside AOI and where no data"]
+    GUARD["mcp_servers/cache_guard.py<br/>per-tool budget · provenance on fallback"] --> AGENTS
+    CACHE --> GUARD
+    TILES --> GUARD
+    AGENTS["LangGraph hazard agents (#33 landslide · #31 quake · #34 flood)<br/>tool calls only — agents never produce numbers"] --> SYNTH["cross_hazard_synthesis (#11)<br/>ES/EN bulletin · {placeholders} from tool outputs<br/>+ validation/event_facts.json · SI-Assisted badge"]
+    SYNTH --> UI["app.py mission control + story map<br/>panel states never blank"]
+    UI --> VIDEO["video/ 30-second submission · every number sourced"]
+    OUT["dropped from scope: biomass agent · GOFF rupture ·<br/>split-spectrum ionosphere · S-band fusion · /math-lab"]:::dropped -.-> AGENTS
+    classDef dropped fill:#eee,stroke:#999,color:#666
+```
+
+## Agent orchestration
+
+How a run flows through the graph and the cache_guard's three outcomes (sequence):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ING as nisar_ingestion
+    participant LS as landslide_agent
+    participant EQ as earthquake_agent
+    participant FL as flood_agent
+    participant GUARD as cache_guard
+    participant ASF as mcp-nisar-asf (SSE 8001)
+    participant GEE as mcp-gee-fusion (SSE 8002)
+    participant SYN as cross_hazard_synthesis
+
+    ING->>ING: read gate catalog + event facts (no LLM numbers)
+    par three hazards in parallel
+        ING->>LS: Aburrá pairs · FABDEM slope · noise-floor check
+    and Eje Cafetero lane
+        ING->>EQ: Eje R/C/K triplets · built-up masking
+    and Mojana lane
+        ING->>FL: Mojana pre/post GCOV dual-pol
+    end
+    LS->>GUARD: analyze_landslide_kinematics(...)
+    EQ->>GUARD: analyze_earthquake_dpm(...)
+    FL->>GUARD: analyze_flood_inundation(...)
+    alt live within budget
+        GUARD->>ASF: budgeted tool call
+        GUARD->>GEE: budgeted tool call
+        ASF-->>GUARD: computed layers / ranked results
+        GEE-->>GUARD: computed layers / ranked results
+    else timeout against budget
+        GUARD-->>LS: real pre-staged tiles + provenance
+        Note over GUARD: granule IDs · cache build time · "cached"
+    else not cached
+        GUARD-->>LS: explicit "not cached" error
+        Note over LS,FL: panel shows the state — never blank
+    end
+    Note over LS,FL: agents write prose with placeholders only;<br/>every number is a tool output or a sourced event constant
+    LS-->>SYN: tool-rendered findings
+    EQ-->>SYN: tool-rendered findings
+    FL-->>SYN: tool-rendered findings
+    SYN->>SYN: reconcile · rank · write ES/EN bulletin
+    SYN-->>ING: bulletin + SI-Assisted badge for mission control
+```
+
+## Results
+
+- **Hour-2 gate** *(measured)*: [reports/gate.md](reports/gate.md) — 251 granules, quake triplets on both tracks, C-baseline mismatch recorded.
+- **Real-data cache** *(measured, 2026-11-14 21:18–21:22 Bogotá)*: [builder brief](briefs/feat/data-cache-builder.md) — Eje 45 MB / 15 bands, Aburrá 36 MB / 16, Mojana 30 MB / 16; every band carries a granule ID or `missing` (CHIRPS ×3 missing: publication lag; Eje `gcov_hvhv_post` missing: post-event GCOV is single-pol).
+- **Curtain tiles** *(measured)*: `local_cache/<aoi>/tiles/manifest.json` — rule-selected S1/S2 scenes per AOI (#65).
+- Quake scorecard, Aburrá noise floor (null valid), Mojana classes, offline demo and tool-latency p95: **pending** — see the Status table.
 
 ## Quickstart
 
-Use a local checkout with [uv](https://docs.astral.sh/uv/), Bash and GNU make. Docker with Compose is needed for the stack targets. Read the limitations below before attempting the offline demo.
+Local checkout with [uv](https://docs.astral.sh/uv/), Bash and GNU make; Docker Compose for the stack targets. Read the limitations before attempting the offline demo.
 
 ### Setup
 
@@ -14,11 +224,9 @@ Use a local checkout with [uv](https://docs.astral.sh/uv/), Bash and GNU make. D
 make setup
 ```
 
-This installs the project environment and commit hooks, creates `.env` from [.env.example](.env.example) if absent, and creates `local_cache/`. Keep credential values in the ignored local `.env` only.
+Installs the environment and commit hooks, creates `.env` from [.env.example](.env.example) if absent, and creates `local_cache/`. Credential values stay in the ignored local `.env` only.
 
 ### Offline demo from a release cache (pending)
-
-The intended submission workflow is:
 
 ```bash
 export BAILASAR_REPO="<owner/repository>"
@@ -27,23 +235,21 @@ make fetch-cache
 make pitch
 ```
 
-**Currently blocked:** `make fetch-cache` now downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet. The repository and tag above are placeholders for the team's published release, not working download coordinates. Do not run this sequence expecting a complete demo yet. The planned release must contain real tiles, statistics and a provenance manifest with source IDs; `local_cache/` stays out of git.
-
-`make pitch` selects the offline Compose profile at <http://localhost:8000>. End-to-end offline operation is pending. The current Compose configuration also expects local credential mount paths and invokes the cache warmer when its manifest is absent; selecting pitch mode alone does not establish a credential-free offline demo.
+**Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>; end-to-end offline operation is pending, and the current Compose configuration expects local credential mount paths and invokes the cache warmer when its manifest is absent.
 
 ### Live mode (credentials required)
 
-Configure the relevant keys from [.env.example](.env.example): Earthdata authentication for ASF/NISAR; a Google Cloud project and storage bucket plus authorized Earth Engine/Google Cloud credentials; and a configured LLM provider key for bulletin generation. Use the team's approved authentication setup; do not paste credential values into docs, logs or chat.
+Configure keys from [.env.example](.env.example): Earthdata authentication for ASF/NISAR (token as Bearer — see [docs/kb/earthaccess-netrc-vs-bearer-token.md](docs/kb/earthaccess-netrc-vs-bearer-token.md)); a Google Cloud project and bucket plus Earth Engine credentials; an LLM provider key for bulletins. Cloud processing is restricted to the account holders named in [AGENTS.md](AGENTS.md).
 
 ```bash
 make up
 ```
 
-This starts the live Compose profile at <http://localhost:8000>. Live hazard analysis remains pending integration; a launch command is not evidence of a working pipeline. Cloud processing is restricted to the account holders named in [AGENTS.md](AGENTS.md).
+Starts the live Compose profile at <http://localhost:8000>. Live hazard analysis remains pending integration; a launch command is not evidence of a working pipeline.
 
 ### Windows notes and commands without make
 
-Use Git Bash for the Makefile's Bash syntax. Git Bash, uv and GNU make are separate prerequisites; Windows does not include uv or make by default, and Git Bash does not supply GNU make by itself. With uv installed, run the commands behind the development targets directly from the repository root:
+Use Git Bash for the Makefile's Bash syntax (uv, make and Git Bash are separate prerequisites). From the repository root with uv installed:
 
 ```bash
 # make setup
@@ -65,123 +271,87 @@ OFFLINE_DEMO_MODE=0 docker compose --profile live up --build -d
 OFFLINE_DEMO_MODE=1 docker compose --profile pitch up -d
 ```
 
-Without make, run `uv run python scripts/fetch_cache.py` with the same two variables. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
+### Main commands
 
-## Status
+| Command | What it does |
+|---|---|
+| `make setup` | uv env, pre-commit + commit-msg hooks, `.env`, `local_cache/` |
+| `make check` / `make test` / `make ci` | hooks on everything / offline tests / both (the merge gate) |
+| `make sync` | rebase your branch onto the latest `origin/main` (before every commit) |
+| `make worktree BRANCH=<branch>` | new linked worktree for a branch |
+| `make prewarm` / `make fetch-cache` | build the real-data cache locally / fetch a published release cache |
+| `make up` / `make pitch` | live Compose profile (credentials) / offline profile (real cache) |
+| `make test-dag` | smoke-test the agent graph |
 
-States: **live** · **cached** · **not cached** · **planned** · **dropped**. Discovery evidence does not demonstrate that a hazard pipeline or the offline demo works. Pending rows retain the scope of the existing rewrite; no completed integration is claimed without evidence.
+## Repository map
 
-| Component | State | Issue / PR | Report |
-|---|---|---|---|
-| NISAR discovery gate (search script and saved catalog) | live | #23 | [Gate report](reports/gate.md) |
-| Pre-registration and power check (fields pending) | planned | #25 | pending |
-| Quake damage proxy (track 11; C-pass statistics withheld until the pre-registration freeze, see [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
-| First-aid ranking and scorecard | planned | #32 | pending |
-| Aburrá landslide noise-floor test | planned | — | pending |
-| La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
-| Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
-| NISAR real-data cache (3 AOIs) | cached | #30 | [briefs/feat/data-cache-builder.md](briefs/feat/data-cache-builder.md) |
-| Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
-| MCP servers and SSE integration | planned | #10 | pending |
-| LangGraph orchestrator and bulletin integration | planned | #11, #51 | pending |
-| Local Zarr tile server | not cached | #22 | Shared cube and manifest required for the LOS layer |
-| Mission-control UI, curtain slider and story map | not cached | #22, #37 | Approved chapter outputs and comparison tiles required; offline staging in [frontend status](status/frontend-video.md) |
-| Submission video | planned | — | pending |
-| Biomass agent (TODO; out of scope) | dropped | — | — |
-| GOFF / surface-rupture analysis (TODO; out of scope) | dropped | — | — |
-| Split-spectrum ionosphere processing (TODO; out of scope) | dropped | — | — |
-| GEE High-Volume endpoint (TODO; out of scope) | dropped | — | — |
-| `/math-lab` | dropped | #41, #55, #56 | — |
-| ISRO S-band fusion (TODO; out of scope) | dropped | — | — |
+The repository is `surface_tango` (project **Surface Tango**, team *two left feet*, challenge *Dancing with the SARs*); the engine package keeps its working name `bailasar` in `pyproject.toml` and config keys.
 
-## Results
-
-See `reports/` — pending.
-
-- Quake scorecard and population-only comparison: see `reports/` — pending.
-- Aburrá motion or documented null: see `reports/` — pending.
-- La Mojana flood classes and sensitivity: see `reports/` — pending.
-- Offline demo and tool latency evidence: see `reports/` — pending.
-
-## Architecture
-
-The retained diagram describes the agreed architecture, not a claim of completed integration. Biomass is outside the submission scope.
-
-```mermaid
-flowchart LR
-    subgraph DATA["Public data"]
-        NISAR["NISAR L2 GUNW / GCOV<br/>(ASF DAAC, Earthdata)"]
-        GEE["Google Earth Engine catalogs<br/>Sentinel-1, Sentinel-2, CHIRPS,<br/>MERIT Hydro, WorldPop"]
-    end
-    subgraph MCP["Two FastMCP servers (SSE)"]
-        M1["mcp-nisar-asf :8001<br/>search, stage to GCS, pair sets"]
-        M2["mcp-gee-fusion :8002<br/>statistics, tiles, ranking, scoring"]
-    end
-    GUARD["cache_guard<br/>live, or real pre-staged tiles,<br/>or an explicit 'not cached' error"]
-    subgraph GRAPH["LangGraph"]
-        IN["nisar_ingestion"]
-        L["landslide_agent"]
-        Q["earthquake_agent"]
-        F["flood_agent"]
-        S["cross_hazard_synthesis<br/>(ES/EN bulletin)"]
-    end
-    UI["Mission control<br/>FastAPI SSE + MapLibre + Deck.gl"]
-
-    NISAR --> M1
-    GEE --> M2
-    M1 --- GUARD
-    M2 --- GUARD
-    IN --> L & Q & F
-    L & Q & F --> S
-    L & Q & F <-->|tool calls| GUARD
-    S --> UI
-```
-
-- **Quake:** planned coherence-loss damage proxy over built-up pixels, with first-aid ranking compared against a population-only baseline and a pre-event control. Pre-registration remains pending in [validation/README.md](validation/README.md); it must be committed before co-event coherence is viewed.
-- **Aburrá landslides:** planned use of GUNW unwrapped phase and the supplied ionosphere screen, subject to layer availability and a stable-pixel noise-floor check. A null result must be reported when motion is unsupported. Split-spectrum ionosphere estimation is out of scope.
-- **La Mojana flood:** planned dual-pol HH/HV change detection against a dry baseline, with height-above-drainage gating. Classification thresholds belong in config and require validation.
-- **Agents route, tools compute:** numeric bulletin content must come from deterministic tool outputs or sourced event constants in [validation/event_facts.json](validation/event_facts.json). AI-written bulletins must carry the **SI-Assisted Analytics** badge; enforcement remains part of the pending integration.
-- **Cache guard:** the agreed fallback serves only real pre-staged tiles with provenance, or an explicit "not cached" error. The breaker default in [config/bailasar.yaml](config/bailasar.yaml) is a configuration estimate, not a measured latency result. Per-tool measurements are pending.
-- **Panel states:** the required UI states are live, cached, not cached, gate result or error. Missing data must be explicit.
-
-Frozen thresholds, ranking parameters and pair choices belong only in [config/preregistered.yaml](config/preregistered.yaml); operational settings belong in [config/bailasar.yaml](config/bailasar.yaml). The design and binding decisions are in [docs/designs/bailasar.md](docs/designs/bailasar.md). Biomass, GOFF/rupture, split-spectrum ionosphere and GEE High-Volume remain out of scope / TODO even where imported baseline code still mentions them.
+| Path | What it is |
+|---|---|
+| `scripts/` | discovery (`discover_nisar_colombia.py`), cache builder (`build_cache.py`), tooling (Python) |
+| `gee_math/` | hazard math: quake DPM, landslide InSAR, flood dual-pol, EE session |
+| `config/` | `preregistered.yaml` (frozen, hashed) · `bailasar.yaml` (operational) |
+| `mcp_servers/` | the two FastMCP SSE servers + `cache_guard.py` |
+| `agents/` | LangGraph orchestration, state, bulletin rendering |
+| `validation/` | scoring, event facts, ALLOWLIST, pre-registration record |
+| `app.py` + `static/` | mission-control UI, local tile server, story map |
+| `docs/kb/` | living knowledge base (one verified note per fact) |
+| `reports/` | measured results with commands and source IDs |
+| `briefs/`, `status/` | per-branch briefs; per-lane status |
+| `tests/` | offline suite (57 passing, measured 2026-11-15) |
+| `local_cache/` | real-data cache — **never in git** |
+| `video/` | storyboard, run sheet, 30-second submission |
 
 ## Data sources and citations
 
-Only public inputs are permitted. The datasets below are the intended inputs, not evidence that each has already been ingested. Cached outputs must retain source granule or scene IDs and provenance. Official provider links are included only where already referenced in the repository; other entries name the dataset and provider pending source verification. No DOI is inferred.
+Only public inputs. Cached outputs must retain source granule or scene IDs and provenance. Links only where already referenced in-repo; other entries name dataset and provider pending primary-source verification in [docs/kb/](docs/kb/). No DOI is inferred.
 
-| Dataset | Provider / citation | Intended role |
+| Dataset | Provider / citation | Role |
 |---|---|---|
-| NISAR L-band GUNW / GCOV | NASA/JPL and ISRO; distributed by [ASF DAAC](https://asf.alaska.edu/notices/nisar-l-band-data-now-publicly-available/); [ASF GUNW documentation](https://nisar-docs.asf.alaska.edu/gunw/) | Coherence, unwrapped phase and HH/HV backscatter |
-| Sentinel-1 | ESA / Copernicus | C-band comparison and water context |
-| Sentinel-2 | ESA / Copernicus | Optical comparison |
-| CHIRPS | Climate Hazards Center, University of California, Santa Barbara | Precipitation and wetness context |
-| FABDEM | University of Bristol | Terrain context |
-| MERIT Hydro | University of Tokyo, Institute of Industrial Science | Drainage context and flood gating |
-| JRC Global Surface Water | European Commission, Joint Research Centre | Surface-water history |
-| WorldPop | WorldPop, University of Southampton | Population exposure and baseline ranking |
-| OpenStreetMap | OpenStreetMap contributors | Public hospitals and roads; extract provenance required |
-| Published damage reports | Issuing public agency and report citation pending selection in [validation/README.md](validation/README.md) | Independent damage labels for scoring |
+| NISAR L-band GUNW / GCOV | NASA/JPL and ISRO; distributed by [ASF DAAC](https://asf.alaska.edu/notices/nisar-l-band-data-now-publicly-available/); [GUNW docs](https://nisar-docs.asf.alaska.edu/gunw/) | Coherence, unwrapped phase, HH/HV backscatter |
+| Sentinel-1 / Sentinel-2 | ESA / Copernicus | C-band + optical comparison, curtain slider |
+| CHIRPS | Climate Hazards Center, UCSB | Precipitation context (currently missing: publication lag) |
+| FABDEM | University of Bristol | Terrain and slope |
+| MERIT Hydro | University of Tokyo, IIS | Drainage context, flood gating |
+| JRC Global Surface Water | European Commission, JRC | Surface-water history |
+| WorldPop | University of Southampton | Population exposure, baseline ranking |
+| ESA CCI AGB | ESA Climate Change Initiative | Biomass context (band cached; agent dropped) |
+| OpenStreetMap | OSM contributors | Hospitals, roads (extract provenance required) |
+| Published damage reports | Issuing public agency, per [validation/README.md](validation/README.md) | Independent damage labels for scoring |
 
-The NISAR references above are already recorded in [docs/kb/](docs/kb/). Dataset and method claims require primary-source verification there before they can support the pitch.
+## Development workflow
+
+- **Trunk-based:** `main` is always demo-able; one task per short-lived branch (`<type>/<lane>-<slug>`), one PR per branch, squash-merged when the gate is green. Never commit on `main`.
+- **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
+- **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
+- **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).
+- **Pre-registration:** frozen parameters live only in `config/preregistered.yaml`; its hash is recorded in `validation/README.md`. Co-event (C-pair) coherence is not viewed before the freeze commit.
+- **README + diagrams in the same PR** as the change they depict (see "Diagrams kept current in the README" in AGENTS.md).
+
+## Knowledge base and verification
+
+Every fact the code or pitch relies on lives as a short note in [docs/kb/](docs/kb/) with status, source, date and a verbatim quote — e.g. [GUNW layers](docs/kb/nisar-gunw-layers.md), [ionosphere screen applied](docs/kb/nisar-gunw-ionosphere-screen-applied.md), [ASF authentication](docs/kb/earthaccess-netrc-vs-bearer-token.md), [CHIRPS lag](docs/kb/chirps-daily-publication-lag.md), [FABDEM slope CRS](docs/kb/gee-terrain-slope-needs-metric-crs.md), [GCOV read timeouts](docs/kb/nisar-gcov-read-timeouts.md). A claim is `unverified` until a person reads the primary source. Measured results go in `reports/` with the command and IDs.
 
 ## Acknowledgements and agency credits
 
 NASA/JPL and ISRO are NISAR mission partners; ASF DAAC distributes its L-band products. ESA and Copernicus provide Sentinel observations. Google Earth Engine supplies catalog access and computation. We acknowledge the Space Apps organizers and the Medellín local event.
 
-Use no NASA logos, flags or identifiers in generated media, badges or UI headers, and no likeness of minors. Agency names here provide attribution and do not imply endorsement.
+No NASA logos, flags or identifiers appear in generated media, badges or UI headers, and no likeness of minors. Agency names provide attribution and do not imply endorsement.
 
 ## AI disclosure
 
 This project is built with Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph.
 
-The team reviews AI-assisted code and documentation. The initial generated baseline is documented in [docs/baseline/BASELINE_NOTES.md](docs/baseline/BASELINE_NOTES.md). Runtime bulletin generation is subject to the tool-output and disclosure requirements above. Disclosure of any AI tools used in the submission video is pending completion of that artifact.
+The team reviews AI-assisted code and documentation. The initial generated baseline is documented in [docs/baseline/BASELINE_NOTES.md](docs/baseline/BASELINE_NOTES.md). Runtime bulletins are tool-grounded and carry the **SI-Assisted Analytics** badge. Disclosure for the submission video is pending completion of that artifact.
 
 ## License
 
-License: to be decided by the team (TODO)
+License: to be decided by the team (TODO).
 
-## Team
+## Team — two left feet
+
+The team and project names play on our challenge, *Dancing with the SARs*: we tango across Earth's surface with radar, and we do it as a team with two left feet.
 
 | Team member | Lane |
 |---|---|
