@@ -568,6 +568,7 @@ def resolve_pairs(track: int, aoi: list[float]) -> tuple[dict, str]:
                         f"{track}: catalog={cat_id} discovered={dsc_id} — the gate's frozen "
                         "choice and the current ASF index disagree; this is a finding"
                     )
+            print("  verified: ASF discovery returns the same triplet (measured, read-only)")
         return pairs, "catalog"
     pairs = discover_pairs(track, aoi)
     pairs["pair_source"] = "fallback: ASF discovery (no quake_triplets entry in the gate catalog)"
