@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home orchestrating (goal mode while the owner is away). Snapshot refreshed 2026-11-15 05:18 UTC (the previous "~05:25" was an estimate; it was written at about 05:05).
+Status: claude-home offline; opencode GLM-5.3 acting orchestrator (owner-delegated, from 06:17 UTC 2026-11-15). Previous snapshot: claude-home, refreshed 2026-11-15 05:18 UTC.
 Since ~04:45 UTC, all squash-merged into main:
 - **Sarita:** #105 mission control loads the staged tiles.
 - **Fixes:** #106 flood timeout on Windows. #108 Esteban's type annotations.
@@ -35,20 +35,26 @@ Since ~04:45 UTC, all squash-merged into main:
 - #113, #114: both README diagrams fixed (overlaps cleared, content current), reviewed as rendered images.
 - #115: the landslide module reads and verifies `landslide.noise_floor`. `VALLEY_FLOOR_MAX_SLOPE_DEG` (5.0) and `MIN_ABS_COS_XI` (0.2) are still code constants and should enter the pre-registration at the freeze (#26).
 
+Session 3 (opencode acting orchestrator, 06:17–06:45 UTC), squash-merged:
+- **#130 pre-registration freeze** (Jack; squash 3166d0f). Verified before merge: recorded blob `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438` recomputed and matches; diff vs the deviation-1 anchor `8d91f1d` contains only the three listed changes (noise_floor #72, pair fill #86, freeze + uninformative ground truth); 299 offline tests at the PR head. **C/K statistics unsealed by rule.** Issues #24/#26 closed (#25 already closed).
+- **#132 quake depth displayable** (Esteban; squash e818fba): `depth_km` 116, the USGS preferred-origin estimate 116.13 km rounded half-up, labelled "USGS estimate"; SGC 105 km evidence-only. 301 offline tests at the head. Follow-up: the agents lane updates `status/agents-mcp.md`.
+- README pass in the same session (this PR): the freeze-pending rows correctly say frozen.
+
 #### Headline results now on main (all PROVISIONAL)
 - **La Mojana (headline, #102):** open water per date measured (e.g. 2026-06-17: 4,486.59 ha, 5,539 of 197,758 valid px). Sentinel-1 missed 3,351 of 4,946 NISAR open-water px on 2026-07-11. Change classes degenerate (reference date had 1 valid px).
 - **Aburrá:** calibrated null, no motion above 9.105 mm.
-- **Quake:** scorecard uninformative (no barrio labels); damage proxy cached for tracks 11 and 47, statistics sealed.
+- **Quake:** scorecard uninformative (no barrio labels); damage proxy cached for tracks 11 and 47; C/K statistics unsealed at the freeze (#130), artifacts pending the data lane.
 
 #### Open work, in order
-1. Jack: fix #86 (pairs shape vs loader; hash line), then **freeze #26**. That unseals C/K and unblocks the quake numbers.
-2. Alice: rewire `analyze_flood_inundation` (and `analyze_earthquake_dpm`, whose import target doesn't exist) to the merged modules.
+1. ~~Jack: fix #86, then freeze #26~~ **done** (#86 as #126's pair fill; freeze #130).
+2. ~~Alice: rewire the fusion tools~~ **done via #126** (evidence adapters; no module imports). Remaining Alice work: #36 LangGraph/bulletin rendering.
 3. Sarita: #37 slider and story map on La Mojana; lock storyboard #39 to the ratified headline.
-4. Esteban: port the flood harness test to main's API on the `mojana` fixture (#38); open a PR for `docs/kb-quake-depth-usgs`.
-5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), then re-stage the team release. The diagram layouts (#113, #114) and the landslide prereg wiring (#115) are done.
+4. ~~Esteban: flood harness port (#38 done as #121), kb-quake-depth (#123/#129/#132 done)~~.
+5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), then re-stage the team release.
+6. opencode (in flight, no self-merge): `feat/data-flood-quake-evidence` per its brief — flood + quake evidence serializers in `scripts/write_hazard_evidence.py` + tests; artifacts into `local_cache/mojana/` and `local_cache/eje_cafetero/`; the C/K gate keys on the current prereg status (frozen → `coherence_statistics` included). Ready for review within the hour; push + PR by the orchestrator.
 
 #### Agents
-grok, grok2 and opencode are idle (their lanes are merged). Antigravity is idle.
+grok and grok2 are idle (their lanes are merged). opencode is acting orchestrator + executing the flood/quake evidence brief. Antigravity is idle.
 
 Progress: [░░░░░░░░░░] 0%
 
