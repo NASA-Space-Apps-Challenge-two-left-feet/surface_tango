@@ -70,6 +70,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
 | Quake damage proxy (track 11; C-pass statistics withheld until the freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
 | Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
+| Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
 | MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | planned (SSE integration) | #10, #79 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
