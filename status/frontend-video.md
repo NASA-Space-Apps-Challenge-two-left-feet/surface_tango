@@ -1,5 +1,14 @@
 # Status: frontend-video
 
+## feat/regional-cube-explorer
+
+- Added `/cube` and `/api/cube` for a native-grid regional Zarr explorer.
+- Offline packaging reads extracted GeoTIFFs and records source references,
+  CRS, grid, valid-pixel denominators and related evidence artifacts. Missing or
+  withheld manifest bands are excluded. Source caches are preserved.
+- Deployment integration uses the existing application and cache mount;
+  remote deployment is pending review. Temporal masks remain separate layers.
+
 _Last update: 2026-11-15 (UTC−5)_
 
 ## feat/nisar-lband-primary

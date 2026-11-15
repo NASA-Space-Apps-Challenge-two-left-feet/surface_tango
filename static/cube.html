@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regional Cube · Surface Tango</title>
+<style>
+@font-face{font-family:Jost;src:url('/assets/jost-500.woff2')}*{box-sizing:border-box}body{margin:0;background:#121212;color:white;font-family:Jost,system-ui,sans-serif}header{padding:22px 32px;border-bottom:1px solid #5a5a5a;display:flex;justify-content:space-between;align-items:center}a{color:inherit}header strong{color:#f04a23}main{display:grid;grid-template-columns:300px 1fr;min-height:88vh}aside{padding:28px;border-right:1px solid #5a5a5a}h1{font-size:40px;font-weight:500;line-height:1.1;margin:20px 0}h2{font-size:17px}p{line-height:1.6}small,.eyebrow{letter-spacing:.13em;font-size:11px;text-transform:uppercase}select,button{font:inherit;padding:12px;background:#121212;color:white;border:1px solid #5a5a5a;width:100%;text-align:left;margin:6px 0;cursor:pointer}button.active,button:hover{border-color:#f04a23}section{padding:30px;min-width:0}.top{display:flex;justify-content:space-between;gap:20px}.state{color:#f04a23}figure{margin:20px 0;background:#000;border:1px solid #5a5a5a;min-height:420px;display:flex;align-items:center;justify-content:center;position:relative}figure img{max-width:100%;height:55vh;object-fit:contain;image-rendering:pixelated}#empty{padding:40px;max-width:540px}#metadata{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid #5a5a5a;padding-top:20px}.metric{font-family:monospace;font-size:15px;overflow-wrap:anywhere}.source{font-family:monospace;font-size:12px;overflow-wrap:anywhere}#layers{max-height:55vh;overflow:auto}footer{margin-top:28px;font-size:12px}#error{color:#f04a23}@media(max-width:800px){main{grid-template-columns:1fr}aside{border-right:0}#layers{max-height:180px}#metadata{grid-template-columns:1fr}h1{font-size:30px}}
+</style>
+<header><span>surface tango <strong> / REGIONAL CUBE</strong></span><a href="/">Mission control ↗</a></header>
+<main><aside><span class="eyebrow">The region, in layers</span><h1>One place.<br>Every observation.</h1><p>Explore extracted radar, terrain and flood observations on their original grids.</p><label for="region">REGION</label><select id="region"></select><p id="region-state" class="state"></p><div id="layers"></div><footer>Zarr v3 · native grids<br>Missing data stays missing.<br><a id="download" href="#">Download project catalog ↓</a></footer></aside>
+<section><div class="top"><div><span class="eyebrow">Surface Tango / Data observatory</span><h2 id="title">Loading regional cubes…</h2></div><span id="status" class="state">Checking cache</span></div><figure><img id="preview" hidden alt="Native-grid scientific raster preview"><div id="empty">Loading the project catalog…</div></figure><div id="metadata"></div><p id="provenance" class="source"></p><p id="error" role="alert"></p><footer>Preview: sequential grayscale, minimum → maximum. Transparent pixels have no data. Display is decimated for browsing; stored pixels retain native resolution. Raster previews use native pixel geometry; bounds are WGS84.</footer></section></main>
+<script>
+const region=document.getElementById('region'), layers=document.getElementById('layers'), preview=document.getElementById('preview'), empty=document.getElementById('empty');
+let catalog, requestId=0;
+const text=(id,value)=>document.getElementById(id).textContent=value;
+function selectLayer(item,aoi,button){
+  document.querySelectorAll('#layers button').forEach(b=>b.classList.remove('active'));button.classList.add('active');
+  const id=++requestId;preview.hidden=true;empty.hidden=false;empty.textContent='Reading cached chunks…';
+  text('title',item.id.replaceAll('_',' '));text('status','Cached');
+  preview.onload=()=>{if(id!==requestId)return;preview.hidden=false;empty.hidden=true;};
+  preview.onerror=()=>{if(id!==requestId)return;empty.textContent='Error · preview unavailable';text('status','Error');};
+  preview.src=`/api/cube/${encodeURIComponent(aoi)}/${encodeURIComponent(item.id)}/preview.png`;
+  const metadata=document.getElementById('metadata');metadata.replaceChildren();
+  for(const [label,value] of [['GRID',`${item.shape.join(' × ')} · ${item.crs}`],['VALID PIXELS (MEASURED)',`${item.finite_pixels} / ${item.total_pixels}`],['RANGE (MEASURED)',`${item.minimum} → ${item.maximum}`],['BOUNDS · W,S,E,N',item.bounds.join(', ')],['DATE',item.provenance.date||'See source granule'],['SOURCE FILE',item.source_file]]){
+    const block=document.createElement('div'), heading=document.createElement('small'), data=document.createElement('p');heading.textContent=label;data.className='metric';data.textContent=value;block.append(heading,data);metadata.append(block);
+  }
+  text('provenance',JSON.stringify(item.provenance)+' · '+item.command);
+}
+function selectRegion(){
+  ++requestId;const selected=catalog.regions.find(r=>r.aoi===region.value);layers.replaceChildren();preview.hidden=true;empty.hidden=false;
+  text('region-state',selected.state);text('title',selected.label);text('status',selected.state==='cached'?'Cached':'Not cached');document.getElementById('metadata').replaceChildren();text('provenance','');
+  empty.textContent='Not cached · No regional cube has been packaged for this AOI.';
+  selected.layers.forEach((item,index)=>{const button=document.createElement('button');button.textContent=item.id.replaceAll('_',' ');button.onclick=()=>selectLayer(item,selected.aoi,button);layers.append(button);if(index===0)button.click();});
+}
+region.onchange=selectRegion;
+fetch('/api/cube').then(r=>{if(!r.ok)throw Error('Catalog unavailable');return r.json()}).then(data=>{catalog=data;data.regions.forEach(r=>{const option=document.createElement('option');option.value=r.aoi;option.textContent=r.label;region.append(option)});document.getElementById('download').href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));document.getElementById('download').download='surface-tango-cube-catalog.json';selectRegion()}).catch(e=>{text('error',e.message);text('status','Error');empty.textContent='The cube catalog could not be loaded.'});
+</script>
+</html>

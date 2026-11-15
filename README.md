@@ -4,6 +4,19 @@
 
 ### A NISAR L-band multi-agent observatory for cascading disasters in Colombia
 
+Regional cube explorer: open `/cube` in the running application. Package existing
+extracted rasters with `uv run python scripts/build_regional_cube.py --aoi mojana`
+(also `aburra` and `eje_cafetero`). This creates a separate
+`local_cache/regional-cubes/<aoi>.zarr` store, leaving science inputs intact.
+Each raster retains its native grid, CRS, nodata and source references; dated
+masks remain individually selectable observations. The explorer shows layer
+previews, measured valid-pixel denominators, ranges and a downloadable catalog.
+Related JSON and Parquet evidence is indexed by reference, not rasterized.
+Mount the same `local_cache` directory in the deployed container to serve it.
+The command refuses to overwrite a store. This initial explorer does not yet
+provide time-stack alignment, multiscale pyramids, arbitrary region extraction,
+or cloud object-store hosting.
+
 **Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
 Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
 NISAR L-band data, with a ranked first-aid answer and no number without a source?**

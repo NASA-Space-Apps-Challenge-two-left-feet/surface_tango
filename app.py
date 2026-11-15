@@ -1178,6 +1178,62 @@ async def stream_hazards(
     )
 
 
+@app.get("/cube")
+def cube_explorer():
+    return FileResponse("static/cube.html")
+
+
+@app.get("/api/cube")
+def cube_catalog():
+    regions = []
+    for entry in AOI_REGISTRY:
+        path = CACHE_ROOT / "regional-cubes" / f"{entry['id']}.zarr" / "catalog.json"
+        catalog = (
+            json.loads(path.read_text())
+            if path.is_file()
+            else {"state": "not cached", "layers": []}
+        )
+        regions.append({**catalog, "aoi": entry["id"], "label": entry["label"]})
+    return {"regions": regions}
+
+
+def cube_layer(aoi: str, layer: str):
+    if aoi not in {entry["id"] for entry in AOI_REGISTRY}:
+        raise HTTPException(404, "Unknown region")
+    store = CACHE_ROOT / "regional-cubes" / f"{aoi}.zarr"
+    catalog_path = store / "catalog.json"
+    if not catalog_path.is_file():
+        raise HTTPException(404, "Regional cube not cached")
+    catalog = json.loads(catalog_path.read_text())
+    metadata = next((item for item in catalog["layers"] if item["id"] == layer), None)
+    if metadata is None:
+        raise HTTPException(404, "Layer not cached")
+    return store, metadata
+
+
+@app.get("/api/cube/{aoi}/{layer}/preview.png")
+def cube_preview(aoi: str, layer: str):
+    store, metadata = cube_layer(aoi, layer)
+    with xr.open_zarr(store, group=layer, consolidated=False, chunks=None) as dataset:
+        data = dataset.value
+        step = max(1, int(np.ceil(max(data.shape) / 768)))
+        values = data.isel(y=slice(None, None, step), x=slice(None, None, step)).values
+    valid = np.isfinite(values)
+    rgba = np.zeros((4, *values.shape), dtype=np.uint8)
+    span = metadata["maximum"] - metadata["minimum"]
+    norm = np.clip((values[valid] - metadata["minimum"]) / (span or 1), 0, 1)
+    # Scientific sequential grayscale for arbitrary units; explicit extrema in UI.
+    for channel in range(3):
+        rgba[channel, valid] = (30 + norm * 225).astype(np.uint8)
+    rgba[3, valid] = 255
+    with MemoryFile() as png:
+        with png.open(
+            driver="PNG", width=values.shape[1], height=values.shape[0], count=4, dtype="uint8"
+        ) as image:
+            image.write(rgba)
+        return Response(png.read(), media_type="image/png")
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
