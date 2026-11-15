@@ -1,0 +1,135 @@
+{
+  "command": "uv run python -m mcp_servers.tool_latency --plan reports/tool_latency_plan.json",
+  "recorded_utc": "2026-11-15T00:14:53.512275+00:00",
+  "execution": "offline_preflight",
+  "method": "uncached raw function; sequential successful calls; linear empirical percentile",
+  "results": [
+    {
+      "server": "nisar_asf",
+      "tool": "search_nisar_granules",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello",
+      "status": "not measured",
+      "blockers": [],
+      "required_arguments": [
+        "bbox",
+        "start_date",
+        "end_date",
+        "product_level"
+      ],
+      "input_granule_ids": [],
+      "granule_ids": [],
+      "budget_s": null
+    },
+    {
+      "server": "nisar_asf",
+      "tool": "stage_nisar_gcov_to_gcs",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello.granules",
+      "status": "blocked",
+      "blockers": [
+        "staging_bucket_must_be_explicit"
+      ],
+      "required_arguments": [
+        "https_url",
+        "scene_name",
+        "bbox",
+        "polarizations"
+      ],
+      "input_granule_ids": [
+        "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+      ],
+      "granule_ids": [],
+      "budget_s": null
+    },
+    {
+      "server": "nisar_asf",
+      "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello.granules",
+      "status": "blocked",
+      "blockers": [
+        "committed_preregistration_not_ready",
+        "staging_bucket_must_be_explicit"
+      ],
+      "required_arguments": [
+        "https_url",
+        "scene_name",
+        "bbox"
+      ],
+      "input_granule_ids": [
+        "NISAR_L2_PR_GUNW_023_047_A_005_024_4000_SH_20260617T103906_20260617T103941_20260629T103906_20260629T103940_P05023_N_F_J_001"
+      ],
+      "granule_ids": [],
+      "budget_s": null
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_landslide_kinematics",
+      "source": "owner-supplied staged real GUNW artifacts required",
+      "status": "blocked",
+      "blockers": [
+        "missing_or_unknown_arguments",
+        "server_bootstrap_incomplete",
+        "committed_preregistration_not_ready",
+        "science_requires_real_input_granule_ids"
+      ],
+      "required_arguments": [
+        "gunw_unw_gcs",
+        "gunw_iono_gcs",
+        "gunw_coh_gcs",
+        "gunw_conncomp_gcs",
+        "bbox",
+        "rain_start_date",
+        "rain_end_date",
+        "temporal_baseline_days"
+      ],
+      "input_granule_ids": [],
+      "granule_ids": [],
+      "budget_s": null
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_flood_inundation",
+      "source": "owner-supplied staged real GCOV artifacts required",
+      "status": "blocked",
+      "blockers": [
+        "missing_or_unknown_arguments",
+        "server_bootstrap_incomplete",
+        "committed_preregistration_not_ready",
+        "science_requires_real_input_granule_ids"
+      ],
+      "required_arguments": [
+        "gcov_hhhh_pre_gcs",
+        "gcov_hvhv_pre_gcs",
+        "gcov_hhhh_post_gcs",
+        "gcov_hvhv_post_gcs",
+        "bbox",
+        "s1_post_start",
+        "s1_post_end"
+      ],
+      "input_granule_ids": [],
+      "granule_ids": [],
+      "budget_s": null
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_earthquake_dpm",
+      "source": "owner-supplied frozen pair artifacts required",
+      "status": "blocked",
+      "blockers": [
+        "missing_or_unknown_arguments",
+        "server_bootstrap_incomplete",
+        "committed_preregistration_not_ready",
+        "science_requires_real_input_granule_ids"
+      ],
+      "required_arguments": [
+        "coh_pre_gcs",
+        "coh_coseismic_gcs",
+        "goff_range_gcs",
+        "goff_azimuth_gcs",
+        "bbox"
+      ],
+      "input_granule_ids": [],
+      "granule_ids": [],
+      "budget_s": null
+    }
+  ]
+}

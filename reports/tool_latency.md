@@ -1,65 +1,85 @@
-# Tool latency and breaker budgets (plan 02-06, #28)
+# Tool latency — issue #28
 
-Goal: 10 timed calls per live tool, write `p95 + 0.5 s` into
-`config/bailasar.yaml` → `breaker_budgets_s`.
+**Status: owner-run handoff; live measurements have not been collected.**
 
-Status (2026-11-15, after #79 dropped the module-level netrc login):
-**`search_nisar_granules` measured and budgeted.** The staging and
-`analyze_*` tools are still not timeable on real data — they stay on
-`default: 1.8`, not an invented number.
+The user chose preparation for a cloud owner. No cloud request, storage upload,
+GEE computation or paid model call was made, and `breaker_budgets_s` is unchanged.
+This report is not a completed latency benchmark and contains no proposed budgets.
 
-## Credential state (read-only check)
+## Offline evidence
 
-`uv run python scripts/check_credentials.py`:
+Command: `uv run python -m mcp_servers.tool_latency --plan reports/tool_latency_plan.json`
 
-| Service | Result |
-|---|---|
-| earthdata | PASS — `EARTHDATA_USERNAME` + `EARTHDATA_TOKEN` (environment strategy) |
-| gee | PASS — ADC identity, read-only `getInfo` ok |
-| gcs | PASS — bucket list ok |
-| llm | FAIL — no provider keys (not needed here) |
+Machine output: `reports/tool_latency.json`. It records the command, catalog
+references, planned input IDs and readiness blockers without copying
+raw URLs or credentials. Preflight imports no live server and opens no raster.
+Exit status `2` means the run is incomplete; it does not stand for measured latency.
 
-## `search_nisar_granules` — measured
+| Tool | Current readiness | Measured p95 / budget |
+|---|---|---|
+| `search_nisar_granules` | Metadata workload resolves from the operational AOI and committed catalog window; owner execution still required | Not measured |
+| `stage_nisar_gcov_to_gcs` | Real GCOV metadata is referenced; explicit authorized bucket and staging-write authorization required | Not measured |
+| `stage_nisar_gunw_ionosphere_corrected_to_gcs` | Real GUNW metadata is referenced; bucket, staging-write authorization and committed freeze required | Not measured |
+| `analyze_landslide_kinematics` | GEE bootstrap, real staged arguments/IDs and committed freeze missing | Not measured |
+| `analyze_flood_inundation` | GEE bootstrap, real staged arguments/IDs and committed freeze missing | Not measured |
+| `analyze_earthquake_dpm` | GEE bootstrap, real staged arguments/IDs and committed freeze missing | Not measured |
 
-Since #79, `mcp-nisar-asf` imports with no login at import, so the tool
-runs. Timed as the real registered tool (not a proxy):
+Metadata source: `nisar_colombia_granules_2026.json`, produced by
+`uv run python scripts/discover_nisar_colombia.py` (see `reports/gate.md`).
+The plan selects a fixed earliest listed provisional Aburrá GCOV dual-pol scene
+and a fixed earliest listed provisional Aburrá GUNW scene. These are reproducible
+metadata workloads, not a claim that the internal product layers were verified.
+The exact source IDs are in the plan/machine report; no source IDs or GCS artifact
+paths were invented. The AOI bbox is resolved from config, not duplicated.
 
-- Command: `uv run python <scratch>/time_tool.py` (loads `.env`, imports
-  `mcp_servers.nisar_asf_mcp`, calls `search_nisar_granules`).
-- 10 calls, Eje Cafetero AOI `[-75.85, 4.40, -75.40, 5.15]`, GCOV,
-  window 2026-06-17 → 2026-11-14, each returned n=5 (the tool caps at 5).
+## Cloud-owner procedure
 
-| n | min | median | warm p95 | max |
-|---|---|---|---|---|
-| 10 | 0.391 s | 0.426 s | 0.693 s | **4.205 s (cold start, call 1)** |
+Allowed roles come from AGENTS.md: LEONOB2014, Jack4Codes and EstebanOchoaedos.
+Use a normal configured worktree and the owner's existing credentials. Credentials
+belong in the ignored environment/normal credential store, never in a plan/report.
 
-- Budget `warm p95 + 0.5 = 1.19 s` → `config/bailasar.yaml`
-  `breaker_budgets_s.search_nisar_granules: 1.2`.
-- **Cold-start caveat:** the first call on a cold connection paid 4.205 s
-  (TLS/connection warmup). A 1.2 s breaker trips once on that first call and
-  then serves cached tiles; subsequent calls stay well under budget. If the
-  first live search must not trip, warm the ASF connection at server start or
-  raise this one tool's budget. Recorded, not silently absorbed.
+- Copy the plan to an ignored local-cache plan and fill the real staged artifacts
+  and source IDs that are missing. All benchmark arguments must be explicit;
+  stale function defaults for dates/baselines/polarization are not accepted.
+- Repair/merge the real server bootstrap and science prerequisites through their
+  owners. The current trunk GEE file has decorators without an initialized MCP
+  server. Do not measure a stub or successful-looking placeholder result.
+- Commit the real preregistration record and frozen config before any coherence
+  staging/analysis. Preflight checks both the frozen state and the recorded hash,
+  and refuses uncommitted changes to those records.
+- Confirm the staging tool's actual bucket configuration. Its current source reads
+  `GCS_NISAR_BUCKET`; the runner refuses to use a fallback bucket. The owner must
+  explicitly select the correct permitted bucket in the environment.
+- Run the command below with an owner-selected watchdog duration for the entire
+  tool worker, including startup. The placeholder is intentionally not a guessed
+  runtime or a proposed circuit-breaker budget.
 
-## Still not timeable on real data
+```text
+uv run --env-file .env python -m mcp_servers.tool_latency --plan local_cache/tool_latency_plan.json --execute --owner Jack4Codes --watchdog-s <owner-selected-seconds>
+```
 
-### `stage_nisar_gcov_to_gcs`, `stage_nisar_gunw_ionosphere_corrected_to_gcs`
-These **download NISAR granules and upload COGs to GCS** — a paid,
-outward-facing run. Timing them 10× each needs Earthdata auth (token Bearer,
-available) plus explicit approval for the cloud download/upload spend. Not run
-here. Budget stays `default: 1.8`.
+Use the actual allowed owner name. Storage-writing requests additionally require
+`--allow-staging-writes`; add it only when that concrete upload plan is authorized.
+The runner forces live mode in its worker and unwraps the cache decorator, so a
+circuit-breaker timeout cannot truncate the values being used to estimate it.
+Module startup/authentication and SSE transport overhead are outside the timed
+function region. Library retries inside the function remain part of its latency.
 
-### `analyze_landslide_kinematics`, `analyze_flood_inundation`, `analyze_earthquake_dpm` (`mcp-gee-fusion`)
-Each takes **GCS URIs of staged NISAR COGs** as inputs
-(`coh_pre_gcs`, `gcov_hhhh_pre_gcs`, `gunw_unw_gcs`, …). Timing them needs real
-staged-COG URIs; a fake URI only exercises the offline zarr fallback (a fixed
-1.8 s), which is not a measurement. Pending real inputs from the cache build
-(#30/#78). Budget stays `default: 1.8`. (`analyze_biomass_disturbance` is out
-of scope — biomass dropped.)
+The D6 procedure requires **10 successful sequential calls per tool** (planned
+sample denominator from the approved issue). No warm-up is discarded, and an
+error/cached/gate/unavailable result aborts that tool without a budget. The raw
+successful durations are *(measured)*, with command and source IDs. Empirical
+p95 and **p95 + 0.5 seconds** are *(estimates)* for that exact workload, not an SLA.
+The report includes the measured sample range; it is not a confidence interval.
+No confidence interval is asserted from this small measurement set.
 
-## To finish #28
+After reviewing a successful live run, the owner may add `--apply-budgets` to
+record proposals for fully measured tools only. The runner recomputes each
+proposal from its complete sample set and changes only the breaker-budget block.
+Defaults, failed/incomplete tools and all unrelated operational settings remain
+unchanged. A partial run still exits incomplete even if valid tool proposals were
+explicitly applied. Review the resulting config diff before any commit/push.
 
-1. Approval for the paid `stage_nisar_*` runs, then time them and set their
-   budgets.
-2. Real staged-COG URIs (from the cache) to feed the `analyze_*` tools, then
-   time them and set their budgets.
+New scoring/pair tools introduced by #35 need their own real workload entries once
+registered and usable. Biomass remains excluded per the decided architecture.
+No work on #35/#36 was performed as part of this #28 handoff.

@@ -391,3 +391,7 @@ Run each server with `uv run --frozen python -m mcp_servers.nisar_asf_mcp` or `u
 ### Bulletin evidence contract
 
 `agents/bulletin.py` validates declared placeholders against deterministic tool outputs and their hash. Numeric placeholders require rounding, units, evidence class, denominator and source; raw digits in prose are rejected except the exact allowed sensor names. `validation/event_facts.json` exposes only primary-source verified, non-null fields. Unresolved depth remains missing; see [USGS display-field evidence](docs/kb/event-usgs-verified-display-fields.md). Locale rendering and live end-to-end bulletins remain pending integration.
+
+### Live tool timing handoff
+
+Issue #28 has an offline preflight and owner-runner in `mcp_servers/tool_latency.py`; see [the readiness report](reports/tool_latency.md). It records no live measurements until an authorized cloud owner runs successful calls with real inputs.

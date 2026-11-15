@@ -19,3 +19,7 @@ Both servers use configured SSE endpoints without startup authentication. Cache 
 ## Bulletin contract (issue #21)
 
 Implemented placeholder schema, numeric evidence requirements, sensor-name allow-list and tool-output integrity checks. Only verified non-null event fields reach prose. Unsupported event depth remains missing. Locale rendering and graph end-to-end acceptance remain issue #36.
+
+## Live tool latency handoff (#28)
+
+An offline owner runner and preregistered call plan are available. The readiness report contains no live measurements. A cloud owner must supply authorized inputs and execute the successful samples before budgets can be set.
