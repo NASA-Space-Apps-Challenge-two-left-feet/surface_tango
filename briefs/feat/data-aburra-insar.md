@@ -164,3 +164,6 @@ The command reads the Aburrá box from `config/bailasar.yaml`, searches ASF, sam
 State is cached: the live ASF + GEE run wrote `local_cache/aburra/pairs/` (17 npz), `local_cache/aburra/stacks/` (2 npz) and `local_cache/aburra/summary.json`. The UI does not read them.
 
 Suggested measured sticker (img.shields.io, links to `reports/aburra.md`, no NASA mark): noise floor 9.105 mm on 17 pairs. The number is the median residual RMS from the command above.
+
+### Orchestrator completion (2026-11-15 ~05:20 UTC, claude-home)
+grok was not resumed, so the orchestrator ran the calibration from the review above. It added `calibrate_keep_rule()` (sign-flip null, seeded stdlib RNG, no generated values), `calibrate_from_cache()` and `--calibrate-from-cache` (offline, from the cached pair arrays), plus 3 known-answer tests on hand-written arrays (10 consistent pairs beat the null; mixed signs don't; seed determinism). Result: the kept fraction is below the null mean on both tracks, so the verdict is **no motion detected above 9.105 mm (17 pairs)**. Not done: the stable-pixel false-positive rate needs the live re-run, because the stable mask isn't cached. Item 6 (reading `landslide.noise_floor` keys through the loader) is still open; Esteban's #72 has a port to reuse.

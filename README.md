@@ -78,7 +78,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Pre-registration and power check | power check recorded: **scorecard uninformative** (0 verified barrio labels); freeze pending (#26, #86) | #25, #102 | [validation/README.md](validation/README.md) |
 | First-aid ranking and scorecard | offline scoring functions merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #96 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth | researched; no complete barrio damage dataset; candidate boundaries not adopted | #24, #97 | [Source review and gaps](reports/ground_truth.md) |
-| Aburrá landslide noise-floor test | planned: run done (noise floor 9.105 mm, 17 pairs, provisional) but the keep-rule needs null calibration before any verdict | #33 | pending (branch under review) |
+| Aburrá landslide noise-floor test | cached: **no motion detected above 9.105 mm (17 pairs, provisional)**; keep-rule calibrated against a sign-flip null | #33 | [reports/aburra.md](reports/aburra.md) |
 | La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |
 | La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |

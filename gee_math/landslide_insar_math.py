@@ -12,6 +12,7 @@ import math
 import re
 import warnings
 from dataclasses import dataclass
+from pathlib import Path
 
 import ee
 import numpy as np
@@ -404,6 +405,82 @@ def noise_floor(
             f"kept downslope rates on {n_kept} pixels; noise floor {shown} mm ({n_pairs} pairs)"
         )
     return NoiseFloorResult(out, floor_mm, n_pairs, n_kept, n_pos, n_neg, verdict)
+
+
+def _kept_fraction(result: NoiseFloorResult, eligible: np.ndarray) -> float:
+    n_eligible = int(np.count_nonzero(eligible))
+    if n_eligible == 0:
+        return math.nan
+    kept = np.isfinite(result.kept_rate_mm_per_yr) & eligible
+    return int(np.count_nonzero(kept)) / n_eligible
+
+
+@dataclass(frozen=True)
+class KeepRuleCalibration:
+    """The keep-rule's observed kept fraction against its sign-flip null."""
+
+    n_eligible: int
+    observed_fraction: float
+    null_mean: float
+    null_p95: float
+    draws: int
+    seed: int
+    exceeds_null: bool
+
+
+def calibrate_keep_rule(
+    los_mm: list[np.ndarray],
+    downslope_mm: list[np.ndarray],
+    rate_mm_per_yr: list[np.ndarray],
+    residual_rms_mm: list[float],
+    acquisition_dates: list[frozenset[str]],
+    *,
+    draws: int,
+    seed: int,
+) -> KeepRuleCalibration:
+    """Compare the kept fraction with the same rule on sign-flipped pairs.
+
+    Each draw multiplies every pair's downslope field (and rate) by one
+    seeded ±1, which keeps each pair's noise and spatial structure but breaks
+    any sign consistency real motion would have across pairs. Under pure noise
+    the observed fraction sits inside the null; consistent motion puts it
+    above the null's 95th percentile. Eligible pixels are those with a finite
+    downslope value in at least one pair (the hillslope domain; valley-floor
+    stable pixels are already excluded upstream). The flips reorder real
+    measurements; no value is generated.
+    """
+    import random
+
+    if draws < 1:
+        raise ValueError("draws must be at least 1")
+    downs = [np.asarray(d, dtype=np.float64) for d in downslope_mm]
+    rates = [np.asarray(r, dtype=np.float64) for r in rate_mm_per_yr]
+    eligible = np.zeros(downs[0].shape, dtype=bool) if downs else np.zeros((0, 0), dtype=bool)
+    for down in downs:
+        eligible |= np.isfinite(down)
+    observed = _kept_fraction(
+        noise_floor(los_mm, downs, rates, residual_rms_mm, acquisition_dates), eligible
+    )
+    rng = random.Random(seed)
+    null = []
+    for _ in range(draws):
+        signs = [1.0 if rng.getrandbits(1) else -1.0 for _ in downs]
+        flipped = noise_floor(
+            los_mm,
+            [d * s for d, s in zip(downs, signs, strict=True)],
+            [r * s for r, s in zip(rates, signs, strict=True)],
+            residual_rms_mm,
+            acquisition_dates,
+        )
+        null.append(_kept_fraction(flipped, eligible))
+    null_arr = np.asarray(null, dtype=np.float64)
+    finite = null_arr[np.isfinite(null_arr)]
+    null_mean = float(finite.mean()) if finite.size else math.nan
+    null_p95 = float(np.quantile(finite, 0.95)) if finite.size else math.nan
+    exceeds = bool(math.isfinite(observed) and math.isfinite(null_p95) and observed > null_p95)
+    return KeepRuleCalibration(
+        int(np.count_nonzero(eligible)), observed, null_mean, null_p95, draws, seed, exceeds
+    )
 
 
 def correct_pair(
@@ -1595,6 +1672,67 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
     return summary
 
 
+def calibrate_from_cache(root: Path, draws: int, seed: int) -> list[dict]:
+    """Keep-rule calibration from the cached per-pair arrays (no network).
+
+    Reads ``local_cache/aburra/summary.json`` (per-pair RMS and dates) and
+    ``local_cache/aburra/pairs/<scene>.npz``; groups pairs by track and frame
+    exactly as the run does; writes ``local_cache/aburra/calibration.json``.
+    """
+    import json
+
+    base = root / "local_cache" / "aburra"
+    summary = json.loads((base / "summary.json").read_text(encoding="utf-8"))
+    groups: dict[tuple, list[dict]] = {}
+    for pair in summary["pairs"]:
+        rms = pair.get("residual_rms_mm")
+        path = base / "pairs" / f"{pair['scene_name']}.npz"
+        if pair.get("status") != "ok" or rms is None or not path.is_file():
+            continue
+        arrays = np.load(path, allow_pickle=False)
+        groups.setdefault((pair["track"], pair["frame"], pair["direction"]), []).append(
+            {
+                "los": arrays["d_los_mm"].astype(np.float64),
+                "down": arrays["d_downslope_mm"].astype(np.float64),
+                "rate": arrays["rate_mm_per_yr"].astype(np.float64),
+                "rms": float(rms),
+                "dates": frozenset({pair["reference_date"], pair["secondary_date"]}),
+            }
+        )
+    out = []
+    for (track, frame, direction), group in sorted(groups.items()):
+        cal = calibrate_keep_rule(
+            [g["los"] for g in group],
+            [g["down"] for g in group],
+            [g["rate"] for g in group],
+            [g["rms"] for g in group],
+            [g["dates"] for g in group],
+            draws=draws,
+            seed=seed,
+        )
+        row = {
+            "stack": f"track {track} frame {frame} {direction}",
+            "n_pairs": len(group),
+            "n_eligible": cal.n_eligible,
+            "observed_kept_fraction": cal.observed_fraction,
+            "null_mean": cal.null_mean,
+            "null_p95": cal.null_p95,
+            "draws": cal.draws,
+            "seed": cal.seed,
+            "exceeds_null": cal.exceeds_null,
+        }
+        out.append(row)
+        print(
+            f"{row['stack']}: {row['n_pairs']} pairs, eligible {cal.n_eligible} px; "
+            f"kept {cal.observed_fraction:.4f} vs sign-flip null mean {cal.null_mean:.4f}, "
+            f"p95 {cal.null_p95:.4f} ({draws} draws, seed {seed}); "
+            f"exceeds null: {cal.exceeds_null}",
+            flush=True,
+        )
+    (base / "calibration.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    return out
+
+
 def main() -> None:
     import argparse
 
@@ -1607,7 +1745,17 @@ def main() -> None:
         default=None,
         help="Override the Aburrá box. The default is config/bailasar.yaml.",
     )
+    parser.add_argument(
+        "--calibrate-from-cache",
+        action="store_true",
+        help="Offline: run the keep-rule sign-flip null on local_cache/aburra/pairs.",
+    )
+    parser.add_argument("--draws", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=20261115)
     args = parser.parse_args()
+    if args.calibrate_from_cache:
+        calibrate_from_cache(Path(__file__).resolve().parents[1], args.draws, args.seed)
+        return
     run_aburra(tuple(args.bbox) if args.bbox is not None else None)
 
 

@@ -6,7 +6,22 @@ HKLSI is not computed.
 
 ## Verdict
 
-kept downslope rates on 88517 pixels; noise floor 9.105 mm (17 pairs)
+**No motion detected above 9.105 mm (17 pairs).** *(measured, PROVISIONAL)*
+
+The keep-rule below passes noise, so its raw kept count is not a detection. Calibrated against a sign-flip null, the kept fraction is **below** the null on both tracks:
+
+| Stack | Pairs | Eligible px | Kept fraction | Sign-flip null mean | Null 95th pct | Exceeds null |
+|---|---:|---:|---:|---:|---:|---|
+| Track 11 frame 85 descending | 8 | 113,424 | 0.3748 | 0.4131 | 0.4974 | no |
+| Track 47 frame 5 ascending | 9 | 112,958 | 0.4073 | 0.4857 | 0.5390 | no |
+
+- Command: `uv run python -m gee_math.landslide_insar_math --calibrate-from-cache` (offline; reads `local_cache/aburra/summary.json` and `local_cache/aburra/pairs/*.npz`, writes `local_cache/aburra/calibration.json`). 200 draws, seed 20261115. Measured 2026-11-15 ~05:15 UTC.
+- Eligible pixels: finite downslope value in at least one pair of the stack (hillslopes; valley-floor stable pixels excluded upstream).
+- Null: each draw multiplies every pair's downslope field by one seeded ±1. That keeps each pair's noise and spatial structure but breaks the sign consistency real motion would show across pairs. No value is generated.
+- Why the raw rule passes noise: a pixel is kept when *any* two date-independent pairs agree in sign with |LOS| > RMS. With 8–9 pairs there are ~28 such pair combinations, and a single pair exceeds its RMS on roughly a third of noise pixels. The near-even sign split below is consistent with that.
+- Not done here: the same rule on the stable valley-floor pixels (an empirical false-positive rate). The stable mask isn't in the cached pair files, so that needs a re-run of the live pipeline.
+
+Raw keep-rule output, kept for the record, **not a detection**:
 
 Noise floor: 9.105 mm *(measured)*.
 Denominator: 17 pairs with a finite stable-pixel residual RMS,

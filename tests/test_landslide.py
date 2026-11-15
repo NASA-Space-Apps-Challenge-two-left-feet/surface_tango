@@ -264,3 +264,48 @@ def test_provisional_mask_keeps_the_ubyte_code():
     assert land.tolist() == [True, True, False, False, False, False, False, True]
     with_missing = np.array([12.0, np.nan])
     assert slide.product_valid_land(with_missing).tolist() == [True, False]
+
+
+# --- keep-rule calibration (sign-flip null), hand-written arrays only ---------
+
+
+def _dates(n):
+    """n pairs with disjoint acquisition dates (all mutually independent)."""
+    return [frozenset({f"d{2 * i}", f"d{2 * i + 1}"}) for i in range(n)]
+
+
+def _pairs_from_signs(signs_per_pair):
+    """Each pair: |LOS| = 10 mm (> RMS 1 mm); downslope and rate carry the given sign."""
+    los = [np.full((1, len(s)), 10.0) for s in signs_per_pair]
+    down = [np.asarray([s], dtype=float) * 5.0 for s in signs_per_pair]
+    rate = [d.copy() for d in down]
+    return los, down, rate, [1.0] * len(signs_per_pair), _dates(len(signs_per_pair))
+
+
+def test_calibration_consistent_motion_beats_the_null():
+    # Every pair says "downhill" on both pixels: real, consistent motion.
+    los, down, rate, rms, dates = _pairs_from_signs([[1, 1]] * 10)
+    cal = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=200, seed=7)
+    assert cal.n_eligible == 2
+    assert cal.observed_fraction == 1.0
+    # A flip keeps the field only when at most one of the 10 signs dissents
+    # (22/1024 ≈ 2.1 % of draws), so the null's 95th percentile is 0.
+    assert cal.null_p95 == 0.0
+    assert cal.exceeds_null is True
+
+
+def test_calibration_mixed_signs_do_not_beat_the_null():
+    # Pixel 0 alternates +,-,+,-…; pixel 1 goes +,+,-,-…: independent pairs disagree,
+    # so the rule cancels both pixels (observed 0) and the verdict must stay null.
+    signs = [[s0, s1] for s0, s1 in zip([1, -1] * 4, [1, 1, -1, -1] * 2, strict=True)]
+    los, down, rate, rms, dates = _pairs_from_signs(signs)
+    cal = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=200, seed=7)
+    assert cal.observed_fraction == 0.0
+    assert cal.exceeds_null is False
+
+
+def test_calibration_is_deterministic_for_a_seed():
+    los, down, rate, rms, dates = _pairs_from_signs([[1, -1]] * 8)
+    a = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=50, seed=3)
+    b = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=50, seed=3)
+    assert a == b
