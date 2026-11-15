@@ -27,3 +27,13 @@ _Last update: 2026-11-14 (UTC−5)_
 - Acceptance gaps remain: complete neighborhood assessment coverage, official boundary adoption/vintage/terms, stable identities, topology review and ambiguous locations. This is a research handoff, not accepted scientific ground truth.
 - The official power/headline decision (#25), configuration freeze (#26) and real scorecard (#32) remain with their respective tasks. The latest upstream data gate (#23) is available.
 - Validation: publication checks use `make check`, `make test`, explicit hooks on new files and `make ci`. Only research documents and the optional diagnostic helper are included.
+
+## Power check and headline (#25, Jack4Codes)
+
+_Last update: 2026-11-15 (UTC−5)_ · branch `feat/config-power-check-headline`
+
+- Done: filled `validation/README.md` power-check and headline rows from the merged ground truth (#24) and La Mojana result (#34).
+  - **Power check: uninformative.** No verified barrio damage labels (`reports/ground_truth.md`), so 0 evaluable units; positives/prevalence/k undefined. Documented null, not a failure. Applied the 02-02 fallback ("scorecard uninformative"), which unblocks C viewing.
+  - **Headline: La Mojana flood** — open-water extent ~2,799–6,726 ha *(measured, PROVISIONAL, uncalibrated)* from `reports/mojana.md`. Quake uninformative; Aburrá has no report on `main` yet.
+- Left to #26: freeze `config/preregistered.yaml` (`status: frozen` + hash), listing the blob differences (landslide noise_floor #72, quake pairs #26). The hash/commit rows here are set at that freeze.
+- Decision recorded for the orchestrator to ratify at review (it sets the video story).
