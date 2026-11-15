@@ -36,41 +36,39 @@
       padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
       white-space: nowrap; user-select: none;
     }
-    /* two-feet stepping loader (brand motion motif) — the surface tango caminata.
-       Two left feet (never mirrored, never leveled, never touching) dance a
-       coordinated Argentine-tango walk: blue (first/before) and vermilion
-       (second/after/highlight) alternate as the stepping foot and the standing
-       axis. Each step reads heel-lead reach -> roll onto the full foot ->
-       weight change -> pivot on the ball (ocho) -> collect under the body.
-       No vertical bounce (translateX + rotate only): the upper body stays level
-       while the feet trade weight, gap always kept open. 2.4s = a slow tango
-       walk tempo. Pivot about each foot's own centroid (fill-box + center). */
-    .feet-loader { display: inline-block; height: 22px; width: 44px; }
-    .feet-loader .foot { opacity: 1; transform-box: fill-box; transform-origin: center; }
-    .feet-loader .foot-blue { animation: tango-blue 2.4s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
-    .feet-loader .foot-vermilion { animation: tango-vermilion 2.4s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
-    /* Blue steps first (the "before"), opening outward (to its own side, never
-       toward vermilion — the gap stays open), then stands as the axis. */
-    @keyframes tango-blue {
-      0%   { transform: translateX(0) rotate(0deg); }      /* collected, weight held */
-      10%  { transform: translateX(0) rotate(-9deg); }     /* heel-lead: reach */
-      25%  { transform: translateX(-5px) rotate(0deg); }   /* abrir: open out, roll onto full foot */
-      40%  { transform: translateX(-5px) rotate(6deg); }   /* ocho: pivot on the ball */
-      55%  { transform: translateX(-1px) rotate(0deg); }   /* cerrar: collect under body */
-      70%, 100% { transform: translateX(0) rotate(0deg); } /* stand: the axis for vermilion */
-    }
-    /* Vermilion holds the axis, then steps a beat ahead (the highlight), opening
-       outward to its own side so the two left feet never touch. */
-    @keyframes tango-vermilion {
-      0%, 30% { transform: translateX(0) rotate(0deg); }   /* stand as the axis */
-      45%  { transform: translateX(0) rotate(9deg); }      /* heel-lead: reach */
-      60%  { transform: translateX(5px) rotate(0deg); }    /* abrir: open out, a step ahead */
-      75%  { transform: translateX(5px) rotate(-6deg); }   /* ocho: pivot on the ball */
-      88%  { transform: translateX(1px) rotate(0deg); }    /* cerrar: collect */
-      100% { transform: translateX(0) rotate(0deg); }      /* back to the axis */
+    /* Two-feet motif (brand motion signature) — the surface tango CAMINATA.
+       Two left feet (blue = before, vermilion = after) walk the line of dance
+       with real displacement: alternating prints advance up-and-to-the-right,
+       each planting bright with a heel-lead roll, then decaying to a faint
+       TRACE as the walk moves on. Two independent, synchronized traces — never
+       mirrored, never leveled, never touching, never cut. One shared glyph
+       (#lfoot) placed by a static <g transform>; CSS animates only the plant
+       (rotate/scale/opacity) about each foot's own centre, staggered a sixth
+       of the 2.4s phrase apart so the feet step one after the other. */
+    .feet-loader { display: inline-block; line-height: 0; }
+    .feet-loader svg { overflow: visible; }
+    .trail-foot { transform-box: fill-box; transform-origin: center; opacity: 0;
+      animation: trail-step 2.4s linear infinite; }
+    .trail-foot.foot-blue { fill: var(--brand-blue, #1B3FD6); }
+    .trail-foot.foot-vermilion { fill: var(--brand-vermilion, #F04A23); }
+    /* On the vermilion run button, vermilion feet would vanish — walk in white. */
+    .feet-loader.mono .trail-foot { fill: #FFFFFF; }
+    .feet-loader.inline { vertical-align: middle; }
+    .trail-foot.s1 { animation-delay: 0s; }
+    .trail-foot.s2 { animation-delay: 0.4s; }
+    .trail-foot.s3 { animation-delay: 0.8s; }
+    .trail-foot.s4 { animation-delay: 1.2s; }
+    .trail-foot.s5 { animation-delay: 1.6s; }
+    .trail-foot.s6 { animation-delay: 2.0s; }
+    @keyframes trail-step {
+      0%   { opacity: 0;   transform: rotate(13deg) scale(0.82); } /* heel-lead: toe reaching forward */
+      7%   { opacity: 1;   transform: rotate(8deg) scale(1); }     /* plant: brightest, rolled onto the full foot */
+      38%  { opacity: 0.4; transform: rotate(8deg) scale(1); }     /* the walk moves on: this print becomes a trace */
+      86%  { opacity: 0.4; transform: rotate(8deg) scale(1); }     /* faint trace holds along the line of dance */
+      100% { opacity: 0;   transform: rotate(8deg) scale(1); }     /* clears just before its next plant */
     }
     @media (prefers-reduced-motion: reduce) {
-      .feet-loader .foot-blue, .feet-loader .foot-vermilion { animation: none; transform: none; opacity: 1; }
+      .trail-foot { animation: none; opacity: 1; transform: rotate(8deg); }
     }
     /* Chapter-transition curtain: the same two left feet dance the caminata,
        scaled up, over an ink veil while the next chapter's tiles load. The
@@ -82,7 +80,7 @@
       opacity: 0; visibility: hidden; transition: opacity 240ms ease;
     }
     #feet-transition.feet-transition-on { opacity: 1; visibility: visible; }
-    #feet-transition .feet-stage { width: 180px; height: 132px; }
+    #feet-transition .feet-stage { width: 340px; height: auto; }
     #feet-transition .feet-label {
       font-family: 'Jost', 'Poppins', system-ui, sans-serif; font-weight: 600;
       letter-spacing: 0.18em; text-transform: uppercase; font-size: 13px;
@@ -110,18 +108,21 @@
 </head>
 <body class="flex flex-col h-screen">
 
-  <!-- Chapter-transition curtain: two left feet dancing the caminata (brand motion motif) -->
+  <!-- Shared left-foot glyph for the brand motion motif (one source of truth). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <g id="lfoot"><ellipse cx="0" cy="-5" rx="6.5" ry="12"/><circle cx="1.5" cy="10" r="5.5"/></g>
+  </defs></svg>
+
+  <!-- Chapter-transition curtain: two left feet walking the caminata trail (brand motion motif) -->
   <div id="feet-transition" aria-hidden="true">
     <span class="feet-loader feet-stage">
-      <svg viewBox="0 0 60 44" width="180" height="132">
-        <g class="foot foot-blue">
-          <ellipse cx="18" cy="14" rx="7" ry="13" transform="rotate(8 18 14)" fill="#1B3FD6"/>
-          <circle cx="21" cy="31" r="6" fill="#1B3FD6"/>
-        </g>
-        <g class="foot foot-vermilion">
-          <ellipse cx="37" cy="9" rx="7" ry="13" transform="rotate(8 37 9)" fill="#F04A23"/>
-          <circle cx="40" cy="26" r="6" fill="#F04A23"/>
-        </g>
+      <svg viewBox="0 0 230 72" width="340" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(18 52)"><use href="#lfoot" class="trail-foot foot-blue s1"/></g>
+        <g transform="translate(50 36)"><use href="#lfoot" class="trail-foot foot-vermilion s2"/></g>
+        <g transform="translate(84 48)"><use href="#lfoot" class="trail-foot foot-blue s3"/></g>
+        <g transform="translate(116 32)"><use href="#lfoot" class="trail-foot foot-vermilion s4"/></g>
+        <g transform="translate(150 44)"><use href="#lfoot" class="trail-foot foot-blue s5"/></g>
+        <g transform="translate(182 28)"><use href="#lfoot" class="trail-foot foot-vermilion s6"/></g>
       </svg>
     </span>
     <div class="feet-label" id="feet-transition-label">surface tango<span class="feet-sub"></span></div>
@@ -661,7 +662,14 @@
 
     function startMultiAgentStream() {
       const btn = document.getElementById("run-btn");
-      btn.innerHTML = '<span class="feet-loader"><svg viewBox="0 0 60 44" width="30" height="22"><g class="foot foot-blue"><ellipse cx="18" cy="14" rx="7" ry="13" transform="rotate(8 18 14)" fill="#FFFFFF"/><circle cx="21" cy="31" r="6" fill="#FFFFFF"/></g><g class="foot foot-vermilion"><ellipse cx="37" cy="9" rx="7" ry="13" transform="rotate(8 37 9)" fill="#F04A23"/><circle cx="40" cy="26" r="6" fill="#F04A23"/></g></svg>&nbsp;scanning…';
+      btn.innerHTML = '<span class="feet-loader mono inline"><svg viewBox="0 0 230 72" width="84" preserveAspectRatio="xMidYMid meet">'
+        + '<g transform="translate(18 52)"><use href="#lfoot" class="trail-foot foot-blue s1"/></g>'
+        + '<g transform="translate(50 36)"><use href="#lfoot" class="trail-foot foot-vermilion s2"/></g>'
+        + '<g transform="translate(84 48)"><use href="#lfoot" class="trail-foot foot-blue s3"/></g>'
+        + '<g transform="translate(116 32)"><use href="#lfoot" class="trail-foot foot-vermilion s4"/></g>'
+        + '<g transform="translate(150 44)"><use href="#lfoot" class="trail-foot foot-blue s5"/></g>'
+        + '<g transform="translate(182 28)"><use href="#lfoot" class="trail-foot foot-vermilion s6"/></g>'
+        + '</svg>&nbsp;scanning…';
       btn.disabled = true;
 
       const unfinishedNodes = new Set([

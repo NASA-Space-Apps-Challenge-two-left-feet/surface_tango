@@ -54,17 +54,22 @@ never out of step." · "Two radars. Both look left. We call that a footprint."
 ## Motion motif (platform)
 
 The two-footprint pair is the loading/transition animation, and it dances a
-real Argentine-tango **caminata**: the blue foot (first/before) steps, the
-vermilion foot (second/after, the highlight) follows a beat ahead, and the two
-trade the roles of stepping foot and standing axis. Each step reads heel-lead
-reach → roll onto the full foot → weight change → pivot on the ball (ocho) →
-collect — the *abrir y cerrar* (open and close): each foot opens outward to its
-own side and collects back, so the two left feet never move toward each other.
-No vertical bounce (the upper body stays level while the feet trade weight);
-the feet are always left feet, never mirrored, never leveled, a step apart with
-the gap kept open, and never touching. Tempo ~2.4 s per phrase. Use it for the
-homepage intro, loading states and chapter transitions; respect
-`prefers-reduced-motion` (feet rest, no animation). Implemented as CSS
-keyframes `tango-blue` / `tango-vermilion` in `static/index.html`; the
-chapter-transition curtain reuses the same feet (`playFeetTransition` in
-`static/story-map.js`). "Two left feet, one coordinated surface tango."
+real Argentine-tango **caminata** that *travels the line of dance* — not a pair
+marking time in place. Alternating left footprints, blue (first/before) and
+vermilion (second/after, the highlight), advance up-and-to-the-right with real
+displacement: each one plants bright with a heel-lead roll (the toe reaches,
+the foot rolls flat, weight sets down), then **decays to a faint trace** as the
+walk moves on. The result is two independent, synchronized traces climbing the
+floor, one step after the other — the dance is legible in the footfalls it
+leaves behind. The prints are always left feet, never mirrored, never leveled
+(blue rides the lower lane, vermilion the upper), a clear step apart, never
+touching and **never cut** (generous stage, `overflow: visible`). Each foot
+moves independently; the stagger is a sixth of the phrase. Tempo ~2.4 s per
+phrase. Use it for the homepage intro, loading states and chapter transitions;
+respect `prefers-reduced-motion` (feet rest, no animation). One shared glyph
+(`#lfoot`) placed by a static `<g transform>`; CSS animates only the plant
+(`trail-step` keyframes, class `trail-foot` with slot classes `s1`–`s6`) in
+`static/index.html`. On the vermilion run button the walk goes white (class
+`mono`). The chapter-transition curtain reuses the same trail
+(`playFeetTransition` in `static/story-map.js`). "Two left feet, one
+coordinated surface tango."
