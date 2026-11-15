@@ -476,14 +476,22 @@ def correct_pair(
 def product_valid_land(mask: np.ndarray) -> np.ndarray:
     """Land pixels with a valid subswath in both acquisitions (D-102272 §5.3).
 
-    The unwrapped-interferogram mask is a three-digit code: hundreds are the
+    The spec type is UByte. The code is three digits: hundreds are the
     reference water flag (1 = water), tens the reference subswath, ones the
     secondary subswath. A 0 subswath digit is an invalid sample. Fill is 255.
+    Provisional P05023 stores that byte in the low 8 bits of a uint32
+    (measured on the first Aburrá granule: 16777228 → 12, 16777340 → 124).
     """
     raw = np.asarray(mask)
-    finite = np.isfinite(raw) if np.issubdtype(raw.dtype, np.floating) else np.ones(raw.shape, bool)
+    if np.issubdtype(raw.dtype, np.floating):
+        finite = np.isfinite(raw) & (raw >= 0)
+    else:
+        finite = np.ones(raw.shape, dtype=bool)
+        if np.issubdtype(raw.dtype, np.signedinteger):
+            finite = raw >= 0
     codes = np.zeros(raw.shape, dtype=np.int16)
-    codes[finite] = raw[finite].astype(np.int16)
+    if np.any(finite):
+        codes[finite] = np.asarray(raw[finite], dtype=np.uint32) & np.uint32(0xFF)
     water = codes // 100
     ref_swath = (codes // 10) % 10
     sec_swath = codes % 10
@@ -1108,8 +1116,10 @@ def _read_pair_arrays(h5, bbox) -> dict:
 def _fetch_fabdem(bbox: tuple[float, float, float, float]) -> dict:
     """Sample FABDEM elevation, slope, and aspect on an 80 m geographic grid.
 
-    Masked GEE pixels are requested as the transport sentinel -9999 and
-    converted back to NaN. That sentinel is not written as data.
+    ``ee.Terrain.slope`` is masked on the geographic mosaic. The collection's
+    native posting is 1 arc-second; the gradient is taken after a reprojection
+    to EPSG:3857 at 30 m. Masked GEE pixels are requested as the transport
+    sentinel -9999 and converted back to NaN. That sentinel is not written as data.
     """
     import io
 
@@ -1121,16 +1131,15 @@ def _fetch_fabdem(bbox: tuple[float, float, float, float]) -> dict:
     width = max(2, round((east - west) * 111_320.0 * math.cos(math.radians(mid_lat)) / 80.0))
     height = max(2, round((north - south) * 110_540.0 / 80.0))
     aoi = ee.Geometry.Rectangle([west, south, east, north])
+    collection = ee.ImageCollection("projects/sat-io/open-datasets/FABDEM").filterBounds(aoi)
     fabdem = (
-        ee.ImageCollection("projects/sat-io/open-datasets/FABDEM")
-        .filterBounds(aoi)
-        .mosaic()
-        .rename("elev_m")
+        collection.mosaic().setDefaultProjection(collection.first().projection()).rename("elev_m")
     )
-    terrain = ee.Terrain.products(fabdem)
+    metric = fabdem.reproject(crs="EPSG:3857", scale=30)
+    terrain = ee.Terrain.products(metric)
     image = ee.Image.cat(
         [
-            fabdem,
+            metric.rename("elev_m"),
             terrain.select("slope").rename("slope_deg"),
             terrain.select("aspect").rename("aspect_deg"),
         ]
@@ -1181,7 +1190,9 @@ def _fetch_fabdem(bbox: tuple[float, float, float, float]) -> dict:
         "n_finite": int(finite.size),
         "n_pixels": int(elev.size),
         "point_elev_m": None if point_elev is None else float(point_elev),
-        "source": "GEE projects/sat-io/open-datasets/FABDEM via ee.Terrain.products",
+        "source": (
+            "GEE projects/sat-io/open-datasets/FABDEM; ee.Terrain.products after EPSG:3857 at 30 m"
+        ),
     }
 
 

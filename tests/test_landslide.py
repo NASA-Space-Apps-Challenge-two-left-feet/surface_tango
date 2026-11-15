@@ -255,3 +255,12 @@ def test_urgent_response_copy_is_not_a_second_pair():
     kept, skipped = slide._prefer_provisional(rows)
     assert [row["scene_name"] for row in kept] == ["pr", "ur-only"]
     assert skipped == ["ur-copy"]
+
+
+def test_provisional_mask_keeps_the_ubyte_code():
+    """D-102272 type is UByte. P05023 stores that byte in the low 8 bits."""
+    codes = np.array([16777228, 11, 16777340, 111, 255, 10, 1, 12], dtype=np.uint32)
+    land = slide.product_valid_land(codes)
+    assert land.tolist() == [True, True, False, False, False, False, False, True]
+    with_missing = np.array([12.0, np.nan])
+    assert slide.product_valid_land(with_missing).tolist() == [True, False]
