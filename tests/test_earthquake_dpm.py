@@ -8,19 +8,24 @@ arithmetic on hand-written inputs.
 Hand derivations are stated inline with each test.
 Offline only (pytest -m "not network and not cache")."""
 
+import json
 import math
 
 import numpy as np
 import pytest
 
 from gee_math.earthquake_dpm_math import (
+    GATE_CATALOG_PATH,
     PREREG_PATH,
+    _summary_line,
     classify_coverage,
     delta_gamma,
     dpm_from_z,
     evaluate_units,
+    fetch_units,
     gunw_mask_flags,
     load_quake_prereg,
+    pairs_from_catalog,
     parquet_columns_from_rows,
     read_parquet,
     run_dpm_pass,
@@ -337,20 +342,23 @@ def test_run_dpm_pass_water_mask_from_gunw_only():
 
 
 def test_preregistered_thresholds_load_frozen_values():
-    # The thresholds must come from the frozen file, never hardcode: the
-    # quake block carries 0.50 / 0.10 / 20 and the file's top-level status.
+    # The thresholds must come from the one shared loader
+    # (src/bailasar/config.py), never hardcoded: the quake block carries
+    # 0.50 / 0.10 / 20, the file's top-level status, and the loader's hash.
     thr = load_quake_prereg()
     assert thr["built_up_min_footprint_fraction"] == pytest.approx(0.50)
     assert thr["non_built_max_footprint_fraction"] == pytest.approx(0.10)
     assert thr["min_built_up_pixels_per_unit"] == 20
     assert thr["status"] == "draft"
+    assert thr["is_frozen"] is False
+    assert len(thr["prereg_sha1"]) == 40  # loader's git-blob sha1 of the file
     assert PREREG_PATH.exists()
 
 
 def test_parquet_roundtrip(tmp_path):
-    # Round-trip through the in-module writer/reader (the writer is verified
-    # against real pyarrow outside the repo deps; see the brief report).
-    # Values include a NaN median (excluded unit) which must survive.
+    # Round-trip through pyarrow (the real engine since #31; the hand-written
+    # writer is gone). Values include a NaN median (excluded unit) which must
+    # survive as NaN, not become null.
     p = tmp_path / "barrio_dpm.parquet"
     rows = [
         {
@@ -404,3 +412,286 @@ def test_parquet_roundtrip(tmp_path):
     assert p.stat().st_size > 8  # real file: PAR1 magic + footer
     assert p.read_bytes()[:4] == b"PAR1"
     assert p.read_bytes()[-4:] == b"PAR1"
+
+
+def _hand_pairs() -> dict:
+    """Hand metadata (IDs and baselines only, all public from the gate report)
+    for _summary_line tests."""
+    return {
+        "C": {
+            "granule_id": "GUNW_C_EXAMPLE",
+            "ref_date": "20260720",
+            "sec_date": "20260813",
+            "baseline_days": 24,
+        },
+        "R": {
+            "granule_id": "GUNW_R_EXAMPLE",
+            "ref_date": "20260708",
+            "sec_date": "20260720",
+            "baseline_days": 12,
+        },
+        "K": {
+            "granule_id": "GUNW_K_EXAMPLE",
+            "ref_date": "20260626",
+            "sec_date": "20260708",
+            "baseline_days": 12,
+        },
+    }
+
+
+def _hand_pass_summary() -> dict:
+    """The 8-pixel hand case (see test_run_dpm_pass_hand_computed_end_to_end),
+    run through run_dpm_pass with repo status draft so the summary carries
+    prereg_status. Thresholds min=2 so both units are evaluated."""
+    coverage = np.array([0.80, 0.85, 0.05, 0.08, 0.50, 0.00, 0.90, 0.06])
+    gamma_r = np.array([0.9, 0.9, 0.7, 0.7, 0.6, 0.6, 0.8, 0.7])
+    gamma_c = np.array([0.4, 0.5, 0.6, 0.65, 0.2, 0.5, 0.1, 0.6])
+    mask = np.full(8, 11, dtype=np.uint32)
+    units = np.array([1, 1, 1, 1, 2, 2, 2, 2])
+    thr = {
+        "built_up_min_footprint_fraction": 0.50,
+        "non_built_max_footprint_fraction": 0.10,
+        "min_built_up_pixels_per_unit": 2,
+        "status": "draft",
+        "is_frozen": False,
+    }
+    return run_dpm_pass(gamma_r, gamma_c, coverage, None, None, mask, units, thr)["summary"]
+
+
+def test_summary_line_seals_statistics_while_not_frozen(capsys):
+    # Brief (C-pair statistics stay sealed): with status draft the summary
+    # prints pixel/unit COUNTS ONLY. μ = 0.0875, σ = sqrt(3)/80 ≈ 0.0217,
+    # median Z built ≈ 19.05/14.43, excess = 28/sqrt(3) ≈ 16.17 (hand-derived
+    # above); none of those values or key names may reach stdout.
+    summary = _hand_pass_summary()
+    assert summary["prereg_status"] == "draft"
+    _summary_line(summary, _hand_pairs(), is_frozen=False)
+    out = capsys.readouterr().out
+    assert "C/K statistics sealed until pre-registration freeze (status=draft)" in out
+    # counts stay
+    assert "n_px_total = 8" in out
+    assert "n_px_valid = 8" in out
+    assert "n_px_built_up_valid = 4" in out
+    assert "n_units_evaluated = 2" in out
+    # sealed statistics: keys and values never printed
+    for banned in ("mu", "sigma", "median_z", "excess", "n_px_zero_std"):
+        assert banned not in out, f"sealed key {banned!r} leaked into the summary"
+    for banned_value in ("0.0875", "0.021", "19.05", "14.43", "16.16", "-1.732"):
+        assert banned_value not in out, f"sealed value {banned_value!r} leaked"
+
+
+def test_summary_line_prints_statistics_once_frozen(capsys):
+    # After the freeze the same hand case prints the statistics: the gate
+    # opens, it does not disappear.
+    summary = _hand_pass_summary()
+    _summary_line(summary, _hand_pairs(), is_frozen=True)
+    out = capsys.readouterr().out
+    assert "sealed" not in out
+    # μ hand-derived as 7/80 = 0.0875; float summation prints 0.08749999999999997
+    assert "mu = 0.08749" in out
+    assert "sigma = 0.02165" in out  # sqrt(3)/80 = 0.0216506...
+    assert "median_z_built_up = 16.74" in out  # (25/sqrt(3) + 11*sqrt(3))/2
+    assert "excess_e = 16.16" in out  # 28/sqrt(3)
+
+
+def test_pairs_from_catalog_matches_gate_triplets():
+    # The gate catalog is the frozen pair source (brief step 2): track 11 and
+    # 47 must resolve with URLs, frames and baselines re-derived from the IDs
+    # matching the recorded ones. Offline: the catalog is committed evidence.
+    catalog = json.loads(GATE_CATALOG_PATH.read_text(encoding="utf-8"))
+    by_track = {t["track"]: t for t in catalog["quake_triplets"]}
+    expected_frames = {11: 86, 47: 4}  # gate.md: tracks 11 (desc, frame 86), 47 (asc, frame 4)
+    for track in (11, 47):
+        pairs = pairs_from_catalog(track)
+        assert pairs is not None
+        for role in ("C", "R", "K"):
+            assert pairs[role]["granule_id"] == by_track[track][role]
+            assert pairs[role]["url"].startswith("https://")
+            assert pairs[role]["baseline_days"] == by_track[track]["baseline_days"][role]
+            assert pairs[role]["frame"] == expected_frames[track]
+        assert "hour-2 gate" in pairs["pair_source"]
+    assert pairs_from_catalog(999) is None  # unknown track -> caller falls back
+
+
+def _write_units_geojson(path, rects):
+    """rects: list of (unit_code, xmin, xmax, ymin, ymax) in EPSG:32618 metres.
+    Written as a GeoJSON FeatureCollection in EPSG:4326 (the GeoJSON default),
+    rectangular rings with corners projected from UTM; deterministically
+    invertible so the rasterization expectations below are hand-computed."""
+    from pyproj import Transformer
+
+    tr = Transformer.from_crs("EPSG:32618", "EPSG:4326", always_xy=True)
+    features = []
+    for code, xmin, xmax, ymin, ymax in rects:
+        ring = [
+            [xmin, ymin],
+            [xmax, ymin],
+            [xmax, ymax],
+            [xmin, ymax],
+            [xmin, ymin],
+        ]
+        coords = [[*tr.transform(x, y)] for x, y in ring]
+        features.append(
+            {
+                "type": "Feature",
+                "properties": {"unit_code": code},
+                "geometry": {"type": "Polygon", "coordinates": [coords]},
+            }
+        )
+    path.write_text(
+        json.dumps({"type": "FeatureCollection", "features": features}), encoding="utf-8"
+    )
+
+
+def _hand_window() -> dict:
+    # 24x24 px at 20 m; pixel (row r, col c) center = (400000+20c, 500000-20r).
+    return {
+        "rows": 24,
+        "cols": 24,
+        "x0": 400000.0,
+        "y0": 500000.0,
+        "epsg": 32618,
+        "spacing": 20.0,
+    }
+
+
+def test_units_file_rasterizes_the_right_pixels(tmp_path):
+    # Hand rectangles chosen against the grid (edges always 10 m away from the
+    # nearest pixel centers so projection curvature cannot flip inclusion):
+    #   A: cols 0-9, rows 0-9    -> 100 px
+    #   B: cols 15-19, rows 0-4  -> 25 px
+    #   C: cols 0-2, row 15      -> 3 px (< 20 built-up pixels: excluded)
+    # After reprojection the rings close on the same UTM corners, so each
+    # polygon covers exactly the pixel centers listed above (hand-computed).
+    window = _hand_window()
+    geo = tmp_path / "units.geojson"
+    _write_units_geojson(
+        geo,
+        [
+            ("A", 399990, 400190, 499810, 500010),
+            ("B", 400290, 400390, 499910, 500010),
+            ("C", 399990, 400050, 499690, 499710),
+        ],
+    )
+    from gee_math.earthquake_dpm_math import load_units_from_file
+
+    unit_ids, names, prov = load_units_from_file(window, geo, "unit_code")
+    assert names == {1: "A", 2: "B", 3: "C"}  # IDs unique, file order
+    a = unit_ids[:10, :10] == 1
+    assert a.sum() == 100  # rows 0-9, cols 0-9 are exactly unit A
+    assert (unit_ids == 2).sum() == 25
+    assert (unit_ids[:5, 15:20] == 2).all()
+    assert (unit_ids == 3).sum() == 3
+    assert (unit_ids[15, :3] == 3).all()
+    assert (unit_ids == 0).sum() == 24 * 24 - 128  # outside every polygon
+    assert prov["unit_id_property"] == "unit_code"
+    assert prov["unit_source_crs"] == "EPSG:4326"
+    assert len(prov["unit_file_sha256"]) == 64
+    assert prov["n_source_features"] == 3
+    assert prov["n_units"] == 3
+    # GeoPackage path: same polygons, same rasterization (geopandas reads both)
+    import geopandas as gpd
+
+    gpkg = tmp_path / "units.gpkg"
+    gpd.read_file(geo).to_file(gpkg, driver="GPKG")
+    ids2, names2, prov2 = load_units_from_file(window, gpkg, "unit_code")
+    assert np.array_equal(unit_ids, ids2)
+    assert names2 == names
+    assert prov2["n_units"] == 3
+
+
+def test_units_file_rejects_duplicate_ids_and_missing_prop(tmp_path):
+    from gee_math.earthquake_dpm_math import load_units_from_file
+
+    geo = tmp_path / "dupes.geojson"
+    _write_units_geojson(
+        geo,
+        [("A", 399990, 400030, 499980, 500010), ("A", 400050, 400090, 499980, 500010)],
+    )
+    with pytest.raises(RuntimeError, match="not unique"):
+        load_units_from_file(_hand_window(), geo, "unit_code")
+    with pytest.raises(RuntimeError, match="no property"):
+        load_units_from_file(_hand_window(), geo, "not_a_column")
+    with pytest.raises(RuntimeError, match="--units-id-prop"):
+        load_units_from_file(_hand_window(), geo, None)
+
+
+def test_units_file_excluded_small_unit_counted(tmp_path):
+    # Full hand pipeline through run_dpm_pass with the frozen thresholds
+    # (min 20 built-up px): A (100 px) and B (25 px) are evaluated, C (3 px)
+    # is excluded and counted with its pixel count and reason; the reference
+    # class is the 448 no-unit pixels (coverage 0.0 -> non-built).
+    window = _hand_window()
+    geo = tmp_path / "units.geojson"
+    _write_units_geojson(
+        geo,
+        [
+            ("A", 399990, 400190, 499810, 500010),
+            ("B", 400290, 400390, 499910, 500010),
+            ("C", 399990, 400050, 499690, 499710),
+        ],
+    )
+    from gee_math.earthquake_dpm_math import load_units_from_file
+
+    unit_ids, unit_names, _prov = load_units_from_file(window, geo, "unit_code")
+    rows, cols = window["rows"], window["cols"]
+    coverage = np.where(unit_ids != 0, 0.90, 0.00).astype(np.float64)
+    # Alternate gamma_c on a checkerboard so the 448 reference deltas take two
+    # values (0.20, 0.18): sigma > 0, otherwise Z is NaN everywhere and no unit
+    # could be evaluated (hand-designed reference spread, not real data).
+    gamma_r = np.full((rows, cols), 0.8)
+    rr, cc = np.indices((rows, cols))
+    gamma_c = np.where((rr + cc) % 2 == 0, 0.60, 0.62)
+    mask = np.full((rows, cols), 11, dtype=np.uint32)
+    out = run_dpm_pass(
+        gamma_r,
+        gamma_c,
+        coverage,
+        None,
+        None,
+        mask,
+        unit_ids,
+        load_quake_prereg(),
+        unit_names=unit_names,
+        label="C",
+    )
+    assert out["summary"]["n_units_total"] == 3
+    assert out["summary"]["n_units_evaluated"] == 2
+    assert out["summary"]["n_units_excluded"] == 1
+    assert out["evaluated"] == [1, 2]
+    assert out["excluded"] == [3]
+    row_c = out["excluded_rows"][0]
+    assert row_c["unit_name"] == "C"
+    assert row_c["n_built_up_valid_px"] == 3
+    assert "n_built_up_valid_px < 20" in row_c["reason"]
+    assert out["summary"]["n_px_built_up_valid"] == 128
+    assert out["summary"]["n_px_non_built_valid"] == 448
+
+
+def test_fetch_units_file_mode_no_gee(tmp_path):
+    # --units-file routes to the local loader without importing ee; the GEE
+    # path is not touched (pluggable units, brief step 4).
+    geo = tmp_path / "units.geojson"
+    _write_units_geojson(geo, [("A", 399990, 400030, 499970, 500010)])
+    unit_ids, names, prov = fetch_units(
+        _hand_window(),
+        [-75.6, 4.5, -75.5, 4.6],  # unused in file mode
+        None,
+        None,
+        units_file=geo,
+        units_id_prop="unit_code",
+    )
+    assert names == {1: "A"}
+    # centers (400000, 400020) x (500000, 499980): exactly the 2x2 inside ring
+    assert (unit_ids == 1).sum() == 4
+    with pytest.raises(RuntimeError, match="exclusive"):
+        fetch_units(
+            _hand_window(),
+            [-75.6, 4.5, -75.5, 4.6],
+            "FAO/GAUL/2025/level2",
+            None,
+            units_file=geo,
+            units_id_prop="unit_code",
+        )
+    with pytest.raises(RuntimeError, match="requires --units-file"):
+        fetch_units(_hand_window(), [-75.6, 4.5, -75.5, 4.6], None, None, units_id_prop="unit_code")

@@ -24,6 +24,7 @@ dependencies = [
     "uvicorn",
     "pyyaml",
     "osmnx",
+    "pyarrow>=26.0.1",
 ]
 
 [dependency-groups]
