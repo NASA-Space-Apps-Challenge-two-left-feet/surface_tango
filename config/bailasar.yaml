@@ -11,8 +11,12 @@ breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool (D6); default un
   default: 1.8
   # search_nisar_granules: measured n=10 (reports/tool_latency.md), warm p95 0.693 s -> 1.19 s.
   # Cold start is ~4.2 s (first call); a 1.2 s breaker trips once on a cold connection then serves
-  # cached tiles. Staging and analyze_* tools stay on `default` until they can be timed on real data.
+  # cached tiles. Staging tools stay on `default` until they can be timed on real data.
   search_nisar_granules: 1.2
+  # analyze_flood_inundation: measured n=10 live from local_cache/mojana/flood_evidence.json
+  # (reports/tool_latency.md), warm p95 0.019 s -> 0.52 s. analyze_landslide_kinematics and
+  # analyze_earthquake_dpm stay on `default`: their artifacts are not in the cache release yet.
+  analyze_flood_inundation: 0.52
 features:            # hide unfinished work behind flags instead of long-lived branches
   mathlab_corrections: false
   story_chapter_4_synthesis: false
