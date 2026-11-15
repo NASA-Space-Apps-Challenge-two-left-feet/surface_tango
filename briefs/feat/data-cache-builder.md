@@ -128,3 +128,33 @@ Agent: **Antigravity (project A)**. Nothing has been done on this branch beyond 
   | Component | State | Issue / PR | Report |
   |---|---|---|---|
   | Real-data Cache Builder (Eje Cafetero, Aburrá, La Mojana) | cached | #30 | [briefs/feat/data-cache-builder.md](briefs/feat/data-cache-builder.md) |
+
+## Review (acting orchestrator: opencode GLM-5.3, 2026-11-15 ~02:40 UTC)
+
+Line-by-line review of the branch against the non-negotiables, before merge. Ground truth: all three
+`local_cache/<aoi>/manifest.json` (built 2026-11-14 21:18–21:22 Bogotá) were cross-checked against the gate
+catalog — granule IDs, pair dates, missing bands and finite ratios are honest *(measured)*.
+
+Fixed on the branch before merging:
+
+1. `fetch_gee_layer` used `unmask(0)`: masked GEE pixels would become finite 0-valued pixels (fabricated
+   slope/rain/AGB values), violating the no-zero-fill rule. Now a `-9999` sentinel is mapped to NaN
+   (`gee_nodata_to_nan`, unit-tested with a hand-written array). Latent bug only: in the built cache the
+   GEE footprints were full and CHIRPS was already `missing`, so no cached value was fabricated.
+2. `connectedComponents` (categorical class IDs) was resampled bilinearly, which averages class IDs into
+   invalid values. Now `Resampling.nearest` at all three fetch sites. The already-cached conncomp bands
+   were built bilinear: treat them as indicative only and rebuild the cache for the three AOIs once the
+   running grok lanes finish.
+3. The hardcoded CHIRPS default window (2026-10-29..2026-11-13) is removed; the window must come from
+   `--chirps-start`/`--chirps-end`, otherwise the band records `missing` (brief step 3).
+
+Noted, no action required now:
+
+- `local_tile_templates.optical_s2` still points at `mt1.google.com`. The UI reads the #65 prestage tiles
+  manifest (real COPERNICUS/S2_SR_HARMONIZED), so this template is legacy: remove it or point it at the
+  #65 tiles in a follow-up.
+- `agb_mgha` (ESA CCI AGB) is cached although biomass is out of scope; harmless, unwired downstream.
+- `los_disp_mm = -λφ/(4π)` with λ = 240 mm is the standard LOS convention; fine as a cache band.
+
+Reviewed by reading the full `scripts/build_cache.py` (917 lines), `tests/test_cache_builder.py`, the
+`prewarm_antioquia_cache.py` wrapper and this brief; manifest cross-check; `make ci` after the fixes.
