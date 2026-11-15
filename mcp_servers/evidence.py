@@ -277,7 +277,12 @@ def build_landslide_envelope(artifact: dict[str, Any], config: dict[str, Any], t
 
     outcome = verdict["outcome"]
     # alerts only after a supported motion verdict with a valid configured metric
-    if outcome != "motion":
+    if outcome == "not_retested":
+        text = verdict.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise EvidenceError("not_retested verdict missing text")
+        data.update(alert_level=None, alert_reason=text, alert_policy=None)
+    elif outcome != "motion":
         data.update(
             alert_level=None,
             alert_reason=f"no supported motion verdict (outcome={outcome})",
@@ -304,6 +309,7 @@ def build_landslide_envelope(artifact: dict[str, Any], config: dict[str, Any], t
         "missing": "gate result",
         "too_few_pairs": "gate result",
         "no_motion": "gate result",
+        "not_retested": "gate result",
         "motion": "live",
     }.get(outcome)
     if branch_state is None:

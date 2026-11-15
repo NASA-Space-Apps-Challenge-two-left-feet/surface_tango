@@ -1,5 +1,14 @@
 # Status: frontend-video
 
+## feat/picacha-window
+
+- La Picacha now has its own LOS window and the intersecting Aburrá Sentinel
+  tiles. The early-warning light stays Not assessed. Chocó and Valle del Cauca
+  are still not cached.
+- Measured record: `reports/picacha_window.md`.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## feat/regional-cube-explorer
 
 - Atlas redesign: georeferenced map, date selection, catalog search, opacity,

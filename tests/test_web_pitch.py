@@ -176,11 +176,19 @@ def test_primary_lband_panel_is_not_cached_without_an_aoi_owned_artifact():
     from app import app
 
     with TestClient(app) as client:
-        for aoi in ("la_picacha", "choco_epicenter", "valle_del_cauca"):
+        for aoi in ("choco_epicenter", "valle_del_cauca"):
             response = client.get(f"/api/nisar-panel/{aoi}")
             assert response.status_code == 200
             assert response.json() == {"state": "not cached", "aoi": aoi}
             assert client.get(f"/api/nisar-panel/{aoi}/9/150/250.png").status_code == 404
+        picacha = client.get("/api/nisar-panel/la_picacha")
+        assert picacha.status_code == 200
+        body = picacha.json()
+        assert body["state"] == "cached"
+        assert body["label"] == "GUNW LOS window"
+        assert body["granule_ids"] == [
+            "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001"
+        ]
 
 
 def test_story_map_keeps_sentinel_context_and_lband_provisional_primary_panel():

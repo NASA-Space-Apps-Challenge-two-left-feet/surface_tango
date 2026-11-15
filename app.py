@@ -88,7 +88,7 @@ def frontend_asset(name: str):
     return FileResponse(asset, media_type=media)
 
 
-SENTINEL_AOIS = {"aburra", "eje_cafetero", "mojana"}
+SENTINEL_AOIS = {"aburra", "eje_cafetero", "mojana", "la_picacha"}
 SENTINEL_LAYERS = {"s1": "cband_s1", "s2": "optical_s2"}
 
 
@@ -362,8 +362,49 @@ def aoi_coverage_footprint(aoi_id: str, hazard: str) -> dict:
                         result["footprint_bbox"] = [min(w, e), min(s, n), max(w, e), max(s, n)]
         except Exception:
             result = {}
+    if "footprint_bbox" not in result and band:
+        cog = _single_cog(CACHE_ROOT / aoi_id / "cogs", band)
+        if cog is not None:
+            try:
+                with rasterio.open(cog) as source:
+                    grid = source.read(1, masked=True)
+                    values = np.array(
+                        grid.filled(np.nan) if np.ma.isMaskedArray(grid) else grid,
+                        dtype=np.float32,
+                    )
+                    finite = np.isfinite(values)
+                    if finite.any():
+                        rows, cols = np.where(finite)
+                        left, bottom, right, top = rasterio.windows.bounds(
+                            rasterio.windows.Window(
+                                int(cols.min()),
+                                int(rows.min()),
+                                int(cols.max() - cols.min() + 1),
+                                int(rows.max() - rows.min() + 1),
+                            ),
+                            source.transform,
+                        )
+                        west, south, east, north = rasterio.warp.transform_bounds(
+                            source.crs, "EPSG:4326", left, bottom, right, top, densify_pts=21
+                        )
+                        result["footprint_bbox"] = [west, south, east, north]
+                        result["coverage_pct"] = round(
+                            100.0 * float(finite.sum()) / float(values.size), 1
+                        )
+            except (OSError, rasterio.errors.RasterioError):
+                pass
     _AOI_FOOTPRINT_CACHE[aoi_id] = result
     return result
+
+
+def _single_cog(folder: Path, band: str) -> Path | None:
+    """The one COG for ``band`` under an AOI. Two matches is not a guess."""
+    if not folder.is_dir():
+        return None
+    matches = sorted(folder.glob(f"*_{band}.tif"))
+    if len(matches) != 1:
+        return None
+    return matches[0]
 
 
 @app.get("/api/aois")
@@ -780,6 +821,39 @@ def find_nisar_panel(aoi: str) -> NisarPanel | None:
             + [_artifact_name(raster)],
             detail="Co-event GUNW coherence · DPM windows tracks 11 and 47",
             tracks=[11, 47],
+        )
+
+    if aoi == "la_picacha":
+        evidence_path = root / "landslide_evidence.json"
+        evidence = _load_cached_evidence(evidence_path, "landslide/1")
+        source = _cached_band(manifest, LANDSLIDE_BAND)
+        raster = root / "cogs" / "la_picacha_los_disp_mm.tif"
+        granules = evidence.get("provenance", {}).get("granule_ids", []) if evidence else []
+        granule = _granule_id(source) if source else None
+        verdict = evidence.get("noise_floor_verdict") if evidence else None
+        if (
+            granule is None
+            or granule not in granules
+            or not raster.is_file()
+            or not isinstance(verdict, dict)
+            or verdict.get("outcome") != "not_retested"
+        ):
+            return None
+        bounds = _panel_bounds(raster)
+        if bounds is None:
+            return None
+        return NisarPanel(
+            aoi=aoi,
+            label="GUNW LOS window",
+            raster=raster,
+            style="los",
+            bounds=bounds,
+            granule_ids=[granule],
+            evidence_artifacts=[_artifact_name(evidence_path), _artifact_name(raster)],
+            detail=(
+                "Native-grid window of the Aburrá LOS raster. "
+                "The valley noise-floor test was not repeated."
+            ),
         )
 
     return None
