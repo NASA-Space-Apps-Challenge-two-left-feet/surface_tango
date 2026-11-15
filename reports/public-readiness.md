@@ -88,3 +88,18 @@ Counts *(measured)*: **0 blockers, 3 fix before public, 3 notes = 6 open finding
 - The local-only commit `e54d99b` (branch `feat/data-aburra-insar`) holds one false-positive finding; harmless either way, no action needed.
 
 *Report produced by the opencode GLM-5.3 agent session under `briefs/chore/data-public-readiness-audit.md`; audit only — no lane files, configs or history were changed.*
+
+---
+
+## Session addendum — 2026-11-15, rechecked at `6d8ae27`
+
+The audit above examined the repository at `fc52bfd`. Since then, session PRs #77–#82 merged (repo Python-tooling refactor #77, cache-builder review fixes #78, dead netrc login removed #79, KB notes + diagram rules #80, README regeneration #81, mermaid render fix #82). Findings rechecked on the current tip *(measured, commands run in the `chore/data-public-readiness-audit` worktree)*:
+
+- **Finding 1 (license): unchanged, still open.** No `LICENSE` file; the #81 README still carries "License: to be decided by the team (TODO)" (`README.md:350`).
+- **Finding 2 (biomass wiring): unchanged, still open.** `agents/orchestrator.py:132,141,145` still wires `biomass_agent`; `static/index.html:283,356` still holds the colorMap entry and inspector template.
+- **Finding 3 (patch numbers): narrowed, still open.** `docs/baseline/unapplied_patches/story_map_tour.js` no longer exists on `main`; `story_map_hud.html:33` still carries the fabricated narrative ("612.8 tons of carbon disturbance … 34° slopes"). Remaining fix: placeholder the numbers or delete the file.
+- **Secrets on the new commits:** gitleaks 8.30.1 full-diff scan of `fc52bfd..6d8ae27` — *6 commits scanned, ~100.65 KB, no leaks found (94.1 ms)*. detect-secrets passed on every commit in that range.
+- **README after #81/#82:** the three mermaid diagrams (architecture, data flow, agent orchestration) parse and render via mermaid-cli 12.2.0 (three SVGs generated); zero unmarked number+unit claims maintained.
+- **Grok lane note:** `feat/data-aburra-insar` advanced past the `e54d99b` commit cited above (tip now `fa8dcfc`, with its measured Aburrá noise-floor result committed in `reports/aburra.md`); the branch and its false-positive finding remain local-only until the lane pushes.
+
+**Verdict unchanged: READY, 0 blockers.** All three "fix before public" items remain open (two unchanged, one narrowed); no new findings from the session merges.
