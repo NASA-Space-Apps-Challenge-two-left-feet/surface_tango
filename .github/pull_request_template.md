@@ -15,5 +15,6 @@
 - [ ] No synthetic data; missing stays missing
 - [ ] No secrets, `.env`, `secrets/` or `local_cache/` in the diff
 - [ ] KB note added/updated in `docs/kb/` if a method, threshold or source changed
+- [ ] README updated (setup/run steps, Status table row, results link) if this PR changes any of them; otherwise write "README: no change"
 
 ## Follow-ups
