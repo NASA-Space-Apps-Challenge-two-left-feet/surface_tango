@@ -3,7 +3,6 @@ import os
 from typing import Any
 
 import asf_search as asf
-import earthaccess
 import rioxarray
 from fastmcp import FastMCP
 from google.cloud import storage
@@ -11,7 +10,6 @@ from google.cloud import storage
 mcp = FastMCP(name="nisar-asf-subsetter")
 
 GCS_BUCKET = os.environ.get("GCS_NISAR_BUCKET", "spaceapps-medellin-nisar")
-earthaccess.login(strategy="netrc")
 
 
 def _upload_cog_to_gcs(da, local_path: str, blob_name: str) -> str:
