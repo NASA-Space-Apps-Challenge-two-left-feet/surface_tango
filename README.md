@@ -6,8 +6,7 @@
 [![Orchestration: LangGraph + MCP](https://img.shields.io/badge/Agents-LangGraph_%2B_FastMCP-F97316?style=for-the-badge)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-> **"On Earth's surface there is an endless dance of natural processes and human activities... When upper-watershed deforestation strips root cohesion on 34° Andean slopes, 145 mm of tropical rainfall accelerates millimeter-scale slope creep into a catastrophic valley flood."**  
-> — *Built in Medellín & Bello, Antioquia for the 2026 NASA Space Apps Challenge (`Dancing with the SARs`)*
+*Built in Medellín and Bello, Antioquia for the 2026 NASA Space Apps Challenge (`Dancing with the SARs`).*
 
 ---
 
@@ -16,11 +15,20 @@
 In the steep tropical topography of the **Aburrá Valley (Medellín, Bello, and Copacabana, Colombia)**, natural hazards do not happen in isolation—they **cascade**:
 1. **Optical Blindness:** Persistent Andean cloud cover blinds optical satellites (`Sentinel-2`, `Landsat`) during critical rainy-season emergencies (`CHIRPS`).
 2. **C-Band Foliage Decorrelation:** Short-wavelength C-band radar (`Sentinel-1`, $\lambda = 5.6\text{ cm}$) scatters off upper tree leaves, saturating at low forest biomass ($\sim 60\text{ Mg/ha}$) and suffering severe interferometric temporal decorrelation over vegetated hillslopes.
-3. **The NISAR L-Band Breakthrough:** By exploiting **NISAR's 24.0 cm L-band wavelength** (`L2 GCOV`, `L2 GUNW`, and `L2 GOFF`), our system penetrates both tropical clouds and dense forest canopies to measure **bare-earth millimeter slope creep**, **sub-canopy dihedral double-bounce flooding**, **co-seismic urban building damage**, and **woody carbon disturbance** simultaneously.
+3. **NISAR L-band:** Mission control presents approved displacement, flood, and earthquake-proxy layers when the team has validated the inputs. Coverage decisions and missing data remain visible.
 
 We present an **open-source, multi-agent geospatial observatory** orchestrated via **LangGraph** and the **Model Context Protocol (MCP)**, powered by **Google Earth Engine's High-Volume Compute API**, **Zarr v3 Edge Data Cubes**, and an interactive **3-Panel Synchronized Curtain Slider & Radar Physics Inspector** (`MapLibre GL JS` + `Deck.gl`).
 
 ---
+
+### Mission control status
+
+| Component | State | Issue | Handoff |
+|---|---|---|---|
+| Local Zarr tile server | Not cached | #22 | Shared cube and manifest required for the LOS layer |
+| Curtain slider and story map | Not cached | #37 | Approved chapter outputs and comparison tiles required |
+
+Stage the browser assets before going offline using the commands in [Frontend status](status/frontend-video.md).
 
 ## 🏗️ 2. System Architecture (Mermaid Diagrams)
 

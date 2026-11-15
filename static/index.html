@@ -6,12 +6,12 @@
   <title>Dancing with the SARs | NISAR Multi-Agent Early Warning System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Tailwind CSS for dark-mode mission control styling -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/assets/mission-control.css" rel="stylesheet" />
   <!-- MapLibre GL JS -->
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="/assets/maplibre-gl.css" rel="stylesheet" />
+  <script src="/assets/maplibre-gl.js"></script>
   <!-- Deck.gl standalone bundle -->
-  <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
+  <script src="/assets/deck.gl.js"></script>
   <style>
     body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #090d16; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
     .map-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
@@ -44,10 +44,9 @@
         <button onclick="switchNisarDomain('landslide')" id="btn-landslide" class="px-3 py-1 rounded bg-cyan-600 text-white font-semibold">Landslide (GUNW)</button>
         <button onclick="switchNisarDomain('flood')" id="btn-flood" class="px-3 py-1 rounded text-slate-400 hover:text-white">Flood (GCOV HH/HV)</button>
         <button onclick="switchNisarDomain('earthquake')" id="btn-earthquake" class="px-3 py-1 rounded text-slate-400 hover:text-white">Seismic DPM (GUNW)</button>
-        <button onclick="switchNisarDomain('biomass')" id="btn-biomass" class="px-3 py-1 rounded text-slate-400 hover:text-white">Biomass (RFDI HV)</button>
       </div>
 
-      <button onclick="startMultiAgentStream()" id="run-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition">
+      <button onclick="openLiveView(); startMultiAgentStream()" id="run-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition">
         Launch Multi-Agent NISAR Scan
       </button>
     </div>
@@ -73,9 +72,6 @@
           <div id="node-earthquake_agent" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
             <span>2c. Seismic DPM Agent (VIDA+WorldPop)</span><span class="text-slate-500">IDLE</span>
           </div>
-          <div id="node-biomass_agent" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
-            <span>2d. Biomass Agent (GCOV HV+GEDI)</span><span class="text-slate-500">IDLE</span>
-          </div>
           <div id="node-cross_hazard_synthesis" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
             <span>3. Cross-Hazard Synthesis Agent</span><span class="text-slate-500">IDLE</span>
           </div>
@@ -86,6 +82,7 @@
       <div class="flex-1 flex flex-col border-t border-slate-800 pt-3">
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">Cascading Risk Bulletin</h2>
+          <span id="si-badge" class="text-xs text-amber-300" hidden>SI-Assisted Analytics</span>
           <div class="flex gap-1 text-[10px]">
             <button onclick="setLang('es')" id="lang-es" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">ES</button>
             <button onclick="setLang('en')" id="lang-en" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">EN</button>
@@ -105,31 +102,53 @@
       <div id="map-cband" class="map-layer"></div>
       <!-- Panel 3: L-Band SAR (NISAR 24cm) + Deck.gl 3D Hotspots -->
       <div id="map-nisar" class="map-layer"></div>
+      <p id="preview-error" role="alert" hidden>Map assets are missing. Stage the offline frontend bundle and reload.</p>
+      <section class="absolute top-14 left-3 z-20 max-w-sm bg-slate-950/95 border border-slate-700 rounded p-3 text-sm" aria-label="Story map">
+        <label for="story-chapter" class="block font-semibold mb-1">Story map</label>
+        <select id="story-chapter" class="bg-slate-900 text-slate-100 rounded p-1 max-w-full">
+          <option value="">Live mission control</option>
+          <option value="landslide">1 · Aburrá landslides</option>
+          <option value="earthquake">2 · Eje Cafetero earthquake</option>
+          <option value="flood">3 · La Mojana floods</option>
+          <option value="synthesis">4 · Cross-hazard synthesis</option>
+        </select>
+        <div id="story-result" class="mt-2 space-y-1" aria-live="polite" hidden>
+          <p id="story-state" class="font-semibold"></p>
+          <p id="story-summary"></p>
+          <p id="story-source" class="text-xs text-slate-300" hidden></p>
+          <button id="story-retry" type="button" class="underline text-cyan-300" hidden>Retry</button>
+        </div>
+      </section>
+      <div class="absolute bottom-3 inset-x-3 z-20 grid grid-cols-3 gap-2 text-xs" aria-live="polite">
+        <p id="optical-status" class="bg-slate-950/90 p-2 rounded">Not cached · Sentinel-2 · Launch scan to load.</p>
+        <p id="cband-status" class="bg-slate-950/90 p-2 rounded">Not cached · Sentinel-1 · Launch scan to load.</p>
+        <p id="nisar-status" class="bg-slate-950/90 p-2 rounded">Not cached · NISAR · Launch scan to load.</p>
+      </div>
 
       <!-- Top Floating Sensor Badges -->
       <div class="absolute top-3 left-4 z-20 bg-slate-950/85 border border-slate-700 px-3 py-1 rounded text-xs font-semibold text-sky-300 pointer-events-none">
-        PANEL 1: Optical (Sentinel-2 RGB — Blocked by Andean Clouds)
+        <span id="optical-label">Sentinel-2 optical</span>
       </div>
       <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-slate-950/85 border border-slate-700 px-3 py-1 rounded text-xs font-semibold text-indigo-300 pointer-events-none">
-        PANEL 2: C-Band SAR (Sentinel-1 λ=5.6cm — Canopy Top Scatter)
+        <span id="cband-label">Sentinel-1 C-band</span>
       </div>
       <div class="absolute top-3 right-4 z-20 bg-slate-950/85 border border-cyan-500/60 px-3 py-1 rounded text-xs font-semibold text-cyan-300 pointer-events-none">
-        PANEL 3: NISAR L-Band (λ=24cm — Foliage Penetration & InSAR)
+        <span id="nisar-label">NISAR L-band</span> · <strong>PROVISIONAL</strong>
       </div>
 
       <!-- Draggable Curtain Divider 1 (Optical | C-Band) -->
       <div id="handle-1" class="curtain-handle" style="left: 32%;">
-        <div class="curtain-pill">◀ Optical | C-Band ▶</div>
+        <div class="curtain-pill" id="handle-label-1">◀ Optical | C-band ▶</div>
       </div>
 
       <!-- Draggable Curtain Divider 2 (C-Band | NISAR L-Band) -->
       <div id="handle-2" class="curtain-handle" style="left: 66%;">
-        <div class="curtain-pill">◀ C-Band | NISAR L-Band ▶</div>
+        <div class="curtain-pill" id="handle-label-2">◀ C-band | L-band ▶</div>
       </div>
     </main>
 
     <!-- Right Sidebar: Interactive Radar Physics Inspector -->
-    <aside class="w-96 bg-slate-950/95 border-l border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto z-40">
+    <aside id="physics-inspector" class="w-96 bg-slate-950/95 border-l border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto z-40">
       <div>
         <h2 class="text-xs font-bold uppercase tracking-wider text-cyan-400">Radar Physics Inspector</h2>
         <p class="text-[11px] text-slate-400 mt-0.5">Physical drivers of surface roughness ($\sigma^0/\gamma^0$), dielectric constant ($\varepsilon_r$), & phase ($\Delta\phi$)</p>
@@ -148,21 +167,17 @@
         </div>
         <div class="flex justify-between">
           <span class="text-slate-400">Alert Level:</span>
-          <span id="insp-alert" class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-bold">ORANGE</span>
+          <span id="insp-alert" class="px-2 py-0.5 rounded font-bold">Unavailable</span>
         </div>
         <div class="border-t border-slate-800 pt-2">
           <span class="text-slate-400 block mb-1">Physical Mechanism Hypothesis:</span>
           <p id="insp-driver" class="text-slate-200 leading-relaxed">
-            NISAR L-band (24 cm wavelength) penetrates dense Bello hillside vegetation to maintain coherence (γ > 0.35) off underlying soil/rock, detecting 22.4 mm of downslope creep accelerated by 145 mm of 15-day CHIRPS rainfall.
+            No report loaded.
           </p>
         </div>
         <div class="border-t border-slate-800 pt-2">
           <span class="text-slate-400 block mb-1">GEE Zonal Metrics:</span>
-          <pre id="insp-metrics" class="bg-slate-950 p-2 rounded text-[11px] text-emerald-400 overflow-x-auto">{
-  "downslope_disp_mm_p99": 22.4,
-  "rain_15d_mm_p95": 145.2,
-  "fabdem_slope_deg_p95": 34.8
-}</pre>
+          <pre id="insp-metrics" class="bg-slate-950 p-2 rounded text-[11px] text-emerald-400 overflow-x-auto">No metrics loaded.</pre>
         </div>
       </div>
     </aside>
@@ -171,7 +186,17 @@
   <script>
     // --- 1. Initialize 3 Camera-Synchronized MapLibre GL Maps (Centered on Bello / Medellin Northern Slopes) ---
     const INITIAL_VIEW = { center: [-75.565, 6.315], zoom: 12.6, pitch: 48, bearing: -18 };
-    const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    if (!globalThis.maplibregl || !globalThis.deck) {
+      document.getElementById("preview-error").hidden = false;
+      document.getElementById("run-btn").disabled = true;
+      document.getElementById("story-chapter").disabled = true;
+      throw new Error("Offline map assets are missing");
+    }
+    const DARK_STYLE = {
+      version: 8,
+      sources: {},
+      layers: [{ id: "background", type: "background", paint: { "background-color": "#0f172a" } }],
+    };
 
     const mapOptical = new maplibregl.Map({ container: "map-optical", style: DARK_STYLE, ...INITIAL_VIEW });
     const mapCBand   = new maplibregl.Map({ container: "map-cband",   style: DARK_STYLE, ...INITIAL_VIEW });
@@ -232,8 +257,11 @@
     // --- 3. Deck.gl 3D Anomaly Columns Overlay on Panel 3 (NISAR Map) ---
     // No preloaded results: panels fill only from measured tool outputs (AGENTS.md: no fabricated data).
     let hazardReportsStore = {};
+    let activeStory = "";
+    let liveReferenceTiles = {};
 
     let currentLang = "es";
+    let hasAgentBulletin = false;
     let latestBulletin = {
       citizen_story_es: "Esperando resultados medidos.",
       decision_maker_brief_en: "Awaiting measured results."
@@ -246,6 +274,7 @@
     mapNisar.addControl(deckOverlay);
 
     function refreshDeckHotspots() {
+      if (activeStory) return;
       const data = Object.values(hazardReportsStore);
       const colorMap = {
         landslide: [249, 115, 22, 230],
@@ -291,7 +320,7 @@
             <line x1="195" y1="96" x2="95" y2="25" stroke="#f43f5e" stroke-width="2.5"/>
             <!-- Downslope Creep Vector -->
             <line x1="210" y1="92" x2="155" y2="110" stroke="#fb923c" stroke-width="3"/>
-            <text x="150" y="142" fill="#fb923c" font-size="10" font-weight="bold">d_LOS = -(λ · Δφ) / 4π (mm creep)</text>
+            <text x="150" y="142" fill="#fb923c" font-size="10" font-weight="bold">d_LOS = -(λ · Δφ) / 4π (LOS displacement)</text>
           </svg>`,
         flood: `
           <svg viewBox="0 0 320 170" class="w-full h-full">
@@ -343,33 +372,111 @@
       container.innerHTML = svgs[domain] || svgs.landslide;
     }
 
+    const pendingTileLayers = new Map(maps.map(map => [map, new Map()]));
+    maps.forEach(map => map.once("load", () => {
+      const layers = pendingTileLayers.get(map);
+      pendingTileLayers.delete(map);
+      layers.forEach((url, id) => setTileLayer(map, id, url));
+    }));
+
     function setTileLayer(mapInstance, sourceId, tileUrl) {
-      if (!tileUrl || !mapInstance.isStyleLoaded()) return;
+      if (pendingTileLayers.has(mapInstance)) {
+        pendingTileLayers.get(mapInstance).set(sourceId, tileUrl);
+        return;
+      }
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId);
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
+      if (!tileUrl) return;
       mapInstance.addSource(sourceId, { type: "raster", tiles: [tileUrl], tileSize: 256 });
       mapInstance.addLayer({ id: sourceId, type: "raster", source: sourceId, paint: { "raster-opacity": 0.85 } });
     }
 
-    function inspectHazardDomain(domain) {
+    const domains = ["landslide", "flood", "earthquake"];
+    const hazardTools = {
+      landslide: "analyze_landslide_kinematics",
+      flood: "analyze_flood_inundation",
+      earthquake: "analyze_earthquake_dpm",
+    };
+    const panelStatus = (panel, label, detail) => {
+      document.getElementById(`${panel}-status`).textContent = `${label} · ${detail}`;
+    };
+    let currentInspection = 0;
+    let selectedDomain = "landslide";
+
+    async function inspectHazardDomain(domain) {
+      if (activeStory) return;
+      const inspection = ++currentInspection;
       const report = hazardReportsStore[domain];
-      if (!report) return;
       document.getElementById("insp-domain").textContent = `${domain.toUpperCase()} (NISAR L2)`;
-      document.getElementById("insp-alert").textContent = report.alert_level;
-      document.getElementById("insp-driver").textContent = report.physical_radar_driver;
-      document.getElementById("insp-metrics").textContent = JSON.stringify(report.key_quantitative_metrics, null, 2);
+      document.getElementById("insp-alert").textContent = report?.alert_level ?? "Unavailable";
+      document.getElementById("insp-driver").textContent = report?.physical_radar_driver ?? "No report loaded.";
+      document.getElementById("insp-metrics").textContent = report?.key_quantitative_metrics
+        ? JSON.stringify(report.key_quantitative_metrics, null, 2) : "No metrics loaded.";
       renderPhysicsDiagram(domain);
 
-      if (report.gee_xyz_tile_url) {
-        setTileLayer(mapNisar, "nisar-active-raster", report.gee_xyz_tile_url);
+      const rasterId = "nisar-active-raster";
+      setTileLayer(mapNisar, rasterId, null);
+      let gateStatement;
+      try {
+        const gate = await fetch(`/api/panel-gate/${domain}`);
+        if (!gate.ok) throw new Error("Gate lookup failed");
+        if (gate.status !== 204) gateStatement = (await gate.json()).statement;
+      } catch {
+        if (inspection === currentInspection) {
+          panelStatus("nisar", "Error", "Could not read the gate result. Select the hazard to retry.");
+        }
+        return;
       }
-      if (report.hotspot_coordinates) {
+      if (inspection !== currentInspection) return;
+      if (gateStatement) {
+        panelStatus("nisar", "Gate result", gateStatement);
+        return;
+      }
+      const liveTile = report?.gee_xyz_tile_url;
+      if (liveTile && !liveTile.includes("/api/local-tiles/")) {
+        setTileLayer(mapNisar, rasterId, liveTile);
+        panelStatus("nisar", "Live", "NISAR tile source");
+      } else {
+        panelStatus("nisar", "Not cached", "Checking the local NISAR cube…");
+        try {
+          const response = await fetch(`/api/local-tiles/${domain}`);
+          if (!response.ok) throw new Error("Cache lookup failed");
+          const cache = await response.json();
+          if (inspection !== currentInspection) return;
+          if (cache.state === "cached") {
+            setTileLayer(mapNisar, rasterId, cache.tile_url);
+            panelStatus("nisar", "Cached", "Local NISAR cube");
+          } else {
+            panelStatus("nisar", "Not cached", `Waiting for the shared Zarr cache for ${hazardTools[domain]}. Launch scan to try live data.`);
+          }
+        } catch {
+          if (inspection !== currentInspection) return;
+          panelStatus("nisar", "Error", "Could not read the local cache. Select the hazard to retry.");
+        }
+      }
+      if (report?.hotspot_coordinates) {
         mapNisar.flyTo({ center: report.hotspot_coordinates, zoom: 13.4, pitch: 52, duration: 1200 });
       }
     }
 
+    [
+      [mapOptical, "optical", "s2-optical"],
+      [mapCBand, "cband", "s1-cband"],
+      [mapNisar, "nisar", "nisar-active-raster"],
+    ].forEach(([map, panel, sourceId]) => {
+      map.on("error", (event) => {
+        if (event.sourceId === sourceId) {
+          panelStatus(panel, "Error", panel === "nisar"
+            ? "Tiles unavailable. Select the hazard to retry."
+            : "Tiles unavailable. Launch scan to retry.");
+        }
+      });
+    });
+
     function switchNisarDomain(domain) {
-      ["landslide", "flood", "earthquake", "biomass"].forEach(d => {
+      if (activeStory) openLiveView();
+      selectedDomain = domain;
+      domains.forEach(d => {
         const btn = document.getElementById(`btn-${d}`);
         btn.className = d === domain
           ? "px-3 py-1 rounded bg-cyan-600 text-white font-semibold"
@@ -380,6 +487,7 @@
 
     function setLang(lang) {
       currentLang = lang;
+      document.getElementById("si-badge").hidden = !hasAgentBulletin;
       document.getElementById("bulletin-box").textContent =
         lang === "es" ? latestBulletin.citizen_story_es : latestBulletin.decision_maker_brief_en;
     }
@@ -397,53 +505,73 @@
       btn.textContent = "Streaming MCP + GEE DAG...";
       btn.disabled = true;
 
-      ["nisar_ingestion", "landslide_agent", "flood_agent", "earthquake_agent", "biomass_agent", "cross_hazard_synthesis"]
-        .forEach(n => markNodeBadge(n, "RUNNING...", "text-amber-400 animate-pulse"));
+      const unfinishedNodes = new Set([
+        "nisar_ingestion", "landslide_agent", "flood_agent", "earthquake_agent", "cross_hazard_synthesis",
+      ]);
+      unfinishedNodes.forEach(node => markNodeBadge(node, "RUNNING…", "text-amber-400 animate-pulse"));
 
       const evtSource = new EventSource("/api/stream-hazards");
 
       evtSource.addEventListener("reference_layers", (e) => {
         const refs = JSON.parse(e.data);
+        liveReferenceTiles = refs;
+        if (activeStory) return;
         setTileLayer(mapOptical, "s2-optical", refs.optical_s2_tile_url);
         setTileLayer(mapCBand, "s1-cband", refs.cband_s1_tile_url);
+        panelStatus("optical", "Live", "Sentinel-2 tile source");
+        panelStatus("cband", "Live", "Sentinel-1 tile source");
+      });
+
+      evtSource.addEventListener("reference_error", () => {
+        if (activeStory) return;
+        panelStatus("optical", "Error", "Sentinel-2 unavailable. Launch scan to retry.");
+        panelStatus("cband", "Error", "Sentinel-1 unavailable. Launch scan to retry.");
       });
 
       evtSource.addEventListener("agent_update", (e) => {
         const { node, payload } = JSON.parse(e.data);
+        unfinishedNodes.delete(node);
         markNodeBadge(node, "DONE ✓", "text-emerald-400");
 
         if (payload.hazard_reports) {
           Object.entries(payload.hazard_reports).forEach(([domain, rep]) => {
+            if (!domains.includes(domain)) return;
             hazardReportsStore[domain] = rep;
-            switchNisarDomain(domain);
           });
+          if (Object.hasOwn(payload.hazard_reports, selectedDomain)) inspectHazardDomain(selectedDomain);
           refreshDeckHotspots();
         }
 
         if (payload.final_bulletin) {
           latestBulletin = payload.final_bulletin;
+          hasAgentBulletin = true;
           setLang(currentLang);
         }
       });
 
       evtSource.addEventListener("complete", () => {
         evtSource.close();
+        unfinishedNodes.forEach(node => markNodeBadge(node, "NO UPDATE", "text-slate-400"));
         btn.textContent = "Launch Multi-Agent NISAR Scan";
         btn.disabled = false;
       });
 
       evtSource.addEventListener("error", () => {
         evtSource.close();
-        btn.textContent = "Scan Cached Mode Active";
+        ++currentInspection;
+        unfinishedNodes.forEach(node => markNodeBadge(node, "INTERRUPTED", "text-red-400"));
+        btn.textContent = "Retry scan";
+        if (!activeStory) panelStatus("nisar", "Error", "Scan interrupted. Retry the scan or select a hazard to check the cache.");
         btn.disabled = false;
       });
     }
 
+    inspectHazardDomain(selectedDomain);
     mapNisar.on("load", () => {
-      renderPhysicsDiagram("landslide");
       refreshDeckHotspots();
       setLang("es");
     });
   </script>
+  <script src="/static/story-map.js"></script>
 </body>
 </html>
