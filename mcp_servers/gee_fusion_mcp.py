@@ -891,4 +891,4 @@ def analyze_biomass_disturbance(aoi: str = "aburra") -> dict:
 
 
 if __name__ == "__main__":
-    run_server(mcp, "mcp-gee-fusion")
+    run_server(mcp, "gee_fusion")
