@@ -47,6 +47,11 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
   - No NASA logos, flags or identifiers in generated media, badges (`logo=nasa`) or UI headers.
   - No likeness of anyone under 18.
   - Put the "SI-Assisted Analytics" badge on AI-written bulletins.
+  - **The team brand is [`docs/brand/brand-guidelines.md`](docs/brand/brand-guidelines.md)** (approved 2026-11-12) and it governs everything the team publishes: UI, reports, slides, video, badges.
+    - **Palette:** Blue `#1B3FD6` (the first pass) · Vermilion `#F04A23` (the second pass) · Ink `#121212` · Paper `#FFFFFF` · Grey `#5A5A5A` (secondary text only). Blue is the "before"/first, vermilion the "after"/highlight, in the logo and in every chart, label and diagram. Never blue on ink; on dark interfaces the accent pair is white + vermilion. Flat colors only: no tints, gradients or transparency.
+    - **Typography:** Jost (600/500) for headings and interface, Libre Caslon Text for prose, system monospace for data values; Poppins then system sans-serif as the offline fallbacks. No third brand typeface.
+    - **Scientific color scales stay scientific:** radar images, interferograms and maps keep their own scales. Brand colors go on the frame, labels and annotations — never on the data.
+    - **The two-feet motif** (two identical left footprints, blue then vermilion, the second a step ahead) is the team's motion signature: use it as a stepping animation (one foot after the other, blue → vermilion, gap kept open) for loading states, chapter transitions and the homepage intro. The feet are left feet, never mirrored, never leveled, never touching.
 
 ## Architecture (decided; see the decision ledger)
 
