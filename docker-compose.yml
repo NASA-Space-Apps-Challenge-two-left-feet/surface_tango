@@ -9,12 +9,17 @@ services:
     container_name: sars-cache-warmer
     profiles: ["init", "live", "pitch"]
     env_file: .env
+    environment:
+      - OFFLINE_DEMO_MODE=${OFFLINE_DEMO_MODE:-0}
     volumes:
       - ./local_cache:/app/local_cache
       - ${HOME}/.netrc:/root/.netrc:ro
       - ${HOME}/.config/earthengine:/root/.config/earthengine:ro
     command: >
-      sh -c "if [ ! -f /app/local_cache/antioquia_aburra/manifest.json ]; then
+      sh -c "if [ \"$$OFFLINE_DEMO_MODE\" = \"1\" ]; then
+               test -f /app/local_cache/mojana/manifest.json || { echo 'La Mojana release cache is missing'; exit 1; };
+               echo 'Using the staged La Mojana cache without cloud prewarming';
+             elif [ ! -f /app/local_cache/antioquia_aburra/manifest.json ]; then
                echo '⚡ Pre-warming Antioquia Zarr v3 Cube & COGs...';
                python scripts/prewarm_antioquia_cache.py;
              else
