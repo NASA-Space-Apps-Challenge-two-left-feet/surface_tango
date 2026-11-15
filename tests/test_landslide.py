@@ -52,7 +52,7 @@ def test_one_pair_is_null():
     result = noise_floor_verdict([[6.0]], [[3.0, -3.0]], PARAMS)
     assert result["verdict"] == "null"
     assert np.isnan(result["kept_rate"]).all()
-    assert result["text"] == "no motion detected above 3.0 mm noise floor (1 pairs)"
+    assert result["text"] == "null: 1 independent pairs available, 2 required"
 
 
 def test_rate_equal_to_rms_is_not_kept():
@@ -72,7 +72,9 @@ def test_min_pairs_parameter_changes_verdict():
     params = deepcopy(PARAMS)
     params["noise_floor"]["min_pairs"] = 3
     # Two rates above RMS = 3 are insufficient when three pairs are required.
-    assert noise_floor_verdict([[6.0], [8.0]], [[3.0], [3.0]], params)["verdict"] == "null"
+    result = noise_floor_verdict([[6.0], [8.0]], [[3.0], [3.0]], params)
+    assert result["verdict"] == "null"
+    assert result["text"] == "null: 2 independent pairs available, 3 required"
 
 
 def test_sign_agreement_parameter_changes_verdict():
@@ -104,6 +106,7 @@ def test_no_pairs_is_null():
     result = noise_floor_verdict([], [], PARAMS)
     assert result["n_pairs"] == 0
     assert result["verdict"] == "null"
+    assert result["text"] == "null: 0 independent pairs available, 2 required"
     assert np.isnan(result["noise_floor_mm_yr"])
     assert result["per_pair_noise_floor_mm_yr"] == []
 

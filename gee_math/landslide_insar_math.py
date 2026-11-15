@@ -73,6 +73,8 @@ def noise_floor_verdict(rates_by_pair, stable_residuals_by_pair, params):
         if count
         else f"no motion detected above {floor:.1f} mm noise floor ({n_pairs} pairs)"
     )
+    if n_pairs < min_pairs:
+        text = f"null: {n_pairs} independent pairs available, {min_pairs} required"
     return {
         "kept_rate": kept_rate,
         "kept_mask": kept_mask,
