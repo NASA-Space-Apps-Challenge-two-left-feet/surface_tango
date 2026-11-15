@@ -11,10 +11,12 @@ One short note per fact or method the code, the UI or the pitch relies on. Rules
 
 | Note | Status |
 |---|---|
-| [nisar-public-record](nisar-public-record.md) | unverified |
-| [nisar-gunw-layers](nisar-gunw-layers.md) | unverified |
+| [nisar-public-record](nisar-public-record.md) | superseded |
+| [nisar-public-record-v2](nisar-public-record-v2.md) | verified |
+| [nisar-gunw-layers](nisar-gunw-layers.md) | verified |
 | [nisar-polarization-colombia](nisar-polarization-colombia.md) | unverified |
 | [nisar-sband-colombia](nisar-sband-colombia.md) | unverified |
-| [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md) | unverified |
-| [event-2025-06-24-granizal](event-2025-06-24-granizal.md) | unverified |
+| [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md) | unverified (depth unresolved) |
+| [event-2026-08-10-earthquake-v2](event-2026-08-10-earthquake-v2.md) | verified |
+| [event-2025-06-24-granizal](event-2025-06-24-granizal.md) | verified |
 | [method-coherence-decorrelation](method-coherence-decorrelation.md) | unverified |
