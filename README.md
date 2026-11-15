@@ -71,7 +71,8 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Quake damage proxy (track 11; C-pass statistics withheld until the freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
 | Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
-| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | planned (SSE integration) | #10, #79 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
+| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport; science integration pending | #20, #100 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
+| Bulletin placeholder and verified-event contract | live contract; rendering pending | #21 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields.md) |
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | LangSmith tracing of agent runs (project `surface-tango`) | planned (wired; needs `LANGSMITH_API_KEY`) | this PR | pending |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
@@ -386,3 +387,7 @@ The team and project names play on our challenge, *Dancing with the SARs*: we ta
 ### MCP transport foundation
 
 Run each server with `uv run --frozen python -m mcp_servers.nisar_asf_mcp` or `uv run --frozen python -m mcp_servers.gee_fusion_mcp`. Both use the SSE transport and endpoints configured in `config/bailasar.yaml`. Startup does not authenticate to remote services. In offline mode, a cache miss returns `not cached`. Cached tool outputs live in `local_cache/tool_outputs/<tool>/<request-key>.json` and require matching request metadata plus source, granule IDs and cache build time. No fallback generates data. Live budget measurement and the quake adapter remain pending owner integration.
+
+### Bulletin evidence contract
+
+`agents/bulletin.py` validates declared placeholders against deterministic tool outputs and their hash. Numeric placeholders require rounding, units, evidence class, denominator and source; raw digits in prose are rejected except the exact allowed sensor names. `validation/event_facts.json` exposes only primary-source verified, non-null fields. Unresolved depth remains missing; see [USGS display-field evidence](docs/kb/event-usgs-verified-display-fields.md). Locale rendering and live end-to-end bulletins remain pending integration.

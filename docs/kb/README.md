@@ -17,6 +17,8 @@ One short note per fact or method the code, the UI or the pitch relies on. Rules
 | [nisar-polarization-colombia](nisar-polarization-colombia.md) | unverified |
 | [nisar-sband-colombia](nisar-sband-colombia.md) | unverified |
 | [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md) | unverified (depth unresolved) |
-| [event-2026-08-10-earthquake-v2](event-2026-08-10-earthquake-v2.md) | verified |
+| [event-2026-08-10-earthquake-v2](event-2026-08-10-earthquake-v2.md) | superseded |
 | [event-2025-06-24-granizal](event-2025-06-24-granizal.md) | verified |
 | [method-coherence-decorrelation](method-coherence-decorrelation.md) | unverified |
+
+- [USGS verified display fields](event-usgs-verified-display-fields.md): supported event fields and explicitly withheld depth; supersedes the earlier earthquake event note.
