@@ -13,6 +13,7 @@ import io
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -110,11 +111,24 @@ def freeze_ready():
         ["git", "hash-object", "config/preregistered.yaml"], cwd=ROOT, text=True
     ).strip()
     validation = (ROOT / "validation/README.md").read_text(encoding="utf-8")
-    return any(
-        row.startswith("| `config/preregistered.yaml` hash")
-        and row.split("|")[2].strip().strip("`") == digest
-        for row in validation.splitlines()
-    )
+    return recorded_hash(validation) == digest
+
+
+HASH_CELL = re.compile(r"^\s*`([0-9a-f]{40})`")
+
+
+def recorded_hash(validation_text):
+    """The current frozen hash: the leading backticked blob in the hash row's value cell.
+
+    The cell may carry notes after the hash (a re-freeze, the superseded blob); only
+    the backticked 40-hex value at the start of the cell is the recorded hash.
+    """
+    for row in validation_text.splitlines():
+        if row.startswith("| `config/preregistered.yaml` hash"):
+            cells = row.split("|")
+            match = HASH_CELL.match(cells[2]) if len(cells) > 2 else None
+            return match.group(1) if match else None
+    return None
 
 
 def preflight(plan):
@@ -204,9 +218,12 @@ def summarize(samples):
 
 
 def validate_response(tool, result, input_ids):
+    envelope_provenance = None
     if isinstance(result, dict) and "state" in result:
         if result["state"] != "live":
             raise PlanError("cached, gate, error and unavailable results cannot set live budgets")
+        # #122/#136 evidence envelopes carry provenance beside `data`, not inside it.
+        envelope_provenance = result.get("provenance")
         result = result.get("data")
     if tool == "search_nisar_granules" and isinstance(result, list):
         if any(not isinstance(row, dict) or not row.get("scene_name") for row in result):
@@ -220,8 +237,8 @@ def validate_response(tool, result, input_ids):
         ):
             raise PlanError("staging did not return real cloud artifact references")
         return input_ids
-    provenance = result.get("provenance", {})
-    ids = provenance.get("granule_ids")
+    provenance = envelope_provenance or result.get("provenance") or {}
+    ids = provenance.get("granule_ids") if isinstance(provenance, dict) else None
     if (
         not isinstance(ids, list)
         or not ids

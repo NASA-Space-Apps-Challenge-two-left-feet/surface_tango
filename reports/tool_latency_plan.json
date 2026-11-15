@@ -102,23 +102,32 @@
     {
       "server": "gee_fusion",
       "tool": "analyze_landslide_kinematics",
-      "source": "owner-supplied staged real GUNW artifacts required",
+      "source": "local_cache/aburra/landslide_evidence.json (scripts/write_hazard_evidence.py --hazard landslide; needs aburra/calibration.json)",
       "granule_ids": [],
-      "arguments": {}
+      "arguments": {
+        "aoi": "aburra"
+      }
     },
     {
       "server": "gee_fusion",
       "tool": "analyze_flood_inundation",
-      "source": "owner-supplied staged real GCOV artifacts required",
-      "granule_ids": [],
-      "arguments": {}
+      "source": "local_cache/mojana/flood_evidence.json (scripts/write_hazard_evidence.py --hazard flood; display date 2026-06-17)",
+      "granule_ids": [
+        "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+      ],
+      "arguments": {
+        "aoi": "mojana"
+      }
     },
     {
       "server": "gee_fusion",
       "tool": "analyze_earthquake_dpm",
-      "source": "owner-supplied frozen pair artifacts required",
+      "source": "local_cache/eje_cafetero/quake_evidence_track11.json (scripts/write_hazard_evidence.py --hazard quake --track 11; needs quake/dpm_track11.zarr)",
       "granule_ids": [],
-      "arguments": {}
+      "arguments": {
+        "aoi": "eje_cafetero",
+        "track": 11
+      }
     }
   ]
 }
