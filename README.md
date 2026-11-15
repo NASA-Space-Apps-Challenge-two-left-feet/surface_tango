@@ -80,7 +80,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Aburrá landslide noise-floor test | planned | — | pending |
 | La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
-| NISAR real-data cache (3 AOIs) | planned | #30 | pending |
+| NISAR real-data cache (3 AOIs) | cached | #30 | [briefs/feat/data-cache-builder.md](briefs/feat/data-cache-builder.md) |
 | Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
 | MCP servers and SSE integration | planned | #10 | pending |
 | LangGraph orchestrator and bulletin integration | planned | #11, #51 | pending |
