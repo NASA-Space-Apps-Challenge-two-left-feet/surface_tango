@@ -1,4 +1,10 @@
 # docker-compose.yml
+# Bounded json-file logs so a long-running host (the ~2-month evaluation VM,
+# docs/deploy/gcp-evaluation.md) never fills its disk with container logs.
+x-logging: &bounded-logs
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
 services:
   # 1. One-shot Zarr v3 & COG Pre-Warmer (runs only if manifest.json is missing or forced)
   cache-warmer:
@@ -44,9 +50,10 @@ services:
       - ${HOME}/.netrc:/root/.netrc:ro
       - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"   # host-only: the web container reaches it on the compose network
     command: python mcp_servers/nisar_asf_mcp.py
     restart: unless-stopped
+    logging: *bounded-logs
 
   # 3. FastMCP Server 2: Google Earth Engine InSAR & Polarimetric Physics Engine
   mcp-gee-fusion:
@@ -66,9 +73,10 @@ services:
       - ${HOME}/.config/earthengine:/root/.config/earthengine:ro
       - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"   # host-only: the web container reaches it on the compose network
     command: python mcp_servers/gee_fusion_mcp.py
     restart: unless-stopped
+    logging: *bounded-logs
 
   # 4. FastAPI SSE + LangGraph Orchestrator + 3-Panel MapLibre/Deck.gl Frontend
   sars-web-orchestrator:
@@ -93,3 +101,4 @@ services:
       - "8000:8000"
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --workers 2
     restart: unless-stopped
+    logging: *bounded-logs

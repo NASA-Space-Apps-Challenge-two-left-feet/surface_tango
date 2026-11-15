@@ -1,0 +1,7 @@
+[Unit]
+Description=Surface Tango: power off the demo VM when idle
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/surface_tango/deploy/vm/idle_shutdown.py
