@@ -199,7 +199,7 @@ sequenceDiagram
         GUARD-->>LS: explicit "not cached" error
         Note over LS,FL: panel shows the state — never blank
     end
-    Note over LS,FL: agents write prose with placeholders only;<br/>every number is a tool output or a sourced event constant
+    Note over LS,FL: agents write prose with placeholders only<br/>every number is a tool output or a sourced event constant
     LS-->>SYN: tool-rendered findings
     EQ-->>SYN: tool-rendered findings
     FL-->>SYN: tool-rendered findings
