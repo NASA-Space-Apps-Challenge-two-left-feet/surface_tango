@@ -24,7 +24,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 <br>
 [![hour-2 gate](https://img.shields.io/badge/hour--2%20gate-251%20NISAR%20granules-0F766E)](reports/gate.md)
 [![real-data cache](https://img.shields.io/badge/real--data%20cache-3%20AOIs%20%C2%B7%2047%20bands-0F766E)](briefs/feat/data-cache-builder.md)
-[![offline tests](https://img.shields.io/badge/offline%20tests-156%20passing-0F766E)](reports/tests.md)
+[![offline tests](https://img.shields.io/badge/offline%20tests-180%20passing-0F766E)](reports/tests.md)
 [![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-9333EA)](reports/gate.md)
 [![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-D97706)](validation/ALLOWLIST.md)
 [![pre-registration](https://img.shields.io/badge/pre--registration-draft%20%C2%B7%20freeze%20pending-2563EB)](validation/README.md)
@@ -326,7 +326,7 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 | `docs/kb/` | living knowledge base (one verified note per fact) |
 | `reports/` | measured results with commands and source IDs |
 | `briefs/`, `status/` | per-branch briefs; per-lane status |
-| `tests/` | offline suite (156 passing *(measured)*; command and run provenance in [reports/tests.md](reports/tests.md)) |
+| `tests/` | offline suite (180 passing *(measured)*; command and run provenance in [reports/tests.md](reports/tests.md)) |
 | `local_cache/` | real-data cache — **never in git** |
 | `video/` | storyboard, run sheet, 30-second submission |
 
