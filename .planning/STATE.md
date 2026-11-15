@@ -23,38 +23,16 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home offline; opencode GLM-5.3 acting orchestrator (owner-delegated, from 06:17 UTC 2026-11-15). Previous snapshot: claude-home, refreshed 2026-11-15 05:18 UTC.
-Since ~04:45 UTC, all squash-merged into main:
-- **Sarita:** #105 mission control loads the staged tiles.
-- **Fixes:** #106 flood timeout on Windows. #108 Esteban's type annotations.
-- **Esteban:** #107 his fixture harness core; #72/#73 closed as superseded (reasons on the PRs).
-- **#109 Aburrá lane:** the orchestrator calibrated the keep-rule against a sign-flip null. Verdict: **no motion detected above 9.105 mm (17 pairs)**; kept fraction below the null mean on both tracks.
-- **#111 quake DPM v2** (opencode): both tracks, sealed C/K statistics, pyarrow, pluggable units; track 11 reproduces #64 exactly.
-- **#110 Jack's MCP scoring wrappers.**
-- #65 deep-reviewed (correct; window constant should move to config).
-- #113, #114: both README diagrams fixed (overlaps cleared, content current), reviewed as rendered images.
-- #115: the landslide module reads and verifies `landslide.noise_floor`. `VALLEY_FLOOR_MAX_SLOPE_DEG` (5.0) and `MIN_ABS_COS_XI` (0.2) are still code constants and should enter the pre-registration at the freeze (#26).
+Status: claude-home resumed as main orchestrator 2026-11-15 ~08:30 UTC. See briefs/handback-opencode-session.md for the opencode acting-orchestrator window (~06:20–08:00 UTC).
+Since the last snapshot, merged into main: the pre-registration **freeze** (#130, #26) and the control-pair fix (#134, deviation 2 — K re-chosen, re-frozen `36a90fa`); flood/quake MCP evidence serving (#136), MERIT hand_m band (#137), quake depth display (#132), cache robustness (#135); then on resume claude-home merged #144 (grok Aburrá false-positive), #142/#143 (Esteban KB + flood edge tests), #138 (Jack flood budget, measured), #140 (Sarita offline pitch), #146 (Alice latency harness, cherry-picked clean off the develop-based #139 which was closed).
 
-Session 3 (opencode acting orchestrator, 06:17–06:45 UTC), squash-merged:
-- **#130 pre-registration freeze** (Jack; squash 3166d0f). Verified before merge: recorded blob `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438` recomputed and matches; diff vs the deviation-1 anchor `8d91f1d` contains only the three listed changes (noise_floor #72, pair fill #86, freeze + uninformative ground truth); 299 offline tests at the PR head. **C/K statistics unsealed by rule.** Issues #24/#26 closed (#25 already closed).
-- **#132 quake depth displayable** (Esteban; squash e818fba): `depth_km` 116, the USGS preferred-origin estimate 116.13 km rounded half-up, labelled "USGS estimate"; SGC 105 km evidence-only. 301 offline tests at the head. Follow-up: the agents lane updates `status/agents-mcp.md`.
-- README pass in the same session (this PR): the freeze-pending rows correctly say frozen.
+#### Agents — all three handoffs finished and merged
+grok → #144 (Aburrá false-positive; null holds). grok2 → #137 (hand_m band). opencode → #136 (flood/quake evidence) then acted as orchestrator.
 
-#### Headline results now on main (all PROVISIONAL)
-- **La Mojana (headline, #102):** open water per date measured (e.g. 2026-06-17: 4,486.59 ha, 5,539 of 197,758 valid px). Sentinel-1 missed 3,351 of 4,946 NISAR open-water px on 2026-07-11. Change classes degenerate (reference date had 1 valid px).
-- **Aburrá:** calibrated null, no motion above 9.105 mm.
-- **Quake:** scorecard uninformative (no barrio labels); damage proxy cached for tracks 11 and 47; C/K statistics unsealed at the freeze (#130), artifacts pending the data lane.
-
-#### Open work, in order
-1. ~~Jack: fix #86, then freeze #26~~ **done** (#86 as #126's pair fill; freeze #130).
-2. ~~Alice: rewire the fusion tools~~ **done via #126** (evidence adapters; no module imports). Remaining Alice work: #36 LangGraph/bulletin rendering.
-3. Sarita: #37 slider and story map on La Mojana; lock storyboard #39 to the ratified headline.
-4. ~~Esteban: flood harness port (#38 done as #121), kb-quake-depth (#123/#129/#132 done)~~.
-5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), then re-stage the team release.
-6. opencode (in flight, no self-merge): `feat/data-flood-quake-evidence` per its brief — flood + quake evidence serializers in `scripts/write_hazard_evidence.py` + tests; artifacts into `local_cache/mojana/` and `local_cache/eje_cafetero/`; the C/K gate keys on the current prereg status (frozen → `coherence_statistics` included). Ready for review within the hour; push + PR by the orchestrator.
-
-#### Agents
-grok and grok2 are idle (their lanes are merged). opencode is acting orchestrator + executing the flood/quake evidence brief. Antigravity is idle.
+#### Open / owner decisions
+- **#145 LICENSE held**: Apache-2.0 proposal; the owner decides the project license before going public (#46). Esteban's PR says do-not-merge-until-team-decides.
+- Fixture review (#137) still owed; `static/prepare_story_cache.py` → `scripts/` carryover.
+- Pre-registration frozen (`36a90fa`); never edit without a deviation entry. C/K unsealed post-freeze, not yet promoted to display.
 
 Progress: [░░░░░░░░░░] 0%
 
