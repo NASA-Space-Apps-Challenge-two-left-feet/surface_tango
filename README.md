@@ -27,7 +27,7 @@ make fetch-cache
 make pitch
 ```
 
-**Currently blocked:** the [Makefile](Makefile) does not yet implement `fetch-cache`, and this checkout provides no verified submission release or downloadable cache. The repository and tag above are placeholders for the team's published release, not working download coordinates. Do not run this sequence expecting a complete demo yet. The planned release must contain real tiles, statistics and a provenance manifest with source IDs; `local_cache/` stays out of git.
+**Currently blocked:** `make fetch-cache` now downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet. The repository and tag above are placeholders for the team's published release, not working download coordinates. Do not run this sequence expecting a complete demo yet. The planned release must contain real tiles, statistics and a provenance manifest with source IDs; `local_cache/` stays out of git.
 
 `make pitch` selects the offline Compose profile at <http://localhost:8000>. End-to-end offline operation is pending. The current Compose configuration also expects local credential mount paths and invokes the cache warmer when its manifest is absent; selecting pitch mode alone does not establish a credential-free offline demo.
 
@@ -65,7 +65,7 @@ OFFLINE_DEMO_MODE=0 docker compose --profile live up --build -d
 OFFLINE_DEMO_MODE=1 docker compose --profile pitch up -d
 ```
 
-There is no equivalent fetch command to copy yet because `make fetch-cache` is unimplemented. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
+Without make, run `scripts/fetch_cache.sh` with the same two variables. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
 
 ## Status
 
@@ -75,13 +75,17 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 |---|---|---|---|
 | NISAR discovery gate (search script and saved catalog) | live | #23 | [Gate report](reports/gate.md) |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
-| Quake damage proxy, first-aid ranking and scorecard | planned | — | pending |
+| Quake damage proxy (track 11; C-pass statistics withheld until the pre-registration freeze, see [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
+| First-aid ranking and scorecard | planned | #32 | pending |
 | Aburrá landslide noise-floor test | planned | — | pending |
 | La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
-| Real-data cache and release download | not cached | #30 | pending |
+| Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
+| NISAR real-data cache (3 AOIs) | planned | #30 | pending |
+| Release staging and `make fetch-cache` (no release yet) | live | #42, #67 | pending |
 | MCP servers and SSE integration | planned | #10 | pending |
 | LangGraph orchestrator and bulletin integration | planned | #11, #51 | pending |
-| Mission-control UI, curtain slider and story map | planned | #12 | pending |
+| Local Zarr tile server | not cached | #22 | Shared cube and manifest required for the LOS layer |
+| Mission-control UI, curtain slider and story map | not cached | #22, #37 | Approved chapter outputs and comparison tiles required; offline staging in [frontend status](status/frontend-video.md) |
 | Submission video | planned | — | pending |
 | Biomass agent (TODO; out of scope) | dropped | — | — |
 | GOFF / surface-rupture analysis (TODO; out of scope) | dropped | — | — |
