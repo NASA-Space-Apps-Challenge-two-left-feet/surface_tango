@@ -1,5 +1,7 @@
 # Status: quake
 
+## Config loader (#17, Jack4Codes)
+
 _Last update: 2026-11-14 (UTC−5)_
 
 - Doing: 01-02 config loader (#17), branch `feat/quake-config-loader-for-prereg`
@@ -10,3 +12,10 @@ _Last update: 2026-11-14 (UTC−5)_
 - Handoffs (files owned by other plans still carry config literals; listed in `PENDING_WIRING` in `tests/test_config.py`, remove the entry once wired):
   - `gee_math/flood_polarimetric_math.py` lines 50, 67, 76 (HAND 18 m, −5.5 dB, +3.0 dB) → 01-04
 - Needs the 01-01 owner (`pyproject.toml`): `src/` is not on the import path yet (pytest `pythonpath` is `["."]`). `tests/test_config.py` adds it itself; other modules need either `[tool.pytest.ini_options] pythonpath = ["src", "."]` plus a build backend so `uv sync` installs `bailasar`, or the same path insert.
+
+## Scoring functions (#18, Maru816)
+
+- Implemented the pure scoring library and known-answer tests: percentile ranking, precision@k, Wilson intervals, whole-barrio paired bootstrap, built-up excess, informative gate and directional claim rule.
+- Stable original unit identity resolves tied rankings consistently across repeated bootstrap draws. Test fixtures and API boundaries are documented in `validation/ALLOWLIST.md`.
+- Publication scope: issue #18 only. Real-data scorecard assembly (#32) remains blocked by accepted labels, frozen pre-registration and pipeline inputs. No co-event data were opened.
+- Validation: publication checks use `make check`, `make test`, explicit hooks on new files and `make ci`. Pure-logic fixtures use no source granules.
