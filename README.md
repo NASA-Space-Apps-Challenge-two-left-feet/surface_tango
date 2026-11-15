@@ -76,7 +76,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
 | Pre-registration and power check | **frozen** 2026-11-15 (#130), control pairs K re-chosen by the design date rule and re-frozen (#131, deviation 2; blob `36a90fa…`; track 11 K is a labelled post-event control); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102, #131 | [validation/README.md](validation/README.md) |
-| First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
+| First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Uninformative scorecard](reports/scorecard.md); [scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth | researched; no complete barrio damage dataset; candidate boundaries not adopted | #24, #97 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | cached: **no motion detected above 9.105 mm (17 pairs, provisional)**; keep-rule calibrated against a sign-flip null | #33 | [reports/aburra.md](reports/aburra.md) |
 | La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |

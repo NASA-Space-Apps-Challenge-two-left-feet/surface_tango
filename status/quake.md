@@ -52,3 +52,15 @@ _Last update: 2026-11-15 06:45 (UTC−5)_ · branch `fix/config-prereg-control-p
 - Done: replaced `control_K` on both tracks after the freeze (deviation 2 in `validation/README.md`); needs the orchestrator's ratification. Track 47: pre-event `20260617→20260629`; track 11: post-event fallback `20260825→20260906` (no independent pre-event pair on frame 086), labelled `control_K_timing: post_event`. Re-frozen hash `36a90fa104382f9217746ef730248ed24e223346`.
 - Guard: `tests/test_config.py::test_control_pairs_share_no_date_with_r_or_c_and_are_labelled` fails on the old K (checked) and passes on the new one. `get_earthquake_pair_set` now reports `control_K_timing`. 302 offline tests pass.
 - Handoff (LEONOB2014): `gee_math/earthquake_dpm_math.py` still reads R/C/K from `nisar_colombia_granules_2026.json` → `quake_triplets` (`TODO(#86)`), which still has the old K. The DPM control pass uses the old K until it reads `cfg.prereg("quake.pairs")` or the gate catalog is updated.
+
+## Issue #32 — documented uninformative result
+
+- `reports/scorecard.md` records the permitted documented-null outcome: accepted
+  barrio labels/geometry are unavailable; no rankings, precision, intervals,
+  excess or radar advantage computed.
+- Evidence pinned to upstream `f07a4f2`, including both preregistration
+  deviations and re-frozen blob `36a90fa104382f9217746ef730248ed24e223346`.
+- Publication branch `codex/issue-32-uninformative` contains documentation only.
+  Prior integration/formatting work remains preserved in its original worktree.
+- No real/co-event/cache or credential data were opened. #40 remains a separate
+  local preparation with full walkthrough acceptance blocked.
