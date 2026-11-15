@@ -4,12 +4,15 @@ Checksums use hashlib on literal test bytes. Releases stay inside tmp_path;
 the commit field is a verifier fixture, never evidence of a real cache build.
 """
 
+import errno
 import hashlib
 import http.client
 import io
 import json
 import urllib.error
 from collections import Counter
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -287,3 +290,250 @@ def test_exponential_backoff(release):
     release.events[release.part] = [urllib.error.URLError("offline")] * 2
     assert fetch_cache.main(ARGS) == 0
     assert release.sleeps == [2, 4]
+
+
+@pytest.mark.parametrize("operation", ["backup", "install", "mkdir"])
+def test_interrupt_after_mutation_restores_originals(release, monkeypatch, operation):
+    before = old_cache(release)
+    original_replace = cache_release.os.replace
+    original_mkdir = Path.mkdir
+    interrupted = []
+
+    def replace(source, target):
+        result = original_replace(source, target)
+        selected = (
+            "-backup-" in str(target) if operation == "backup" else "-staging-" in str(source)
+        )
+        if operation != "mkdir" and selected and not interrupted:
+            interrupted.append(target)
+            raise KeyboardInterrupt
+        return result
+
+    def mkdir(target, *args, **kwargs):
+        result = original_mkdir(target, *args, **kwargs)
+        if operation == "mkdir" and target == release.destination / "empty" and not interrupted:
+            interrupted.append(target)
+            raise KeyboardInterrupt
+        return result
+
+    monkeypatch.setattr(cache_release.os, "replace", replace)
+    monkeypatch.setattr(Path, "mkdir", mkdir)
+    with pytest.raises(KeyboardInterrupt):
+        fetch_cache.main([*ARGS, "--force"])
+    assert interrupted
+    assert snapshot(release.destination) == before
+    assert_no_install_dirs(release)
+
+
+def test_rollback_continues_and_keeps_unrestored_backup(release, monkeypatch):
+    old_cache(release)
+    original_replace = cache_release.os.replace
+    original_unlink = Path.unlink
+    blocked = release.destination / "nested" / "b.bin"
+
+    def replace(source, target):
+        if "-backup-" in str(source) and target == blocked:
+            raise PermissionError("held open during restore")
+        result = original_replace(source, target)
+        if "-staging-" in str(source) and target == blocked:
+            raise OSError("install interrupted")
+        return result
+
+    def unlink(target, *args, **kwargs):
+        if target == blocked:
+            raise PermissionError("held open during unlink")
+        return original_unlink(target, *args, **kwargs)
+
+    monkeypatch.setattr(cache_release.os, "replace", replace)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    with pytest.raises(SystemExit, match="rollback incomplete") as error:
+        fetch_cache.main([*ARGS, "--force"])
+    backups = list(release.root.glob(".local_cache-backup-*"))
+    assert len(backups) == 1
+    backup = backups[0]
+    assert str(backup) in str(error.value)
+    assert f"move {backup / 'nested' / 'b.bin'} back to {blocked}" in str(error.value)
+    assert "held open during unlink" in str(error.value)
+    assert "held open during restore" in str(error.value)
+    assert (backup / "nested" / "b.bin").read_bytes() == b"previous"
+    assert (release.destination / "a.bin").read_bytes() == b"old"
+    assert (release.destination / "withheld.bin").read_bytes() == b"keep"
+    assert not (release.destination / "empty").exists()
+    assert not (release.root / ".local_cache.lock").exists()
+
+
+def test_second_fetch_refused_while_lock_held(release):
+    lock = release.root / ".local_cache.lock"
+    with cache_release.cache_lock(release.destination):
+        before = lock.read_bytes()
+        owner = json.loads(before)
+        assert owner["pid"] > 0
+        assert owner["hostname"]
+        assert datetime.fromisoformat(owner["since"]).utcoffset() == timedelta(0)
+        with pytest.raises(SystemExit) as error:
+            fetch_cache.main(ARGS)
+        assert str(error.value) == (
+            f"not cached: another fetch holds {lock} (pid {owner['pid']}, "
+            f"since {owner['since']}); if no fetch is running, rerun with --break-lock"
+        )
+        assert not release.calls
+        assert lock.read_bytes() == before
+    assert not lock.exists()
+
+
+def test_break_lock(release, capsys):
+    lock = release.root / ".local_cache.lock"
+    stale = '{"pid": 123, "hostname": "old-host", "since": "2026-01-01T00:00:00Z"}'
+    lock.write_text(stale, encoding="utf-8")
+    assert fetch_cache.main([*ARGS, "--break-lock"]) == 0
+    assert f"removed lock {lock}: {stale}" in capsys.readouterr().out
+    assert_no_install_dirs(release)
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_lock_held_during_requests_and_removed_afterwards(release, monkeypatch, failure):
+    lock = release.root / ".local_cache.lock"
+    original_urlopen = fetch_cache.urllib.request.urlopen
+
+    def urlopen(*args, **kwargs):
+        assert lock.is_file()
+        if failure:
+            raise urllib.error.HTTPError("url", 404, "missing", {}, None)
+        return original_urlopen(*args, **kwargs)
+
+    monkeypatch.setattr(fetch_cache.urllib.request, "urlopen", urlopen)
+    if failure:
+        with pytest.raises(SystemExit, match="release asset unavailable"):
+            fetch_cache.main(ARGS)
+    else:
+        assert fetch_cache.main(ARGS) == 0
+    assert not lock.exists()
+
+
+@pytest.mark.parametrize("seconds", [17, 9999, -10])
+def test_http_date_retry_after(release, monkeypatch, seconds):
+    now = datetime(2026, 11, 15, tzinfo=UTC)
+
+    class Clock:
+        @staticmethod
+        def now(tz):
+            assert tz == UTC
+            return now
+
+    monkeypatch.setattr(fetch_cache, "datetime", Clock)
+    value = format_datetime(now + timedelta(seconds=seconds), usegmt=True)
+    release.events[release.part] = [
+        urllib.error.HTTPError("url", 429, "busy", {"Retry-After": value}, None)
+    ]
+    assert fetch_cache.main(ARGS) == 0
+    assert release.calls[release.part] == 2
+    assert release.sleeps == [min(seconds, fetch_cache.MAX_RETRY_WAIT) if seconds >= 0 else 2]
+
+
+@pytest.mark.parametrize("value", ["-1", "nan", "inf", "invalid"])
+def test_invalid_retry_after_uses_backoff(release, value):
+    release.events[release.part] = [
+        urllib.error.HTTPError("url", 503, "busy", {"Retry-After": value}, None)
+    ]
+    assert fetch_cache.main(ARGS) == 0
+    assert release.sleeps == [2]
+
+
+@pytest.mark.parametrize("operation", ["open", "write", "close"])
+def test_local_disk_error_not_retried(release, monkeypatch, operation):
+    original_open = Path.open
+    partial_paths = []
+
+    class FullDisk:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def write(self, chunk):
+            if operation == "write":
+                raise OSError(errno.ENOSPC, "disk full")
+            return self.stream.write(chunk)
+
+        def close(self):
+            self.stream.close()
+            if operation == "close":
+                raise OSError(errno.ENOSPC, "disk full")
+
+    def open_file(target, *args, **kwargs):
+        if target.name == release.part and args == ("wb",):
+            partial_paths.append(target)
+            if operation == "open":
+                raise PermissionError(errno.EACCES, "access denied")
+            return FullDisk(original_open(target, *args, **kwargs))
+        return original_open(target, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_file)
+    with pytest.raises(SystemExit, match=f"not cached: local write failed for {release.part}:"):
+        fetch_cache.main(ARGS)
+    assert release.calls[release.part] == 1
+    assert release.sleeps == []
+    assert partial_paths and not any(target.exists() for target in partial_paths)
+    assert not (release.root / ".local_cache.lock").exists()
+
+
+def test_failed_backup_move_leaves_original_untouched(release, monkeypatch):
+    before = old_cache(release)
+    original_replace = cache_release.os.replace
+
+    def replace(source, target):
+        if "-backup-" in str(target):
+            raise KeyboardInterrupt
+        return original_replace(source, target)
+
+    monkeypatch.setattr(cache_release.os, "replace", replace)
+    with pytest.raises(KeyboardInterrupt):
+        fetch_cache.main([*ARGS, "--force"])
+    assert snapshot(release.destination) == before
+    assert_no_install_dirs(release)
+
+
+def test_failed_install_does_not_remove_unowned_file(release, monkeypatch):
+    original_replace = cache_release.os.replace
+    target_file = release.destination / "a.bin"
+
+    def replace(source, target):
+        if "-staging-" in str(source):
+            target.write_bytes(b"unrelated")
+            raise OSError("move never happened")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(cache_release.os, "replace", replace)
+    with pytest.raises(SystemExit, match="move never happened"):
+        fetch_cache.main(ARGS)
+    assert target_file.read_bytes() == b"unrelated"
+    assert_no_install_dirs(release)
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_direct_assembly_holds_and_releases_lock(release, tmp_path, monkeypatch, failure):
+    lock = release.root / ".local_cache.lock"
+    original_install = cache_release.install_staged
+
+    def install(staging, destination):
+        assert lock.is_file()
+        if failure:
+            raise OSError("install failed")
+        original_install(staging, destination)
+
+    monkeypatch.setattr(cache_release, "install_staged", install)
+    if failure:
+        with pytest.raises(OSError, match="install failed"):
+            cache_release.assemble(release.manifest, tmp_path / "parts", release.destination)
+    else:
+        cache_release.assemble(release.manifest, tmp_path / "parts", release.destination)
+        assert (release.destination / "a.bin").read_bytes() == b"abc"
+    assert not lock.exists()
+
+
+def test_direct_assembly_refused_while_locked(release, tmp_path):
+    with cache_release.cache_lock(release.destination):
+        lock = release.root / ".local_cache.lock"
+        before = lock.read_bytes()
+        with pytest.raises(ValueError, match="another fetch holds"):
+            cache_release.assemble(release.manifest, tmp_path / "parts", release.destination)
+        assert lock.read_bytes() == before
+        assert not release.destination.exists()
