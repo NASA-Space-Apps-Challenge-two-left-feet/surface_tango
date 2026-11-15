@@ -78,3 +78,24 @@ Write `BLOCKED: <reason>` at the end of this file and stop.
 
 ## Report (append to the end of this file when done)
 What you ran, the verdict, the number of findings by severity, anything you couldn't check, open questions for the owner.
+
+### Report — audit completed 2026-11-15T02:12Z (blocked earlier the same session on "gitleaks not installed"; the owner installed gitleaks 8.30.1 and the audit resumed from step 1)
+
+**What ran** (full detail, exact commands and exit codes in `reports/public-readiness.md`):
+
+- Check 1: `gitleaks git --log-opts="--all" --redact … .` — exit 1 ("leaks found"), 15 findings. Run three times as refs moved during the audit (44 → 61 → 64 commits; #63–#66 merged into main mid-audit): identical findings every time. All 15 are `generic-api-key` and all assess as false positives without printing any value: 12 are sha256 file-checksums in `.claude/gsd-file-manifest.json` (proven 854/854 against the tracked files), 2 are detect-secrets `hashed_secret` entries in `.secrets.baseline` (a hash of a prose line in the design doc), 1 is a hand-written AOI-key test fixture in `tests/test_landslide.py` whose commit `e54d99b` was never pushed to any remote. **0 real secrets.**
+- Check 2: `uv run pre-commit run detect-secrets --all-files` — exit 0, Passed, no new entries, baseline untouched.
+- Check 3: 965 distinct historical paths; 0 forbidden (only the allowed `.env.example` matches a dotenv pattern; no pem/p12/key, no credentials/service-account JSON, no netrc/earthdata, `secrets/` and `local_cache` never in history).
+- Check 4: 0 blobs >10 MB (largest: `uv.lock` ~1.1 MB ×2).
+- Check 5: 0 `logo=nasa`; no image files at all (`static/` = `index.html` only, `video/` absent) → no NASA imagery, no photos of people to review; 1 badge uses colour `0B3D91` (`README.md:3`); text mentions of the challenge name / NASA ASF as data source: ok.
+- Check 6: confirmed the known claims (145 mm, 34°, 612 tC, 22.4 mm) at baseline; at `fc52bfd` they are gone from every shipped surface (README restructured by #70, story map landed with placeholders via #71) and survive only in the superseded `docs/baseline` patches (open finding).
+- Check 7: at `fc52bfd` the README marks biomass, GOFF/rupture, split-spectrum, GEE High-Volume, math-lab and S-band all `dropped` (`README.md:90-95`); biomass wiring remains in `agents/orchestrator.py` (open finding); GOFF: 0 hits elsewhere; S-band: none; math-lab: none.
+- Check 8: LICENSE: no file, README:182 honestly says TODO (open finding: choose and add before submission); AI disclosure present at README:174-178; personal data: none beyond git authors (only vendored-tool attribution emails); `.gitignore` covers `.env`, `secrets/`, `local_cache`: ok.
+
+**Verdict:** READY: 0 blockers — 3 "fix before public" (license TODO, biomass still wired in code vs README "dropped", fabricated numbers left in the superseded docs/baseline story-map patches) and 3 notes (SI-Assisted bulletin badge pending, illustrative SVG constants, `.claude/` tooling shipped publicly). The verdict changed mid-audit: at baseline `6e2a761` it was NOT READY: 3 blockers, but the team merged #70 (submission-draft README: AI disclosure added, badges and uncited constants removed, every dropped-scope item marked, license made an honest TODO) and #71 (offline rehearsal: the preloaded fabricated UI results removed, panels start "Awaiting measured results", story map uses `{placeholders}`, SI-Assisted badge element added), all re-verified at `fc52bfd` after a user-approved `make sync`.
+
+**Findings by severity:** 0 blockers + 3 fix before public + 3 notes = 6 open findings at `fc52bfd`; 3 baseline blockers resolved mid-audit by #70/#71 *(measured)*.
+
+**Couldn't check:** nothing skipped; the only non-check was image review for photos of people — `static/` and `video/` contain no image files at this commit, so there is nothing to review. One zsh pitfall hit mid-audit (`$c:file` colon-modifier mangling a `git show` loop) was caught by re-verification and corrected; the corrected numbers are the ones reported. Mid-audit, origin/main advanced (#63–#66); the user approved `make sync`, the branch was rebased onto `96268bd` with no conflicts, the delta (gitleaks/paths/blobs plus README/static continuity) was re-verified, and the commit was made on top (`README.md`, `static/`, `video/`, `app.py` were untouched by the new commits, so every line reference in the report stayed valid).
+
+**Open questions for the owner:** LICENSE choice (badge says MIT); biomass: config-gate or cut from the graph; whether `.claude/` internal tooling should ship public (all its manifest values are proven checksums); a gitleaks allowlist config if CI ever runs it; `e54d99b` is a local-only false positive (no action).
