@@ -25,7 +25,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import fsspec
 import h5py
@@ -378,9 +378,10 @@ def assemble_manifest_record(
                 "finite_pixel_ratio": 0.0,
             }
         else:
-            provenance[name] = src_id
-            finite_cnt = int(np.count_nonzero(np.isfinite(arr)))
-            ratio = float(finite_cnt / arr.size) if arr.size > 0 else 0.0
+            provenance[name] = cast(str, src_id)
+            present_arr = cast(np.ndarray, arr)
+            finite_cnt = int(np.count_nonzero(np.isfinite(present_arr)))
+            ratio = float(finite_cnt / present_arr.size) if present_arr.size > 0 else 0.0
             band_records[name] = {
                 "source_id": src_id,
                 "status": "cached",
@@ -533,7 +534,7 @@ def build_cache_for_aoi(
     if aoi_short == "eje_cafetero":
         # Track 11 Quake Triplet (R, C, K) from catalog
         triplets = catalog.get("quake_triplets", [])
-        t11 = next((t for t in triplets if t.get("track") == 11), {})
+        t11: dict = next((t for t in triplets if t.get("track") == 11), {})
         scene_r = t11.get("R")
         scene_c = t11.get("C")
         scene_k = t11.get("K")

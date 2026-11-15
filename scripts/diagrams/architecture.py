@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
+from typing import cast
 
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "docs" / "diagrams" / "architecture.svg"
@@ -173,7 +174,7 @@ def build() -> str:
         264,
         "ASF DAAC · asf_search",
         [
-            "NISAR L1/L2 · provisionals " + GATE["crid"],
+            "NISAR L1/L2 · provisionals " + cast(str, GATE["crid"]),
             f"{GATE['gunw']} GUNW · {GATE['gcov']} GCOV · {GATE['goff']} GOFF",
         ],
         "sat",

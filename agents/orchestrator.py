@@ -5,6 +5,7 @@ from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.sessions import Connection
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import create_react_agent
 
@@ -18,7 +19,7 @@ from agents.tracing import configure_tracing, run_metadata
 
 SERVER_DIR = Path(__file__).resolve().parent.parent / "mcp_servers"
 
-MCP_CONFIG = {
+MCP_CONFIG: dict[str, Connection] = {
     "nisar_asf": {
         "transport": "stdio",
         "command": "python",
