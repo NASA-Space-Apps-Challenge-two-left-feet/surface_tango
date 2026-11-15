@@ -57,3 +57,65 @@ Write `BLOCKED: <reason>` and stop — e.g. a public geology/SPT/photo source is
 ## Report (append when done)
 
 Per AOI and per analyst: the measured outputs with commands + source IDs + denominators, the SGC method each grounds in, the honest gaps (`unavailable`/`not cached`), and the PROVISIONAL per-AOI risk verdict with its caveats.
+
+Measured 2026-11-15 14:20 Bogotá (UTC−5); log time 2026-11-15T19:20:08Z. Full write-up: `reports/landslide_comprehensive.md`.
+
+Command (printed the states and the Aburrá scalars in this session):
+
+```
+uv run python -c '
+from mcp_servers.gee_fusion_mcp import analyze_landslide_geology as g, analyze_landslide_geomorphology as m, analyze_landslide_hydrogeology as h
+for aoi in ("aburra", "la_picacha"):
+    geo, morph, hydro = g.fn(aoi), m.fn(aoi), h.fn(aoi)
+    print(aoi, geo["state"], morph["state"], hydro["state"])
+    if aoi == "aburra":
+        slope, hand, rain = morph["data"]["slope"], morph["data"]["hand_m"], hydro["data"]["rainfall"]
+        insar = morph["data"]["insar"]
+        print("slope", slope["n_pixels"], slope["n_finite"], slope["median_deg"], slope["p05_deg"], slope["p95_deg"])
+        print("hand", hand["n_pixels"], hand["n_finite"], hand["median_m"], hand["p05_m"], hand["p95_m"])
+        print("rain", rain["n_pixels"], rain["n_finite"], rain["median_mm"], rain["values_read"], rain["source_ids"])
+        print("insar", insar["outcome"], insar["noise_floor_mm"], insar["n_pairs"], len(insar["source_ids"]))
+'
+```
+
+Printed *(measured)*: `aburra not cached cached gate result`; slope `262144 262144 12.676993370056152 1.445995980501175 33.214012145996094`; HAND `262144 262144 64.300048828125 0.0 392.4000244140625`; rain `262144 0 None True ['missing']`; insar `no_motion 9.105440970850369 17 17`; `la_picacha not cached not cached not cached`. `calibrated` is false on every envelope. Calls go through `FunctionTool.fn`.
+
+### Aburrá
+
+- **Geologist.** State `not cached`. No `local_cache/aburra/geology.json`. SGC units are not inferred. `data` is null. SGC question (method `local`): factores condicionantes, geologia para ingenieria y perfil geologico-geotecnico.
+- **Geomorphologist.** State `cached`. Method on the envelope: "SGC geomorfologia e inventario de movimientos en masa". Slope *(measured)*, source `GEE projects/sat-io/open-datasets/FABDEM`, denominator finite pixels over cells in the staged grid: n_pixels 262144, n_finite 262144, median_deg 12.676993370056152, p05_deg 1.445995980501175, p95_deg 33.214012145996094. HAND *(measured)*, quantity height above nearest drainage, source `GEE MERIT/Hydro/v1_0_1 band hnd version v1_0_1 grid EPSG:4326 512x512`, denominator finite HAND pixels over cells in the staged grid: n_pixels 262144, n_finite 262144, median_m 64.300048828125, p05_m 0.0, p95_m 392.4000244140625. The p05 of 0.0 m is a measured channel value on a fully finite grid. Aspect, curvature, relative relief, and geomorphological units are unavailable (no elevation grid; slope is not binned). Photogrammetry and gully-head retreat are unavailable (no `photogrammetry.json`). Photo–InSAR sign agreement is unavailable.
+- **InSAR tie** *(measured)*, read from the staged artifact, command `uv run python -m gee_math.landslide_insar_math`: outcome `no_motion`, noise_floor_mm 9.105440970850369, n_pairs 17, denominator GUNW pairs with a finite residual RMS. Stored text: "no motion detected above 9.105 mm (17 pairs); kept fraction below the sign-flip null on every stack". The 17 granule IDs are listed in `reports/landslide_comprehensive.md` and on the envelope. The artifact magnitude is unsigned. Manifest mtime `2026-11-15T08:49:52Z` is a cache time, not an acquisition date.
+- **Hydrogeology.** State `gate result`. Method on the envelope: "Green-Ampt; effective stress; Culmann plane wedge; SPT-N". SGC question (method `local`): factores detonantes lluvia y nivel freatico, infiltracion y probabilidad de falla. Rainfall *(measured gap)*: n_pixels 262144, n_finite 0, median_mm null, values_read true, source id `missing`, denominator finite rainfall pixels over cells in the staged grid. That count is not a rainfall depth of 0 mm. Green-Ampt is not run. Wetting front, effective stress, SPT-N φ (Wolff / Peck), SPT-N c_u (Stroud, explicit factor), Culmann, and WorldCover surcharge are null / unavailable. No `hydro_profile.json` and no `worldcover.json`.
+- **PROVISIONAL verdict.** The InSAR null stands. Slope and HAND are the only conditioning factors measured here. Amenaza × vulnerabilidad is not quantified. No failure probability is stated.
+
+### La Picacha
+
+`config/bailasar.yaml` key `6_la_picacha_landslide` bbox `[-75.6404, 6.2313, -75.6191, 6.2367]` is mapped by the landslide node to AOI `la_picacha`. No staged cache. All three tools: `not cached`, `data` null. The Aburrá grid is not copied onto this AOI. The config-key comment is not remeasured.
+
+**PROVISIONAL verdict.** No risk number. Conditioning factors and triggers are not cached.
+
+### Grounding and methods
+
+The node calls `ground(question, method="local")` outside pytest. `index_built()` is true *(measured)*: `uv run python -c "from knowledge.graphrag.retrieve import index_built; print(index_built())"` → `True` (2 parquet files in `local_cache/graphrag/output`). The citation text is not copied into the bulletin. Under pytest the node records grounding `unavailable` and does not launch the paid model query. This report did not launch it. Risk sentence, states only: "Riesgo is amenaza times vulnerabilidad. No failure probability is stated here."
+
+Green-Ampt, Culmann, SPT-N, and Horn derivatives are unit-tested on hand-written arrays listed in `validation/ALLOWLIST.md`. Those numbers are not AOI observations.
+
+Bulletin identity uses one word (`available`) for a live or cached analyst state inside the interpretation, so a later cached delivery reuses the live-warmed prose. The kinematics envelope state itself is unchanged.
+
+### Follow-ups for the orchestrator
+
+- README landslide row and diagrams, and a `docs/kb/` note, were not edited: both paths are outside this brief's file list. Acceptance asks for the README update.
+- `mcp_servers/gee_fusion_mcp.py` aliases pydantic's removed `eval_type_backport` to `eval_type` so mcp 1.16.0 imports on pydantic 2.14.3 (fastmcp 2.12.5). Measured with `uv run python -c 'import importlib.metadata as m; print(m.version("pydantic"), m.version("mcp"), m.version("fastmcp"))'`. Importing `mcp` without the alias raises `ImportError`. A dependency bump would replace the alias.
+- No push, no PR. Local commit only.
+
+### Local `make test` (this worktree)
+
+`uv run pytest -q -m "not network and not cache"` → 4 failed, 460 passed, 10 deselected (20.93 s). The Horn curvature exponent was spelled `1.5`, which is also the frozen flood threshold `class2_delta_hv_hh_db_abs_max`, so `test_no_new_hardcoded_thresholds_or_aois` flagged `gee_math/landslide_geomorphology.py`. That spelling is now `(1 + p² + q²) * sqrt(1 + p² + q²)`. The geomorphology known-answer tests still pass.
+
+Three failures remain and reproduce in isolation, outside this file list:
+
+- `tests/test_config.py::test_no_new_hardcoded_thresholds_or_aois` still lists committed `app.py` lines 158–203 (AOI coordinate literals). After the Horn edit, that is the only file the scan reports.
+- `tests/test_cut_fixtures.py::test_cut_round_trip_preserves_evidence` replaces `subprocess.run`, then the first `numpy.testing` import runs `lscpu`.
+- `tests/test_earthquake_dpm.py::test_parquet_roundtrip` — pyarrow 26.0.1 (lock) raises `ImportError: pyarrow requires NumPy 2.0 or newer, found 1.26.4` (lock).
+
+Analyst, orchestrator, cache-guard, and repo-rule tests: 44 passed in 3.33 s, including the cache-marked read of the real Aburrá cube.
