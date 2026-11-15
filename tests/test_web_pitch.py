@@ -54,3 +54,55 @@ def test_storyboard_shots_cover_thirty_seconds_and_map_to_cards():
     cards = shot_cards(shots, load_pitch_facts())
     assert len(cards) == len(shots)
     assert all(card["vo"].startswith("VO placeholder") for card in cards)
+
+
+# --- Recorded bulletin and measured flood timeline (the live-run UI surface) ---
+
+
+def test_bulletin_report_sections_parse():
+    from app import parse_bulletin_report
+
+    text = (ROOT / "reports/bulletin_demo.md").read_text(encoding="utf-8")
+    sections = parse_bulletin_report(text)
+    assert sections["es"].startswith("Terremoto")
+    assert sections["en"].startswith("Earthquake")
+    assert "glm-5.3" in (sections["serving_model"] or "")
+
+
+def test_flood_series_serves_measured_counts_only():
+    from app import flood_series_entry
+
+    series = flood_series_entry()
+    if series is None:
+        pytest.skip("flood evidence artifact not staged")
+    assert series["state"] in {"live", "gate result"}
+    assert series["pixel_area_m2"] == 8100.0
+    for entry in series["dates"]:
+        assert entry["n_water"] <= entry["n_valid"]
+        assert entry["granule_ids"], "every date keeps its granule provenance"
+    display = next(entry for entry in series["dates"] if entry["date"] == series["display_date"])
+    assert display["n_water"] * series["pixel_area_m2"] / 10000 == pytest.approx(
+        series["display_ha"], abs=0.01
+    )
+
+
+@pytest.mark.cache
+def test_flood_mask_png_renders_measured_water_pixels():
+    import numpy as np
+    import rasterio
+    from fastapi.testclient import TestClient
+
+    from app import app
+
+    with TestClient(app) as client:
+        bounds = client.get("/api/flood-mask", params={"date": "2026-06-17"}).json()
+        west, south, east, north = bounds["bounds"]
+        assert west < east and south < north
+        response = client.get("/api/flood-mask/2026-06-17.png")
+        assert response.status_code == 200
+        with rasterio.open(__import__("io").BytesIO(response.content)) as mask:
+            rgba = mask.read()
+        water = rgba[3] > 0
+        artifact = json.loads((ROOT / "local_cache/mojana/flood_evidence.json").read_text())
+        expected = next(e for e in artifact["dates"] if e["date"] == "2026-06-17")
+        assert int(np.count_nonzero(water)) == expected["n_water"]
