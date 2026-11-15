@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import re
+import threading
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,12 +19,23 @@ from fastapi.staticfiles import StaticFiles
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.transform import from_bounds
-from rasterio.warp import Resampling, reproject
+from rasterio.warp import reproject
 
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
 from mcp_servers.decision import DecisionConfigError, product_for_aoi, roster
 from mcp_servers.flood_display import display_legend, paint_open_water
+from scripts.prestage_tiles import (
+    bboxes_intersect,
+    layer_data_bbox,
+    nodata_hatch_rgba,
+    pixels_inside_frame,
+    read_png_rgba,
+    render_frame_tile,
+    rgba_to_png,
+    shared_frame,
+    tile_lonlat_bounds,
+)
 from src.bailasar.config import get_config
 from video.report_facts import ReportFactError, load_pitch_facts
 
@@ -91,6 +103,76 @@ def sentinel_manifest(aoi: str) -> tuple[Path, dict]:
     return tiles, manifest
 
 
+_FRAME_LOCK = threading.Lock()
+_LAYER_BBOX_CACHE: dict[tuple[str, str], list | None] = {}
+_CURTAIN_FRAME_CACHE: dict[str, list | None] = {}
+NODATA_MARK = "no-data"
+
+
+def _hazard_for_aoi(aoi_id: str) -> str | None:
+    for item in AOI_REGISTRY:
+        if item["id"] == aoi_id:
+            return item["hazard"]
+    return None
+
+
+def sentinel_layer_bbox(aoi: str, layer: str) -> list | None:
+    """Observed lon/lat bbox of one staged Sentinel layer. None when it has no pixels."""
+    key = (aoi, layer)
+    with _FRAME_LOCK:
+        if key in _LAYER_BBOX_CACHE:
+            return _LAYER_BBOX_CACHE[key]
+    bbox = layer_data_bbox(CACHE_ROOT / aoi / "tiles" / layer)
+    with _FRAME_LOCK:
+        _LAYER_BBOX_CACHE[key] = bbox
+    return bbox
+
+
+def aoi_curtain_frame(aoi: str) -> list | None:
+    """Shared curtain frame for one AOI, or None when it has no tile manifest.
+
+    The frame is the intersection of the optical, C-band and NISAR footprints
+    that actually contain observations. It is never the config AOI by itself.
+    """
+    with _FRAME_LOCK:
+        if aoi in _CURTAIN_FRAME_CACHE:
+            return _CURTAIN_FRAME_CACHE[aoi]
+    manifest_path = CACHE_ROOT / aoi / "tiles" / "manifest.json"
+    if not manifest_path.is_file():
+        with _FRAME_LOCK:
+            _CURTAIN_FRAME_CACHE[aoi] = None
+        return None
+    hazard = _hazard_for_aoi(aoi)
+    nisar = aoi_coverage_footprint(aoi, hazard).get("footprint_bbox") if hazard else None
+    frame = shared_frame(
+        {
+            "optical": sentinel_layer_bbox(aoi, "s2"),
+            "cband": sentinel_layer_bbox(aoi, "s1"),
+            "nisar": nisar,
+        }
+    )
+    with _FRAME_LOCK:
+        _CURTAIN_FRAME_CACHE[aoi] = frame
+    return frame
+
+
+def _png_response(rgba: np.ndarray) -> Response:
+    return Response(
+        rgba_to_png(rgba),
+        media_type="image/png",
+        headers={"X-Bailasar-Nodata": NODATA_MARK, "Cache-Control": "no-cache"},
+    )
+
+
+def _hatch_tile(z: int, x: int, y: int, frame: list) -> Response:
+    """A labeled hatch for an XYZ tile, clipped to the shared frame."""
+    size = 256
+    rgba = nodata_hatch_rgba(size, size)
+    inside = pixels_inside_frame(z, x, y, frame, size)
+    rgba[~inside, 3] = 0
+    return _png_response(rgba)
+
+
 def cached_sentinel_layer(manifest: dict, layer: str) -> dict | None:
     entry = manifest.get("layers", {}).get(SENTINEL_LAYERS[layer], {})
     scene_ids = entry.get("scene_ids")
@@ -105,28 +187,39 @@ def cached_sentinel_layer(manifest: dict, layer: str) -> dict | None:
     return None
 
 
+@app.get("/api/nodata-hatch.png")
+def nodata_hatch_png():
+    """Labeled hatch for a curtain panel that has no observation inside the frame."""
+    return _png_response(nodata_hatch_rgba(256, 256))
+
+
 @app.get("/api/sentinel-tiles/{aoi}")
 def sentinel_tile_status(aoi: str):
     tiles, manifest = sentinel_manifest(aoi)
-    panels = {}
+    frame = aoi_curtain_frame(aoi) if manifest else None
+    panels = {"frame": frame, "nodata": NODATA_MARK if frame else None}
     for layer in SENTINEL_LAYERS:
         entry = cached_sentinel_layer(manifest, layer)
         if entry is None or not next((tiles / layer).glob("*/*/*.png"), None):
             panels[layer] = {"state": "not cached"}
             continue
-        panels[layer] = {
+        panel = {
             "state": "cached",
             "source": "cache",
             "scene_ids": entry["scene_ids"],
             "date": entry.get("date"),
-            # Share of the AOI the mosaic imaged, as measured by the tile prestage.
+            # Share of the config AOI the mosaic imaged. Not a claim that the
+            # curtain frame covers that AOI.
             "coverage_pct": entry.get("coverage_pct"),
             "cache_built_at": manifest.get("generated_utc"),
             "tile_url": f"/api/sentinel-tiles/{aoi}/{layer}/{{z}}/{{x}}/{{y}}.png",
-            "bounds": manifest["bbox_wsen"],
             "minzoom": manifest["zoom"]["min"],
             "maxzoom": manifest["zoom"]["max"],
         }
+        if frame is not None:
+            panel["bounds"] = frame
+            panel["nodata"] = NODATA_MARK
+        panels[layer] = panel
     return panels
 
 
@@ -137,16 +230,24 @@ def serve_sentinel_tile(aoi: str, layer: str, z: int, x: int, y: int):
     tiles, manifest = sentinel_manifest(aoi)
     tile = tiles / layer / str(z) / str(x) / f"{y}.png"
     entry = cached_sentinel_layer(manifest, layer)
-    if entry is None or not tile.is_file():
+    if entry is None:
         raise HTTPException(404, "Sentinel tile not cached")
     zoom = manifest["zoom"]
     failed = entry["tiles"].get("failed", [])
-    # A failed restage can leave an older PNG at the same path.
-    if not zoom["min"] <= z <= zoom["max"] or any(
+    stale = not zoom["min"] <= z <= zoom["max"] or any(
         (failure["z"], failure["x"], failure["y"]) == (z, x, y) for failure in failed
-    ):
+    )
+    frame = aoi_curtain_frame(aoi)
+    # A missing or stale file inside the frame is no observation, not a hole and not a 0.
+    if stale or not tile.is_file():
+        if frame is not None and bboxes_intersect(tile_lonlat_bounds(z, x, y), frame):
+            return _hatch_tile(z, x, y, frame)
         raise HTTPException(404, "Sentinel tile not cached")
-    return FileResponse(tile, media_type="image/png")
+    if frame is None:
+        return FileResponse(tile, media_type="image/png")
+    rgba = read_png_rgba(tile)
+    inside = pixels_inside_frame(z, x, y, frame, rgba.shape[0])
+    return _png_response(render_frame_tile(rgba, inside))
 
 
 @app.get("/api/pitch-facts")
@@ -691,6 +792,7 @@ def nisar_panel(aoi: str) -> dict:
     panel = find_nisar_panel(aoi)
     if panel is None:
         return {"state": "not cached", "aoi": aoi}
+    frame = aoi_curtain_frame(aoi)
     return {
         "state": "cached",
         "source": "cache",
@@ -700,7 +802,8 @@ def nisar_panel(aoi: str) -> dict:
         "granule_ids": panel.granule_ids,
         "evidence_artifacts": panel.evidence_artifacts,
         "tracks": panel.tracks,
-        "bounds": panel.bounds,
+        "bounds": frame or panel.bounds,
+        "nodata": NODATA_MARK if frame else None,
         "tile_url": f"/api/nisar-panel/{aoi}/{{z}}/{{x}}/{{y}}.png",
     }
 
@@ -767,11 +870,15 @@ def serve_nisar_panel_tile(aoi: str, z: int, x: int, y: int):
             )
     except rasterio.errors.RasterioError as error:
         raise HTTPException(500, "Cached NISAR raster unreadable") from error
-    rgba = _panel_rgba(panel.style, values)
-    with MemoryFile() as png:
-        with png.open(driver="PNG", width=256, height=256, count=4, dtype="uint8") as image:
-            image.write(rgba)
-        return Response(png.read(), media_type="image/png")
+    # Bands-first color, then height-width-channel. Finite dry pixels stay
+    # transparent. Only unobserved pixels inside the shared frame are hatched.
+    rgba = np.moveaxis(_panel_rgba(panel.style, values), 0, -1)
+    frame = aoi_curtain_frame(aoi)
+    if frame is not None:
+        missing = ~np.isfinite(values)
+        inside = pixels_inside_frame(z, x, y, frame, rgba.shape[0]) & missing
+        rgba = render_frame_tile(rgba, inside)
+    return _png_response(rgba)
 
 
 @app.get("/api/cache-bands/{aoi}")
@@ -880,13 +987,18 @@ def local_tile_status(domain: str):
     cache = find_landslide_tile_cache() if domain == "landslide" else None
     if cache is None:
         return {"state": "not cached"}
-    return {
+    payload = {
         "state": "cached",
         "source": "cache",
         "granule_ids": [cache.granule_id],
         "cache_built_at": cache.built_at,
         "tile_url": f"/api/local-tiles/{domain}/{{z}}/{{x}}/{{y}}.png",
     }
+    frame = aoi_curtain_frame("aburra")
+    if frame is not None:
+        payload["bounds"] = frame
+        payload["nodata"] = NODATA_MARK
+    return payload
 
 
 def valid_xyz(z: int, x: int, y: int) -> bool:
@@ -940,22 +1052,24 @@ def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
     # Scientific diverging colormap for LOS displacement (ColorBrewer RdBu):
     # blue = motion away / subsidence, white = no motion, red = motion toward /
     # uplift — the standard InSAR convention. Symmetric about zero on a robust
-    # 95th-percentile scale; missing pixels stay transparent. Display only.
-    rgba = np.zeros((4, size, size), dtype=np.uint8)
+    # 95th-percentile scale. A measured 0 stays white. Missing pixels inside
+    # the shared frame become the no-data hatch. Display only.
+    rgba = np.zeros((size, size, 4), dtype=np.uint8)
     valid = np.isfinite(values)
     signal = values[valid]
     if signal.size:
         scale = float(np.percentile(np.abs(signal), 95)) or 1.0
         norm = np.clip(signal / (2 * scale) + 0.5, 0.0, 1.0)  # 0..1, 0.5 = zero
         r, g, b = _los_diverging_rgb(norm)
-        rgba[0, valid] = r
-        rgba[1, valid] = g
-        rgba[2, valid] = b
-        rgba[3, valid] = 255
-    with MemoryFile() as png:
-        with png.open(driver="PNG", width=size, height=size, count=4, dtype="uint8") as image:
-            image.write(rgba)
-        return Response(png.read(), media_type="image/png")
+        rgba[valid, 0] = r
+        rgba[valid, 1] = g
+        rgba[valid, 2] = b
+        rgba[valid, 3] = 255
+    frame = aoi_curtain_frame("aburra")
+    if frame is not None:
+        inside = pixels_inside_frame(z, x, y, frame, size)
+        rgba = render_frame_tile(rgba, inside)
+    return _png_response(rgba)
 
 
 def get_contextual_reference_tiles(bbox: list[float], start_date: str, end_date: str) -> dict:

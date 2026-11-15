@@ -317,13 +317,34 @@ function cachedChapterPanels(references) {
   return [references.s2, references.s1, null];
 }
 
+let storyFrame = null;
+
+function curtainPanelBounds(frame) {
+  // The curtain handle changes the clip only. All three panels keep this frame.
+  return { optical: frame, cband: frame, nisar: frame };
+}
+
+function showNodataFrame(map, sourceId) {
+  if (!storyFrame) return false;
+  const [west, south, east, north] = storyFrame;
+  const url = "/api/nodata-hatch.png";
+  setTileLayer(map, sourceId, url, {
+    type: "image",
+    url,
+    coordinates: [[west, north], [east, north], [east, south], [west, south]],
+  });
+  return true;
+}
+
 function fitChapter(bounds) {
-  // The AOI navigator can request a specific AOI bbox so a cross-hazard jump
-  // frames the AOI (not the whole hazard), avoiding a double camera move.
-  if (Array.isArray(window.__aoiFocusBbox) && window.__aoiFocusBbox.length === 4) {
-    bounds = window.__aoiFocusBbox;
-    window.__aoiFocusBbox = null;
+  // A story frame is the intersection of the layers that have tiles. It wins
+  // over a navigator bbox so the curtain does not open onto the config AOI.
+  if (!Array.isArray(bounds) || bounds.length !== 4) {
+    if (Array.isArray(window.__aoiFocusBbox) && window.__aoiFocusBbox.length === 4) {
+      bounds = window.__aoiFocusBbox;
+    }
   }
+  window.__aoiFocusBbox = null;
   if (!Array.isArray(bounds) || bounds.length !== 4) return;
   const [west, south, east, north] = bounds;
   if (isMapPoint([west, south]) && isMapPoint([east, north]) && west < east && south < north) {
@@ -402,22 +423,43 @@ async function openStoryChapter(chapter, selectedAoi = chapterAreas[chapter]) {
       showStoryResult("Error", "Could not load the chapter's evidence.");
     }
     const references = sentinel.value ?? {};
+    storyFrame = Array.isArray(references.frame) && references.frame.length === 4 ? references.frame : null;
     const water = cachedResult?.open_water;
-    fitChapter(result?.bounds ?? water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
+    if (storyFrame) fitChapter(storyFrame);
+    else fitChapter(result?.bounds ?? water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
+    const frameBounds = storyFrame ? curtainPanelBounds(storyFrame) : null;
+    const frameKeys = ["optical", "cband", "nisar"];
     const cached = cachedChapterPanels(references);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
       if (index === 2) {
         renderPrimaryNisarPanel(lband.value, aoi);
+        if (frameBounds && lband.value?.state === "cached" && usableTile(lband.value)) {
+          setTileLayer(map, sourceId, lband.value.tile_url, { bounds: frameBounds.nisar });
+        } else if (lband.value?.state !== "cached" && showNodataFrame(map, sourceId)) {
+          panelStatus(id, "Not cached", `NISAR L-band · ${aoi} · no data`);
+        }
         return;
       }
       const approved = hasStagedEvidence ? cachedResult.panels?.[index] : null;
       const panel = usableTile(approved) ? approved : cached[index];
       if (usableTile(panel)) {
-        const options = panel.bounds ? { bounds: panel.bounds, minzoom: panel.minzoom, maxzoom: panel.maxzoom } : {};
+        const options = {};
+        if (frameBounds) {
+          options.bounds = frameBounds[frameKeys[index]];
+          if (Number.isFinite(panel.minzoom)) options.minzoom = panel.minzoom;
+          if (Number.isFinite(panel.maxzoom)) options.maxzoom = panel.maxzoom;
+        } else if (panel.bounds) {
+          options.bounds = panel.bounds;
+          if (Number.isFinite(panel.minzoom)) options.minzoom = panel.minzoom;
+          if (Number.isFinite(panel.maxzoom)) options.maxzoom = panel.maxzoom;
+        }
         setTileLayer(map, sourceId, panel.tile_url, options);
         const coverage = Number.isFinite(panel.coverage_pct) ? `${panel.coverage_pct}% of AOI imaged` : "";
-        const detail = [labels[index], panel.date, coverage].filter(Boolean).join(" · ");
+        const gap = panel.nodata === "no-data" ? "no data" : "";
+        const detail = [labels[index], panel.date, coverage, gap].filter(Boolean).join(" · ");
         panelStatus(id, resultStates[panel.state], detail, (panel.scene_ids ?? panel.granule_ids ?? []).join(", "));
+      } else if (showNodataFrame(map, sourceId)) {
+        panelStatus(id, "Not cached", `${labels[index]} · no data`);
       } else if (index < 2 && cached[index] !== null && sentinel.status === "rejected") {
         panelStatus(id, "Error", `${labels[index]} unavailable`);
       }

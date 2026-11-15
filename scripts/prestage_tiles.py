@@ -33,12 +33,17 @@ import json
 import math
 import re
 import sys
+import warnings
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import numpy as np
+import rasterio
 import yaml
+from rasterio.errors import NotGeoreferencedWarning
+from rasterio.io import MemoryFile
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "config" / "bailasar.yaml"
@@ -329,6 +334,352 @@ def tile_range(bbox: list[float], zmin: int, zmax: int) -> list[tuple[int, int, 
     return tiles
 
 
+# ---------------------------------------------------------------------------
+# Shared curtain frame
+# One frame per AOI: the intersection of the layers that have a real footprint.
+# The config AOI is not a layer and is never used to grow the frame. A missing
+# layer is left out. No-data inside the frame is an opaque labeled hatch.
+# ---------------------------------------------------------------------------
+CURTAIN_LAYERS = ("optical", "cband", "nisar")
+# Areas with no tile manifest stay an explicit "not cached" state.
+NOT_CACHED_WITHOUT_TILES = ("la_picacha", "choco_epicenter", "valle_del_cauca")
+
+# Hatch ink. Every channel is non-zero. A measured 0 stays a data pixel.
+HATCH_DARK = (96, 112, 128)
+HATCH_LIGHT = (176, 160, 144)
+# Brand ink #121212, the "NO DATA" label on the hatch, written as a hex color.
+LABEL_INK = (0x12, 0x12, 0x12)
+_HATCH_PERIOD = 8
+_GLYPHS = {
+    "N": (0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001),
+    "O": (0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110),
+    " ": (0, 0, 0, 0, 0, 0, 0),
+    "D": (0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110),
+    "A": (0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001),
+    "T": (0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100),
+}
+
+
+def valid_bbox(box) -> bool:
+    """True for a finite [W, S, E, N] box with positive width and height."""
+    if not isinstance(box, (list, tuple)) or len(box) != 4:
+        return False
+    try:
+        west, south, east, north = (float(value) for value in box)
+    except (TypeError, ValueError):
+        return False
+    return (
+        math.isfinite(west)
+        and math.isfinite(south)
+        and math.isfinite(east)
+        and math.isfinite(north)
+        and west < east
+        and south < north
+    )
+
+
+def shared_frame(layer_footprints: dict) -> list[float] | None:
+    """Intersection of optical, C-band and L-band footprints that are present.
+
+    A layer with no tiles (None, or absent) does not shrink the frame and does
+    not extend it. The caller must not pass the config AOI as a footprint.
+    An empty intersection is no frame.
+    """
+    boxes = []
+    for name in CURTAIN_LAYERS:
+        box = layer_footprints.get(name)
+        if not valid_bbox(box):
+            continue
+        boxes.append([float(value) for value in box])
+    if not boxes:
+        return None
+    west = max(box[0] for box in boxes)
+    south = max(box[1] for box in boxes)
+    east = min(box[2] for box in boxes)
+    north = min(box[3] for box in boxes)
+    if west < east and south < north:
+        return [west, south, east, north]
+    return None
+
+
+def curtain_panel_bounds(frame: list[float], split_pct: float) -> dict[str, list[float]]:
+    """Geographic bounds of the three panels at one curtain stop.
+
+    ``split_pct`` is the clip position, from 5 to 95. It does not change the
+    bounds, the zoom, or the pixel size. Each panel gets its own list.
+    """
+    if not valid_bbox(frame):
+        raise ValueError("curtain frame is missing")
+    if isinstance(split_pct, bool) or not isinstance(split_pct, (int, float)):
+        raise ValueError("curtain split must be a percent")
+    if split_pct < 5 or split_pct > 95:
+        raise ValueError("curtain split is outside 5..95")
+    bounds = [float(value) for value in frame]
+    return {"optical": list(bounds), "cband": list(bounds), "nisar": list(bounds)}
+
+
+def walk_curtain(frame: list[float], start: int = 5, stop: int = 95) -> list[dict]:
+    """Panel bounds at every integer percent from ``start`` through ``stop``."""
+    if stop < start:
+        raise ValueError("curtain walk is empty")
+    return [curtain_panel_bounds(frame, pct) for pct in range(start, stop + 1)]
+
+
+def curtain_aoi_state(has_tile_manifest: bool, layer_footprints: dict | None = None) -> dict:
+    """Cached only when a tile manifest exists. No manifest, no frame."""
+    if not has_tile_manifest:
+        return {"state": "not cached", "frame": None}
+    return {"state": "cached", "frame": shared_frame(layer_footprints or {})}
+
+
+def _stamp_label(rgba: np.ndarray, text: str = "NO DATA") -> None:
+    """Paint the no-data label in brand ink. Channels stay non-zero."""
+    height, width, _ = rgba.shape
+    row = 8
+    while row + 7 < height:
+        col = 4
+        while col + 6 * len(text) < width:
+            x = col
+            for glyph_name in text:
+                bits_rows = _GLYPHS.get(glyph_name, _GLYPHS[" "])
+                for gy, bits in enumerate(bits_rows):
+                    for gx in range(5):
+                        if bits & (1 << (4 - gx)):
+                            rgba[row + gy, x + gx, :3] = LABEL_INK
+                            rgba[row + gy, x + gx, 3] = 255
+                x += 6
+            col += 6 * len(text) + 8
+        row += 28
+
+
+def nodata_hatch_rgba(height: int, width: int) -> np.ndarray:
+    """Opaque hatch. A tile at least 24 px tall also carries the NO DATA label."""
+    if height < 1 or width < 1:
+        raise ValueError("hatch size must be positive")
+    rows, cols = np.indices((height, width))
+    light = ((rows + cols) // _HATCH_PERIOD) % 2 == 0
+    out = np.empty((height, width, 4), dtype=np.uint8)
+    out[..., :3] = HATCH_DARK
+    out[light, :3] = HATCH_LIGHT
+    out[..., 3] = 255
+    if height >= 24 and width >= 48:
+        _stamp_label(out)
+    return out
+
+
+def is_nodata_hatch(pixel) -> bool:
+    """True when a pixel is the hatch or its label, and not a measured value."""
+    if len(pixel) < 4 or int(pixel[3]) != 255:
+        return False
+    rgb = (int(pixel[0]), int(pixel[1]), int(pixel[2]))
+    return rgb in {HATCH_DARK, HATCH_LIGHT, LABEL_INK}
+
+
+def nodata_ui_label(pixel) -> str:
+    """The words the panel shows for a hatch pixel. Data pixels get no label."""
+    return "no data" if is_nodata_hatch(pixel) else ""
+
+
+def composite_nodata_hatch(rgba: np.ndarray, inside: np.ndarray) -> np.ndarray:
+    """Replace alpha-0 pixels inside the frame with the hatch.
+
+    Opaque pixels are copied unchanged, including a measured 0. Partial alpha
+    is painted over the hatch so the basemap does not show through the frame.
+    """
+    if rgba.ndim != 3 or rgba.shape[-1] != 4:
+        raise ValueError("rgba must be height, width, 4")
+    if inside.shape != rgba.shape[:2]:
+        raise ValueError("inside mask must match the tile")
+    out = np.array(rgba, copy=True, dtype=np.uint8)
+    if not inside.any():
+        return out
+    hatch = nodata_hatch_rgba(rgba.shape[0], rgba.shape[1])
+    alpha = rgba[..., 3]
+    nodata = inside & (alpha == 0)
+    partial = inside & (alpha > 0) & (alpha < 255)
+    out[nodata] = hatch[nodata]
+    if partial.any():
+        cover = alpha[partial].astype(np.float32) / 255.0
+        src = rgba[partial, :3].astype(np.float32)
+        base = hatch[partial, :3].astype(np.float32)
+        blended = src * cover[:, None] + base * (1.0 - cover[:, None])
+        out[partial, :3] = np.clip(np.rint(blended), 0, 255).astype(np.uint8)
+        out[partial, 3] = 255
+    return out
+
+
+def render_frame_tile(rgba: np.ndarray, inside: np.ndarray) -> np.ndarray:
+    """Hatch no-data inside the frame. Hide every pixel outside it.
+
+    Outside pixels keep their color and lose opacity. They are not rewritten
+    to 0. The three panels therefore show the same rectangle.
+    """
+    out = composite_nodata_hatch(rgba, inside)
+    out[~inside, 3] = 0
+    return out
+
+
+def _tile_lat(fy: float) -> float:
+    """Latitude of a Web Mercator Y in tile units (0 at the north edge of z=0)."""
+    angle = math.pi - 2.0 * math.pi * fy
+    return math.degrees(math.atan(math.sinh(angle)))
+
+
+def tile_lonlat_bounds(z: int, x: int, y: int) -> list[float]:
+    """[W, S, E, N] of one XYZ tile."""
+    n = 2**z
+    west = x / n * 360.0 - 180.0
+    east = (x + 1) / n * 360.0 - 180.0
+    north = _tile_lat(y / n)
+    south = _tile_lat((y + 1) / n)
+    return [west, south, east, north]
+
+
+def bboxes_intersect(a: list[float], b: list[float]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def pixels_inside_frame(z: int, x: int, y: int, frame: list[float], size: int) -> np.ndarray:
+    """Mask of pixel centers that fall inside ``frame`` (lon/lat, [W, S, E, N])."""
+    if not valid_bbox(frame) or size < 1:
+        return np.zeros((max(size, 0), max(size, 0)), dtype=bool)
+    radius = 6378137.0
+    n = 2**z
+    span = 2.0 * math.pi * radius / n
+    left = -math.pi * radius + x * span
+    top = math.pi * radius - y * span
+    cols = left + (np.arange(size) + 0.5) * (span / size)
+    rows = top - (np.arange(size) + 0.5) * (span / size)
+    west, south, east, north = (float(value) for value in frame)
+    south_c = min(max(south, -85.0), 85.0)
+    north_c = min(max(north, -85.0), 85.0)
+    x0 = math.radians(west) * radius
+    x1 = math.radians(east) * radius
+    y0 = math.log(math.tan(math.pi / 4.0 + math.radians(south_c) / 2.0)) * radius
+    y1 = math.log(math.tan(math.pi / 4.0 + math.radians(north_c) / 2.0)) * radius
+    return (
+        (cols[None, :] >= x0)
+        & (cols[None, :] <= x1)
+        & (rows[:, None] >= y0)
+        & (rows[:, None] <= y1)
+    )
+
+
+def array_to_rgba(arr: np.ndarray, colorinterp) -> np.ndarray:
+    """Bands-first tile to HxWx4. A missing alpha band means every pixel was observed."""
+    if arr.ndim != 3:
+        raise ValueError("tile array must be bands, height, width")
+    count, height, width = arr.shape
+    rgba = np.zeros((height, width, 4), dtype=np.uint8)
+    names = [getattr(item, "name", str(item)) for item in colorinterp]
+    alpha_at = names.index("alpha") if "alpha" in names else None
+    if alpha_at is not None and count >= 2:
+        color = [index for index in range(count) if index != alpha_at]
+        if len(color) == 1:
+            gray = arr[color[0]]
+            rgba[..., 0] = gray
+            rgba[..., 1] = gray
+            rgba[..., 2] = gray
+        elif len(color) >= 3:
+            rgba[..., 0] = arr[color[0]]
+            rgba[..., 1] = arr[color[1]]
+            rgba[..., 2] = arr[color[2]]
+        rgba[..., 3] = arr[alpha_at]
+        return rgba
+    if count == 1:
+        rgba[..., 0] = arr[0]
+        rgba[..., 1] = arr[0]
+        rgba[..., 2] = arr[0]
+        rgba[..., 3] = 255
+        return rgba
+    if count >= 3:
+        rgba[..., 0] = arr[0]
+        rgba[..., 1] = arr[1]
+        rgba[..., 2] = arr[2]
+        rgba[..., 3] = 255
+        return rgba
+    raise ValueError(f"unsupported tile band count {count}")
+
+
+def _pixel_bbox(
+    z: int, x: int, y: int, height: int, width: int, mask: np.ndarray
+) -> list[float] | None:
+    """Lon/lat bbox of True pixels. Row 0 is the north edge of the tile."""
+    rows, cols = np.where(mask)
+    if rows.size == 0:
+        return None
+    n = 2**z
+    fx0 = x + float(cols.min()) / width
+    fx1 = x + float(cols.max() + 1) / width
+    fy0 = y + float(rows.min()) / height
+    fy1 = y + float(rows.max() + 1) / height
+    west = fx0 / n * 360.0 - 180.0
+    east = fx1 / n * 360.0 - 180.0
+    north = _tile_lat(fy0 / n)
+    south = _tile_lat(fy1 / n)
+    return [west, south, east, north]
+
+
+def _union_bbox(current: list[float] | None, extra: list[float] | None) -> list[float] | None:
+    if extra is None:
+        return current
+    if current is None:
+        return list(extra)
+    return [
+        min(current[0], extra[0]),
+        min(current[1], extra[1]),
+        max(current[2], extra[2]),
+        max(current[3], extra[3]),
+    ]
+
+
+def read_png_rgba(tile: Path) -> np.ndarray:
+    """Read one staged PNG as HxWx4. A missing alpha band means the pixels were observed."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", NotGeoreferencedWarning)
+        with rasterio.open(tile) as src:
+            return array_to_rgba(src.read(), src.colorinterp)
+
+
+def layer_data_bbox(tile_dir: Path) -> list[float] | None:
+    """Lon/lat bbox of pixels that were observed, at the finest staged zoom.
+
+    Alpha 0 is not observed. A tile with no alpha band is fully observed,
+    including a measured 0. Returns None when the directory has no observation.
+    """
+    if not tile_dir.is_dir():
+        return None
+    pngs = [path for path in tile_dir.rglob("*.png") if path.parent.parent.name.isdigit()]
+    if not pngs:
+        return None
+    finest = max(int(path.parent.parent.name) for path in pngs)
+    bbox = None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", NotGeoreferencedWarning)
+        for path in pngs:
+            z = int(path.parent.parent.name)
+            if z != finest:
+                continue
+            x = int(path.parent.name)
+            y = int(path.stem)
+            rgba = read_png_rgba(path)
+            observed = rgba[..., 3] > 0
+            bbox = _union_bbox(bbox, _pixel_bbox(z, x, y, rgba.shape[0], rgba.shape[1], observed))
+    return bbox
+
+
+def rgba_to_png(rgba: np.ndarray) -> bytes:
+    """Encode HxWx4 and mark the file as a no-data hatch display."""
+    height, width, channels = rgba.shape
+    if channels != 4:
+        raise ValueError("rgba must be height, width, 4")
+    with MemoryFile() as mem:
+        with mem.open(driver="PNG", width=width, height=height, count=4, dtype="uint8") as dst:
+            dst.write(np.moveaxis(rgba, -1, 0))
+            dst.update_tags(bailasar_nodata="no-data")
+        return mem.read()
+
+
 def write_tiles(
     fetcher, tiles: list[tuple[int, int, int]], out_dir: Path, workers: int = 8
 ) -> dict:
@@ -451,7 +802,12 @@ def build_manifest(
         "nisar_window": [window[0].isoformat(), window[1].isoformat()],
         "nisar_coevent_orbit": orbit if aoi == QUAKE_AOI else None,
         "zoom": {"min": zoom[0], "max": zoom[1]},
-        "tile_scheme": "XYZ (Web Mercator, y from the north), PNG, transparent outside the AOI and where no data",
+        "tile_scheme": (
+            "XYZ (Web Mercator, y from the north), PNG. "
+            "One shared frame: the intersection of layers that have tiles. "
+            "No-data inside that frame is an opaque hatch marked no-data, never 0. "
+            "Outside the frame stays transparent. The config AOI is not filled in."
+        ),
         "generated_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "generator": "scripts/prestage_tiles.py",
         "layers": layers,
