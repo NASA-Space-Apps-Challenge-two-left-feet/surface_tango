@@ -29,6 +29,7 @@ staged `dataset_id` in the graph request contract. On `main`, however,
 not resolve `dataset_id`. The graph's scoring routes are therefore not executable
 against those MCP schemas yet. Resolve this with the scoring/MCP owner before
 selecting either scoring operation in a live plan. Do not substitute invented
+arrays or labels.
 The other domains retain their approved hazard tools.
 
 For configured prose, set `llm` to `configured` and use the operational settings
