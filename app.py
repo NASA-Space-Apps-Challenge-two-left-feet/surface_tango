@@ -146,6 +146,81 @@ def pitch_facts():
         raise HTTPException(500, f"Report facts unavailable: {error}") from error
 
 
+# AOI registry for the mission-control navigator. Each entry carries its bbox
+# [W,S,E,N] (EPSG:4326), hazard lane, a measured one-line fact and its source.
+# State is computed from cache presence — AOIs without processed tiles report
+# "not cached" (never faked), honoring the no-synthetic-data rule.
+AOI_REGISTRY = [
+    {
+        "id": "mojana",
+        "hazard": "flood",
+        "label": "La Mojana / Caregato",
+        "bbox": [-75.40, 7.90, -74.20, 9.20],
+        "fact": "NISAR L-band open water; C-band misses a median 0.64 across 10 dates",
+        "source": "reports/mojana_lvsc.md",
+        "measured": True,
+    },
+    {
+        "id": "aburra",
+        "hazard": "landslide",
+        "label": "Aburra Valley (overview)",
+        "bbox": [-75.70, 6.12, -75.42, 6.45],
+        "fact": "InSAR noise-floor null: no motion above 9.105 mm (17 pairs)",
+        "source": "reports/aburra.md",
+        "measured": True,
+    },
+    {
+        "id": "la_picacha",
+        "hazard": "landslide",
+        "label": "La Picacha · Comuna 16 (Belen)",
+        "bbox": [-75.6404, 6.2313, -75.6191, 6.2367],
+        "fact": "Riesgo alto no mitigable (bbox measured, EPSG:3116)",
+        "source": "Alcaldia de Medellin Res. 202350105375/2023",
+        "measured": True,
+    },
+    {
+        "id": "eje_cafetero",
+        "hazard": "earthquake",
+        "label": "Eje Cafetero (frozen scorecard)",
+        "bbox": [-75.85, 4.40, -75.40, 5.15],
+        "fact": "Coherence-loss damage proxy; scorecard uninformative (no verified labels)",
+        "source": "reports/quake_dpm_interpretation.md",
+        "measured": True,
+    },
+    {
+        "id": "choco_epicenter",
+        "hazard": "earthquake",
+        "label": "Choco epicenter · San Jose del Palmar",
+        "bbox": [-76.70, 4.40, -75.95, 5.25],
+        "fact": "M7.4 epicenter, optical/C-band blind; NISAR covers it; damage proxy = measured null",
+        "source": "reports/quake_epicenter_dpm.md",
+        "measured": True,
+    },
+    {
+        "id": "valle_del_cauca",
+        "hazard": "earthquake",
+        "label": "Valle del Cauca (west-Andes)",
+        "bbox": [-77.10, 3.30, -75.95, 4.95],
+        "fact": "Additional coverage; damage proxy null",
+        "source": "reports/quake_epicenter_dpm.md",
+        "measured": True,
+    },
+]
+
+
+@app.get("/api/aois")
+def aois():
+    """AOI navigator registry grouped by hazard. State is computed from cache
+    presence: an AOI with a staged tiles manifest is `cached`, otherwise
+    `not cached` (honest — the data is not faked)."""
+    out: dict[str, list] = {"flood": [], "landslide": [], "earthquake": []}
+    for item in AOI_REGISTRY:
+        manifest = CACHE_ROOT / item["id"] / "tiles" / "manifest.json"
+        state = "cached" if manifest.is_file() else "not cached"
+        out.setdefault(item["hazard"], []).append({**item, "state": state})
+    return out
+
+
 BULLETIN_REPORT = Path(__file__).resolve().parent / "reports" / "bulletin_demo.md"
 BULLETIN_SECTIONS = {
     "es": "## ES — Historia ciudadana",

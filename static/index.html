@@ -223,7 +223,7 @@
       <!-- Panel 3: L-Band SAR (NISAR 24cm) + Deck.gl 3D Hotspots -->
       <div id="map-nisar" class="map-layer"></div>
       <p id="preview-error" role="alert" hidden>Map assets are missing. Stage the offline frontend bundle and reload.</p>
-      <section class="absolute top-14 left-3 z-20 max-w-sm bg-slate-950/95 border border-slate-700 rounded p-3 text-sm" aria-label="Story map">
+      <section class="absolute top-14 left-3 z-20 max-w-sm bg-slate-950/95 border border-slate-700 rounded p-3 text-sm max-h-[80vh] overflow-y-auto" aria-label="Story map">
         <label for="story-chapter" class="block font-semibold mb-1">Story map</label>
         <select id="story-chapter" class="bg-slate-900 text-slate-100 rounded p-1 max-w-full">
           <option value="">Live mission control</option>
@@ -232,6 +232,17 @@
           <option value="earthquake">3 · Eje Cafetero earthquake</option>
           <option value="synthesis">4 · Cross-hazard synthesis</option>
         </select>
+        <div id="aoi-navigator" class="mt-3" tabindex="0" aria-label="Area of interest navigator">
+          <div class="flex items-center justify-between mb-1">
+            <span class="aoi-title">AREAS OF INTEREST</span>
+            <span class="flex gap-1">
+              <button id="aoi-prev" type="button" class="aoi-step" title="Previous AOI (↑)" aria-label="Previous AOI">‹</button>
+              <button id="aoi-next" type="button" class="aoi-step" title="Next AOI (↓)" aria-label="Next AOI">›</button>
+            </span>
+          </div>
+          <div id="aoi-list" class="aoi-list"></div>
+          <div id="aoi-detail" class="aoi-detail" hidden></div>
+        </div>
         <div id="story-result" class="mt-2 space-y-1" aria-live="polite" hidden>
           <p id="story-state" class="font-semibold"></p>
           <p id="story-summary"></p>
@@ -766,6 +777,34 @@
       setLang("es");
     });
   </script>
+  <style>
+    /* AOI navigator — dark, brand-aligned (white/grey structure, vermilion for selection/state). */
+    #aoi-navigator .aoi-title { font-size: 10px; letter-spacing: 0.14em; color: #9aa4b2; font-weight: 600; }
+    #aoi-navigator:focus { outline: none; }
+    .aoi-step { width: 22px; height: 22px; border: 1px solid #3a4150; border-radius: 6px; color: #cbd5e1; background: #0d1117; line-height: 1; cursor: pointer; }
+    .aoi-step:hover { border-color: #F04A23; color: #fff; }
+    .aoi-list { display: flex; flex-direction: column; }
+    .aoi-group-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280; margin: 8px 0 3px; }
+    .aoi-btn { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 44px; text-align: left; padding: 6px 8px; margin-bottom: 5px; border: 1px solid #2b3240; border-radius: 8px; background: #0d1117; color: #e5e7eb; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+    .aoi-btn:hover { border-color: #4b5563; }
+    .aoi-btn.aoi-active { border-color: #F04A23; background: #1a1210; box-shadow: inset 0 0 0 1px #F04A23; }
+    .aoi-btn.aoi-muted { opacity: 0.82; }
+    .aoi-btn-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .aoi-label { font-weight: 600; font-size: 12px; }
+    .aoi-fact { font-size: 10.5px; color: #94a3b8; line-height: 1.3; }
+    .aoi-badge { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+    .aoi-badge-cached { background: #0f3d2e; color: #5eead4; }
+    .aoi-badge-nc { background: #2a2420; color: #f59e8c; border: 1px solid #F04A23; }
+    .aoi-detail { margin-top: 8px; padding: 7px 8px; border-radius: 8px; border: 1px solid #2b3240; background: #0b0f16; animation: aoi-fade 180ms ease; }
+    .aoi-detail-state { font-size: 11px; font-weight: 600; color: #fff; }
+    .aoi-detail-fact { font-size: 11px; color: #cbd5e1; margin-top: 2px; }
+    .aoi-detail-src { font-size: 10px; color: #6b7280; margin-top: 2px; }
+    .aoi-detail-note { font-size: 10px; color: #f59e8c; margin-top: 4px; }
+    .aoi-empty { font-size: 11px; color: #6b7280; }
+    @keyframes aoi-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .aoi-detail { animation: none; } }
+  </style>
   <script src="/static/story-map.js"></script>
+  <script src="/static/aoi-nav.js"></script>
 </body>
 </html>
