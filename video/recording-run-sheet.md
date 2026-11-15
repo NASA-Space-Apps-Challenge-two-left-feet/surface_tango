@@ -31,8 +31,19 @@ Deadline in Bogotá: [#29 pending]. Full offline walkthrough: [#40 pending].
 | Shot | Final take |
 |---|---|
 | Title | [Pending final capture] |
+| Bulletin panel (NEW) | The left bulletin box now opens on the recorded live-run ES/EN bulletin with the serving-model tag and the SI-Assisted badge — no scan needed. Hold 3 s. |
 | Curtain slider | [Pending final capture] |
 | June open-water map | [Pending final capture] |
+| Flood timeline scrub (NEW) | Click through 3–4 measured dates on the timeline rail at the bottom of the flood chapter; the mask and pixel denominators update on each click. |
 | July Sentinel-1 comparison | [Pending final capture] |
 | Outcome | [Pending final capture] |
 | Credits | [Pending final capture] |
+
+## Capture inputs updated for the merged UI (2026-11-15, #166)
+
+- The deadline D is 2026-11-15 23:59 COT (record at D−6 h = 17:59).
+- Two new must-shots: the bulletin panel with its serving-model tag, and the
+  flood timeline scrub. The quake panel no longer claims "sealed" — the state
+  derives from the cache manifest (frozen pre-registration).
+- Everything serves offline from the cache; verify with the #40 walkthrough
+  (network blocked) before recording.
