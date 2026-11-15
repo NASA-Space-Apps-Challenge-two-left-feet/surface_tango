@@ -1,4 +1,4 @@
-# BailaSAR submission storyboard
+# Surface Tango submission storyboard
 
 ## Locked cut for #39
 
@@ -14,11 +14,12 @@ Shot times are editing targets. Spanish voice-over and English subtitles describ
 |---|---|---|---|---|
 | 0–4 s | [Record title card] | La Mojana, Colombia · Agua abierta observada con NISAR | En La Mojana, observamos agua abierta con radar. | In La Mojana, we mapped open water with radar. |
 | 4–10 s | [Record the synchronized curtain slider] | Sentinel-2 óptico y Sentinel-1 banda C · 28 jun 2026. NISAR banda L · 17 jun 2026 · PROVISIONAL. | Las escenas Sentinel dan contexto. NISAR muestra el agua abierta. | The Sentinel scenes give context. NISAR shows the open water. |
-| 10–19 s | [Record the NISAR water mask and the comparison card] | NISAR · 17 jun 2026 · 4 487 ha (medido, redondeado) · 5 539 de 197 758 píxeles válidos · PROVISIONAL. Inset: 11 jul 2026 · Sentinel-1 no detectó 3 351 de 4 946 píxeles de agua abierta NISAR con datos Sentinel-1 válidos (medido, umbral sin calibrar). | En junio, NISAR estimó unas cuatro mil quinientas hectáreas. La tarjeta de julio usa otra adquisición. | In June, NISAR estimated about 4,500 hectares. The July card uses a separate acquisition. |
-| 19–26 s | [Record the outcome card] | Agua abierta absoluta · 2 799–6 726 ha (sensibilidad al umbral, medido, redondeado) · Umbrales sin calibrar · Sin cambio de inundación validado · PROVISIONAL. | El rango depende del umbral. La referencia seca no permite medir cambios. | The range depends on the threshold. The dry reference cannot support a change estimate. |
-| 26–30 s | [Record credits card] | BailaSAR · Two Left Feet · NISAR / ASF DAAC · Copernicus Sentinel-1/2 · SI-Assisted Analytics | — | — |
+| 10–15 s | [Record the NISAR water mask] | 17 jun 2026 · 4 487 ha (medido, redondeado) · 5 539 de 197 758 píxeles válidos · PROVISIONAL. | NISAR delimitó el agua abierta de junio. | NISAR mapped June open water. |
+| 15–21 s | [Record a separate July comparison card] | 11 jul 2026 · 3 351 de 4 946 píxeles de agua abierta NISAR con datos Sentinel-1 válidos, omitidos por el umbral de Sentinel-1 (medido, umbral sin calibrar) · PROVISIONAL. | En julio, el umbral de Sentinel uno omitió parte del agua. | In July, the Sentinel-1 threshold missed some of the open water. |
+| 21–27 s | [Record the outcome card] | Agua abierta absoluta · 2 799–6 726 ha (sensibilidad al umbral, medido, redondeado) · Umbrales sin calibrar · Sin cambio de inundación validado · PROVISIONAL. | El rango depende del umbral. La referencia seca no permite medir cambios. | The range depends on the threshold. The dry reference cannot support a change estimate. |
+| 27–30 s | [Record credits card] | Surface Tango · Two Left Feet · NISAR / ASF DAAC · Copernicus Sentinel-1/2 · SI-Assisted Analytics | — | — |
 
-The rounded voice-over estimate of about 4,500 ha refers to the nominal measured value of 4,486.59 ha. The sensitivity range comes from varying the uncalibrated thresholds and is not a confidence interval. Use plain text credits and the SI disclosure card. Do not show logos or identifiable people.
+The nominal value and sensitivity range are rounded on screen. The range describes how the measured extent varies with the uncalibrated thresholds. Use plain text credits and the SI disclosure card. Do not show logos or identifiable people.
 
 ## Evidence for the capture
 
@@ -32,5 +33,5 @@ The rounded voice-over estimate of about 4,500 ha refers to the nominal measured
 
 1. Confirm [the submission deadline](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/29) and the D−6 h capture start in Bogotá time. Both times remain pending.
 2. Stage the released cache and prepare the story display with `uv run python static/prepare_story_cache.py --cache-dir <shared-cache-root>` once #37 is available. Rehearse the La Mojana chapter with network access disabled.
-3. Record the title, curtain, and measured water mask. Keep the dated July comparison inset separate from the June map. If the inset cannot be read during playback, use a separate legible card within the same cue.
-4. Record the outcome and credits, then check the 30-second cut for readable dates, units, denominators, caveats, and matching subtitles. Log the chosen takes in the [recording run sheet](recording-run-sheet.md).
+3. Record the title, curtain, and measured water mask. Show the dated July comparison as its own card after the June map. Keep the valid Sentinel-1 denominator visible in the card or its evidence caption.
+4. Record the outcome and credits, then check the 30-second cut for readable dates, units, denominators, caveats, and matching subtitles. Use this locked cut for the headline and evidence. Log the chosen takes in the [recording run sheet](recording-run-sheet.md#capture).
