@@ -24,10 +24,10 @@ repos:
         exclude: ^uv\.lock$  # lock files are legitimately large
       - id: check-merge-conflict
       - id: detect-private-key
-      # Trunk-based: main changes only through pull requests. This is the local guard
+      # Trunk-based: main and develop change only through pull requests. This is the local guard
       # (a private free-plan repo cannot enforce branch protection); CI skips it.
       - id: no-commit-to-branch
-        args: [--branch, main]
+        args: [--branch, main, --branch, develop]
 
   # === Security ===
   - repo: https://github.com/Yelp/detect-secrets
@@ -38,12 +38,12 @@ repos:
         exclude: (\.lock|\.csv|\.parquet|\.pdf|\.tif|\.zarr/.*)$
 
   # === Sync with trunk ===
-  # Blocks a commit on a branch that is behind origin/main; fix with `make sync`.
+  # Blocks a commit on a branch that is behind origin/develop; fix with `make sync`.
   - repo: local
     hooks:
-      - id: up-to-date-with-main
-        name: branch is up to date with origin/main
-        entry: python3 scripts/check_up_to_date.py
+      - id: up-to-date-with-develop
+        name: branch is up to date with origin/develop
+        entry: uv run --frozen python scripts/check_up_to_date.py
         language: system
         pass_filenames: false
         always_run: true

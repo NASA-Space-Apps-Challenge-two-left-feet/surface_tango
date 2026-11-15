@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""New worktree for a short-lived branch, from the latest origin/main (trunk).
+"""New worktree for a short-lived branch, from the latest origin/develop (trunk).
 
 The shared local_cache/ and .env are linked from the main checkout.
-    python3 scripts/new_worktree.py feat/quake-dpm  ->  ../surface_tango-worktrees/feat-quake-dpm
+    uv run --frozen python scripts/new_worktree.py feat/quake-dpm  ->  ../surface_tango-worktrees/feat-quake-dpm
 Standard library only, so it runs before `uv sync`.
 """
 
@@ -43,10 +43,11 @@ def main(argv: list[str]) -> int:
     root.mkdir(parents=True, exist_ok=True)
     (main_dir / "local_cache").mkdir(exist_ok=True)
 
-    git("fetch", "origin", "--quiet", check=False)
-    base = "origin/main"
+    git("fetch", "origin", "develop", "--quiet")
+    base = "origin/develop"
     if git("rev-parse", "--verify", "--quiet", base, check=False).returncode != 0:
-        base = "main"
+        print("origin/develop is unavailable; fetch it before creating a worktree", file=sys.stderr)
+        return 1
     added = subprocess.run(["git", "worktree", "add", "-b", branch, str(target), base], check=False)
     if added.returncode != 0:
         return added.returncode
