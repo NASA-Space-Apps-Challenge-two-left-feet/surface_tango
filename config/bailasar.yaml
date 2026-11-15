@@ -16,6 +16,9 @@ breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool (D6); default un
 features:            # hide unfinished work behind flags instead of long-lived branches
   mathlab_corrections: false
   story_chapter_4_synthesis: false
+tracing:   # LangSmith; on only when LANGSMITH_API_KEY is in .env (agents/tracing.py)
+  enabled: true
+  project: surface-tango
 llm:   # orchestrator chain, tried in order; entries without a key in .env are skipped
   temperature: 0.0
   timeout_s: 60

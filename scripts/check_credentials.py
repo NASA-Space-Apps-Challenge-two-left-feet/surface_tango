@@ -21,6 +21,7 @@ SERVICES = {
     "gee": ["GCP_PROJECT_ID", "GEE_SERVICE_ACCOUNT", "GOOGLE_APPLICATION_CREDENTIALS"],
     "gcs": ["GCP_PROJECT_ID", "GCS_BUCKET", "GOOGLE_APPLICATION_CREDENTIALS"],
     "llm": ["NEBIUS_API_KEY", "FEATHERLESS_API_KEY", "OPENROUTER_API_KEY"],
+    "langsmith": ["LANGSMITH_API_KEY", "LANGSMITH_PROJECT"],
 }
 
 
@@ -95,7 +96,25 @@ def check_llm() -> str:
     return "served: " + ", ".join(ok)
 
 
-CHECKS = {"earthdata": check_earthdata, "gee": check_gee, "gcs": check_gcs, "llm": check_llm}
+def check_langsmith() -> str:
+    """Read-only: list one project with the key; pass when the API answers."""
+    from langsmith import Client
+
+    if not os.environ.get("LANGSMITH_API_KEY"):
+        raise RuntimeError("LANGSMITH_API_KEY not set")
+    projects = list(Client().list_projects(limit=1))
+    return f"api ok ({len(projects)} project listed); project for runs: " + os.environ.get(
+        "LANGSMITH_PROJECT", "surface-tango (config default)"
+    )
+
+
+CHECKS = {
+    "earthdata": check_earthdata,
+    "gee": check_gee,
+    "gcs": check_gcs,
+    "llm": check_llm,
+    "langsmith": check_langsmith,
+}
 
 
 def main() -> int:

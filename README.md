@@ -73,6 +73,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
 | MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | planned (SSE integration) | #10, #79 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
+| LangSmith tracing of agent runs (project `surface-tango`) | planned (wired; needs `LANGSMITH_API_KEY`) | this PR | pending |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
 | First-aid ranking and scorecard | planned | #32 | pending |
 | Aburrá landslide noise-floor test | planned | #33 | pending (branch under review) |
