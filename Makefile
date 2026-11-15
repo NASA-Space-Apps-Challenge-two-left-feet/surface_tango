@@ -31,6 +31,10 @@ check: ## Every pre-commit hook on every file (identical to CI)
 test: ## Tests that need no network or cache (what CI runs)
 	uv run pytest -q -m "not network and not cache"
 
+diagrams: ## Regenerate the animated README SVGs in docs/diagrams/ (offline)
+	uv run python scripts/diagrams/architecture.py
+	uv run python scripts/diagrams/lakehouse.py
+
 ci: ## Local CI gate: run before opening, marking ready or updating a PR
 	SKIP=no-commit-to-branch uv run pre-commit run --from-ref origin/main --to-ref HEAD
 	$(MAKE) test
