@@ -299,6 +299,12 @@ function cachedChapterPanels(chapter, references, los) {
 }
 
 function fitChapter(bounds) {
+  // The AOI navigator can request a specific AOI bbox so a cross-hazard jump
+  // frames the AOI (not the whole hazard), avoiding a double camera move.
+  if (Array.isArray(window.__aoiFocusBbox) && window.__aoiFocusBbox.length === 4) {
+    bounds = window.__aoiFocusBbox;
+    window.__aoiFocusBbox = null;
+  }
   if (!Array.isArray(bounds) || bounds.length !== 4) return;
   const [west, south, east, north] = bounds;
   if (isMapPoint([west, south]) && isMapPoint([east, north]) && west < east && south < north) {
