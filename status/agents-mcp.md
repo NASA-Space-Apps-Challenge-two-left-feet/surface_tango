@@ -15,3 +15,7 @@ Completed task PRs now target develop. Worktree creation, freshness checks and C
 ## MCP transport foundation (issue #20)
 
 Both servers use configured SSE endpoints without startup authentication. Cache fallback matches the exact request and requires provenance; uncached requests remain explicit. Per-tool budgets come from operational config; live budget measurements remain issue #28. Pair/ranking/score wrappers and graph integration remain separate work.
+
+## Bulletin contract (issue #21)
+
+Implemented placeholder schema, numeric evidence requirements, sensor-name allow-list and tool-output integrity checks. Only verified non-null event fields reach prose. Unsupported event depth remains missing. Locale rendering and graph end-to-end acceptance remain issue #36.
