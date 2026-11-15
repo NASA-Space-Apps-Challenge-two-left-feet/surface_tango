@@ -160,3 +160,15 @@ def test_projection_requires_scene_geometry():
     del params["incidence_deg"]
     with pytest.raises(KeyError, match="incidence_deg"):
         project_los_to_downslope([-6.0], [0.0], [270.0], params)
+
+
+def test_missing_landslide_params_lists_every_absent_key():
+    from gee_math.landslide_insar_math import missing_landslide_params
+
+    params = deepcopy(PARAMS)
+    del params["noise_floor"]
+    assert missing_landslide_params(params) == [
+        "noise_floor.min_pairs",
+        "noise_floor.require_sign_agreement",
+    ]
+    assert missing_landslide_params(PARAMS) == []

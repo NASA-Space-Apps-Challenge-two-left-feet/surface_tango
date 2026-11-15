@@ -39,6 +39,17 @@ def _require(params, dotted_key):
     return value
 
 
+def missing_landslide_params(params):
+    """Return every key of LANDSLIDE_PARAM_KEYS absent from params (dotted names)."""
+    missing = []
+    for dotted_key in LANDSLIDE_PARAM_KEYS:
+        try:
+            _require(params, dotted_key)
+        except KeyError:
+            missing.append(dotted_key)
+    return missing
+
+
 def noise_floor_verdict(rates_by_pair, stable_residuals_by_pair, params):
     """Keep finite rates exceeding every independent pair's stable-pixel RMS."""
     min_pairs = _require(params, "noise_floor.min_pairs")
@@ -138,8 +149,12 @@ def compute_landslide_insar_kinematics(
     Missing ionosphere or tropospheric fit leaves displacement and velocity masked.
     Independent-pair noise-floor assessment is provided by noise_floor_verdict.
     """
-    for key in LANDSLIDE_PARAM_KEYS:
-        _require(params, key)
+    missing = missing_landslide_params(params)
+    if missing:
+        raise KeyError(
+            "Missing required landslide parameters (add a landslide: section to "
+            f"config/preregistered.yaml): {', '.join(missing)}"
+        )
     if temporal_baseline_days <= 0:
         raise ValueError("temporal_baseline_days must be positive")
 

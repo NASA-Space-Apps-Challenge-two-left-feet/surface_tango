@@ -7,8 +7,11 @@ from fastmcp import FastMCP
 from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
 from gee_math.earthquake_dpm_math import compute_earthquake_dpm_and_rupture
 from gee_math.ee_session import init_ee
-from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
-from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
+from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition, load_params
+from gee_math.landslide_insar_math import (
+    compute_landslide_insar_kinematics,
+    missing_landslide_params,
+)
 from mcp_servers.cache_guard import with_offline_zarr_fallback
 
 mcp = FastMCP(name="gee-hazard-fusion-engine")
@@ -85,17 +88,23 @@ def analyze_landslide_kinematics(
     rain_start_date: str,
     rain_end_date: str,
     temporal_baseline_days: float,
-    params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Executes Module 1 (compute_landslide_insar_kinematics):
     Removes equatorial ionospheric & stratified tropospheric phase delays, projects L-band LOS
     displacement onto the 3D bare-earth FABDEM steepest downslope vector, and couples with 15-day CHIRPS rain.
     """
-    if params is None:
+    # Frozen parameters only: read the landslide: section of config/preregistered.yaml.
+    try:
+        params = load_params("landslide")
+    except KeyError:
+        params = {}
+    missing = missing_landslide_params(params)
+    if missing:
         return {
             "status": "error",
-            "reason": "landslide params not in config/preregistered.yaml yet",
+            "reason": "landslide params missing from config/preregistered.yaml",
+            "missing_keys": missing,
         }
     aoi = ee.Geometry.Rectangle(bbox)
 
@@ -193,7 +202,6 @@ def analyze_flood_inundation(
     Decomposes NISAR L2 GCOV polarimetric covariance into Specular Open-Water Flooding (Class 1)
     and Sub-Canopy Dihedral Double-Bounce Flooding (Class 2), returning flooded hectares and percentiles.
     """
-    from gee_math.flood_polarimetric_math import load_params
 
     params = load_params("flood")
     aoi = ee.Geometry.Rectangle(bbox)
