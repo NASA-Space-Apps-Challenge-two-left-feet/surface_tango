@@ -8,7 +8,9 @@
   "earthquake": {
     "state": "gate",
     "summary": "The quake scorecard is uninformative. No verified barrio damage labels were available, so no ranking or precision score was produced. Co-event coherence remains withheld pending the freeze.",
-    "source": "validation/README.md · Power check and headline"
+    "source": "validation/README.md · Power check and headline",
+    "co_event_withheld": true,
+    "ranking_available": false
   },
   "flood": {
     "state": "gate",

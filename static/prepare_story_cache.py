@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,10 +14,19 @@ from rasterio.io import MemoryFile
 from rasterio.warp import transform_geom
 
 
-def open_water_layer(cache_dir: Path) -> dict:
+def open_water_layer(cache_dir: Path, release_manifest: Path) -> dict | None:
     evidence_path = Path(__file__).with_name("story-evidence.json")
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))["flood"]
     raster_path = cache_dir / "mojana" / f"water_extent_{evidence['date']}.tif"
+    if not raster_path.is_file():
+        return None
+    release = json.loads(release_manifest.read_text(encoding="utf-8"))
+    artifact = raster_path.relative_to(cache_dir).as_posix()
+    digest = next((row["sha256"] for row in release["provenance"] if row["path"] == artifact), None)
+    # Check the file against the verified release manifest before trusting its provenance.
+    with raster_path.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+            raise ValueError(f"{raster_path} does not match the approved cache release")
     with rasterio.open(raster_path) as raster:
         values = raster.read(1, masked=True)
         water = (values == 1).filled(False)
@@ -82,10 +92,15 @@ def pre_event_coherence(cache_dir: Path) -> dict | None:
     }
 
 
-def stage_story_cache(cache_dir: Path) -> None:
+def stage_story_cache(cache_dir: Path, release_manifest: Path) -> None:
     output = cache_dir / "story-results.json"
     results = json.loads(output.read_text(encoding="utf-8")) if output.is_file() else {}
-    results.setdefault("flood", {})["open_water"] = open_water_layer(cache_dir)
+    water = open_water_layer(cache_dir, release_manifest)
+    flood = results.setdefault("flood", {})
+    if water:
+        flood["open_water"] = water
+    else:
+        flood.pop("open_water", None)
     coherence = pre_event_coherence(cache_dir)
     quake = results.setdefault("earthquake", {})
     if coherence:
@@ -100,4 +115,8 @@ def stage_story_cache(cache_dir: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, default=Path("local_cache"))
-    stage_story_cache(parser.parse_args().cache_dir)
+    parser.add_argument(
+        "--release-manifest", type=Path, default=Path("dist/cache/cache_manifest.json")
+    )
+    args = parser.parse_args()
+    stage_story_cache(args.cache_dir, args.release_manifest)

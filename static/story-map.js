@@ -14,7 +14,7 @@ const comparisonLabels = ["Sentinel-2 optical", "Sentinel-1 C-band", "NISAR L-ba
 const quakeLabels = ["Sentinel-2 post-event optical", "NISAR pre-event coherence", "NISAR co-event coherence loss"];
 const chapterAreas = { landslide: "aburra", earthquake: "eje_cafetero", flood: "mojana" };
 const pendingResults = {
-  landslide: "Aburrá displacement is available as context. The noise-floor verdict is pending.",
+  landslide: "The Aburrá noise-floor verdict is unavailable.",
   earthquake: "The quake coverage decision is pending.",
   flood: "The La Mojana result is unavailable.",
   synthesis: "No measured cross-hazard links have been published.",
@@ -65,6 +65,12 @@ function usableTile(panel) {
   return panel.state === "live";
 }
 
+function hasStoryEvidence(result) {
+  return !!result && Object.hasOwn(resultStates, result.state)
+    && typeof result.summary === "string" && result.summary.trim()
+    && typeof result.source === "string" && result.source.trim();
+}
+
 function drawMeasuredOverlays(chapter, result, evidence) {
   const water = result.open_water;
   if (chapter === "flood" && water && evidence && !usableTile(result.panels?.[2])
@@ -79,9 +85,9 @@ function drawMeasuredOverlays(chapter, result, evidence) {
     panelStatus("nisar", "Cached", `Open water · ${water.date}`, water.granule);
     return;
   }
-  if (chapter === "earthquake" && Array.isArray(result.ranked_barrios)) {
-    const barrios = result.ranked_barrios.filter(({ position, rank }) =>
-      isMapPoint(position) && Number.isInteger(rank) && rank > 0
+  if (chapter === "earthquake" && evidence?.ranking_available === true && Array.isArray(result.ranked_barrios)) {
+    const barrios = result.ranked_barrios.filter(entry =>
+      isMapPoint(entry?.position) && Number.isInteger(entry.rank) && entry.rank > 0
     );
     deckOverlay.setProps({ layers: [new deck.ColumnLayer({
       id: "ranked-barrios",
@@ -94,8 +100,8 @@ function drawMeasuredOverlays(chapter, result, evidence) {
       extruded: true,
     })] });
   } else if (chapter === "synthesis" && Array.isArray(result.links)) {
-    const links = result.links.filter(({ from, to, source }) =>
-      isMapPoint(from) && isMapPoint(to) && typeof source === "string" && source.trim()
+    const links = result.links.filter(entry =>
+      isMapPoint(entry?.from) && isMapPoint(entry.to) && typeof entry.source === "string" && entry.source.trim()
     );
     deckOverlay.setProps({ layers: [new deck.ArcLayer({
       id: "measured-hazard-links",
@@ -113,7 +119,9 @@ async function readStoryInput(path, signal) {
   const response = await fetch(path, { signal, cache: "no-store" });
   if (response.status === 404) return {};
   if (!response.ok) throw new Error("Story input unavailable");
-  return response.json();
+  const value = await response.json();
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid story input");
+  return value;
 }
 
 function cachedChapterPanels(chapter, references, los) {
@@ -168,7 +176,7 @@ async function openStoryChapter(chapter) {
 
   try {
     const aoi = chapterAreas[chapter];
-    const [evidenceByChapter, results, references, los] = await Promise.all([
+    const [published, staged, sentinel, landslide] = await Promise.allSettled([
       readStoryInput("/static/story-evidence.json", request.signal),
       readStoryInput("/api/story-results", request.signal),
       aoi ? readStoryInput(`/api/sentinel-tiles/${aoi}`, request.signal) : {},
@@ -176,16 +184,27 @@ async function openStoryChapter(chapter) {
     ]);
     if (request.signal.aborted) return;
 
-    const evidence = evidenceByChapter[chapter];
-    const result = { ...evidence, ...results[chapter] };
-    const state = Object.hasOwn(resultStates, result.state) && resultStates[result.state];
-    if (state && result.summary?.trim() && result.source?.trim()) {
-      showStoryResult(state, result.summary, result.source, [evidence?.granule, evidence?.command].filter(Boolean).join(" · "));
+    const evidence = published.value?.[chapter];
+    const cachedResult = staged.value?.[chapter];
+    const hasStagedEvidence = hasStoryEvidence(cachedResult);
+    const result = chapter === "earthquake" && evidence?.ranking_available !== true
+      ? evidence : hasStagedEvidence ? cachedResult : evidence;
+    if (hasStoryEvidence(result)) {
+      const provenance = [result.granule, result.command].filter(Boolean).join(" · ");
+      showStoryResult(resultStates[result.state], result.summary, result.source, provenance);
+    } else if (staged.status === "rejected" || published.status === "rejected") {
+      showStoryResult("Error", "Could not load the chapter's evidence.");
     }
-    fitChapter(result.bounds ?? result.open_water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
-    const cached = cachedChapterPanels(chapter, references, los);
+    const references = sentinel.value ?? {};
+    const water = cachedResult?.open_water;
+    fitChapter(result?.bounds ?? water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
+    const cached = cachedChapterPanels(chapter, references, landslide.value);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
-      const approved = result.panels?.[index];
+      if (chapter === "earthquake" && index === 2 && evidence?.co_event_withheld !== false) {
+        panelStatus(id, "Not cached", "Co-event coherence withheld");
+        return;
+      }
+      const approved = hasStagedEvidence ? cachedResult.panels?.[index] : null;
       const panel = usableTile(approved) ? approved : cached[index];
       if (usableTile(panel)) {
         const options = panel.bounds ? { bounds: panel.bounds, minzoom: panel.minzoom, maxzoom: panel.maxzoom } : {};
@@ -193,17 +212,18 @@ async function openStoryChapter(chapter) {
         const detail = [labels[index], panel.date].filter(Boolean).join(" · ");
         panelStatus(id, resultStates[panel.state], detail, (panel.scene_ids ?? panel.granule_ids ?? []).join(", "));
       } else if (chapter === "earthquake" && index === 1) {
-        const image = result.pre_event_coherence;
+        const image = cachedResult?.pre_event_coherence;
         if (image?.url?.startsWith("data:image/png;base64,") && typeof image.granule === "string"
             && Array.isArray(image.corners) && image.corners.length === 4 && image.corners.every(isMapPoint)) {
           setTileLayer(map, sourceId, image.url, { type: "image", url: image.url, coordinates: image.corners });
           panelStatus(id, "Cached", [labels[index], image.dates?.join(" to ")].filter(Boolean).join(" · "), image.granule);
         }
-      } else if (chapter === "earthquake" && index === 2) {
-        panelStatus(id, "Not cached", "Co-event coherence withheld");
+      } else if ((index < 2 && cached[index] !== null && sentinel.status === "rejected")
+          || (chapter === "landslide" && index === 2 && landslide.status === "rejected")) {
+        panelStatus(id, "Error", `${labels[index]} unavailable`);
       }
     });
-    drawMeasuredOverlays(chapter, result, evidence);
+    drawMeasuredOverlays(chapter, { ...(hasStagedEvidence ? cachedResult : {}), open_water: water }, evidence);
   } catch {
     if (request.signal.aborted) return;
     resetStoryPanels(labels, "Error", "Use Retry in Story map");
