@@ -1,0 +1,22 @@
+1
+00:00:00,000 --> 00:00:04,000
+In La Mojana, we mapped open water with radar.
+
+2
+00:00:04,000 --> 00:00:10,000
+The Sentinel scenes give context.
+NISAR shows the open water.
+
+3
+00:00:10,000 --> 00:00:15,000
+NISAR mapped June open water.
+
+4
+00:00:15,000 --> 00:00:21,000
+In July, the Sentinel-1 threshold missed
+some of the open water.
+
+5
+00:00:21,000 --> 00:00:27,000
+The range depends on the threshold.
+The dry reference cannot support a change estimate.
