@@ -1,4 +1,4 @@
-"""Cut unchanged windows from a local real-data cube; never fetch data."""
+"""Cut real-data windows, masking only recorded nodata; never fetch data."""
 
 import argparse
 import hashlib
@@ -32,7 +32,11 @@ def path_component(value):
 def cut_fixture(args):
     """Validate and serialize a real window and its recorded evidence."""
     cache = ROOT / "local_cache"
-    cube = cache / args.aoi / "antioquia_sar_cube.zarr"
+    cube = cache / args.aoi / f"{args.aoi}_sar_cube.zarr"
+    if not cube.is_dir():
+        legacy = cache / args.aoi / "antioquia_sar_cube.zarr"
+        if legacy.is_dir():
+            cube = legacy
     if not cache.is_dir():
         raise ValueError("local_cache/ is absent; a human must build or download the real cache")
     if not cube.is_dir():
@@ -50,10 +54,17 @@ def cut_fixture(args):
     with xr.open_zarr(cube, chunks=None, mask_and_scale=False) as dataset:
         recorded = dataset.attrs.get("nisar_provenance")
         provenance = json.loads(recorded) if isinstance(recorded, str) else recorded
+        provenance_source = "cube:nisar_provenance"
+        if recorded is None:
+            manifest_path = cube.parent / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            provenance = manifest.get("nisar_granule_provenance")
+            provenance_source = manifest_path.relative_to(ROOT).as_posix()
         if not isinstance(provenance, dict):
-            raise ValueError("cube must have a mapping in its nisar_provenance attribute")
+            raise ValueError("cube or sibling manifest must record a provenance mapping")
         arrays = {}
         sources = {}
+        variable_metadata = {}
         for name in names:
             if name not in dataset.data_vars:
                 raise ValueError(f"variable absent from cube: {name}")
@@ -64,14 +75,35 @@ def cut_fixture(args):
                 args.col + args.size > variable.sizes["x"]
             ):
                 raise ValueError(f"window extends beyond {name}")
-            key = PROVENANCE_KEYS.get(name, name)
+            key = name if name in provenance else PROVENANCE_KEYS.get(name, name)
             if key not in provenance:
                 raise ValueError(f"no recorded provenance for {name} (key {key})")
             sources[name] = provenance[key]
-            arrays[name] = variable.isel(
+            values = variable.isel(
                 y=slice(args.row, args.row + args.size),
                 x=slice(args.col, args.col + args.size),
             ).values
+            fills = []
+            for attribute in ("_FillValue", "missing_value", "nodata"):
+                fill = variable.attrs.get(attribute)
+                if fill is not None:
+                    fills.extend(np.asarray(fill).reshape(-1).tolist())
+            missing = np.isnan(values)
+            for fill in fills:
+                missing |= values == fill
+            arrays[name] = values.astype(np.result_type(values.dtype, np.float64), copy=True)
+            arrays[name][missing] = np.nan
+            # JSON strings preserve non-finite sentinels without nonstandard JSON tokens.
+            recorded_fills = [value if np.isfinite(value) else str(value) for value in fills]
+            variable_metadata[name] = {
+                "fill_value": (
+                    None
+                    if not recorded_fills
+                    else recorded_fills[0]
+                    if len(recorded_fills) == 1
+                    else recorded_fills
+                )
+            }
             if sources[name] == "missing" and not np.isnan(arrays[name]).all():
                 raise ValueError(f"{name}: values contradict recorded missing provenance")
         if all(np.isnan(array).all() for array in arrays.values()):
@@ -90,7 +122,9 @@ def cut_fixture(args):
         "window": {"row": args.row, "col": args.col, "size": args.size},
         "nisar_provenance": provenance,
         "nisar_provenance_attribute": recorded,
+        "provenance_source": provenance_source,
         "variable_provenance": sources,
+        "variable_metadata": variable_metadata,
         "sha256": hashlib.sha256(payload).hexdigest(),
         "cut_time_utc": datetime.now(UTC).isoformat(),
         "git_commit": commit,

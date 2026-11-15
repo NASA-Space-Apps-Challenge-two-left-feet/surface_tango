@@ -53,6 +53,8 @@ def assert_provenance(arrays, provenance):
     assert provenance["git_commit"]
     assert provenance["cut_time_utc"]
     for name, array in arrays.items():
+        assert np.issubdtype(array.dtype, np.floating), name
+        assert "fill_value" in provenance["variable_metadata"][name], name
         source = provenance["variable_provenance"][name]
         if source == "missing":
             assert np.isnan(array).all(), name

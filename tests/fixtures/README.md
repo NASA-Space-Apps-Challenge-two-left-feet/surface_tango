@@ -1,6 +1,7 @@
 # Real pipeline fixtures
 
-Fixtures are unchanged spatial cuts from a real local Zarr cube. Each archive must
+Fixtures are spatial cuts from a real local Zarr cube, with recorded nodata
+sentinels converted to NaN in floating arrays and all other values preserved. Each archive must
 have a matching `.provenance.json` sidecar. Never create replacement data or edit
 values, NaNs, source identifiers, or a recorded `missing` status. Fixtures are
 committed only after a human reviews the arrays and their provenance.
@@ -10,12 +11,17 @@ From the repository root, after a human builds or downloads the real cache, run:
 ```sh
 uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name flood --row 0 --col 0 --size 32 --vars gcov_hhhh_pre gcov_hvhv_pre gcov_hhhh_post gcov_hvhv_post
 uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name landslide --row 0 --col 0 --size 32 --vars los_disp_mm gunw_phase_corr gunw_coherence gunw_conncomp
-uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name quake --row 0 --col 0 --size 32 --vars gunw_coherence coherence_coseismic
+uv run python scripts/cut_fixtures.py --aoi eje_cafetero --name quake --row 0 --col 0 --size 32 --vars coherence_R coherence_C
 ```
 
-The AOI selects `local_cache/<aoi>/antioquia_sar_cube.zarr`. These commands write
-`tests/fixtures/antioquia_aburra/{flood,landslide,quake}.npz` and the corresponding
-sidecars. The window arguments are example selections, not measured coverage or
+The unified cache builder (#78) uses short AOI names (`aburra`, `eje_cafetero`,
+`mojana`) and writes `local_cache/<aoi>/<aoi>_sar_cube.zarr`. Use `--aoi aburra`
+instead of `--aoi antioquia_aburra` in the flood and landslide examples for that
+builder. The cutter also accepts the legacy
+`local_cache/<aoi>/antioquia_sar_cube.zarr` layout if the current path is absent.
+Commands write `tests/fixtures/<aoi>/<name>.npz` and matching sidecars; the quake
+tests load `tests/fixtures/eje_cafetero/quake.npz`. The window arguments are
+example selections, not measured coverage or
 an assurance of valid pixels. Inspect the real coverage and choose another window
 if the cutter reports an entirely NaN cut. Bounds are exclusive at row + size and
 col + size; the requested square must fit in every selected variable. Existing
@@ -28,12 +34,23 @@ if necessary. Neither the cutter nor the tests fetch data or alter the cache.
 The sidecar records the source cube path, selected variables, window, UTC cut time,
 Git commit, and SHA-256 of the archive. `nisar_provenance` contains the full cube
 mapping; `nisar_provenance_attribute` preserves the attribute as stored.
+When the cube has no such attribute, the cutter reads the sibling `manifest.json`
+mapping `nisar_granule_provenance` written by the unified builder.
+`provenance_source` identifies that file or the cube attribute.
 `variable_provenance` associates selected variables with their original records,
-including the cache builder's differently named provenance keys. Source strings
+preferring exact variable names before legacy provenance aliases. Source strings
 (including granule IDs and any annotations) are copied verbatim. A `missing`
 record remains `missing`. The loader checks the archive digest before loading
 arrays with pickle disabled. A missing archive, sidecar, or local cache skips;
 a digest mismatch or inconsistent evidence fails.
+
+`variable_metadata.<variable>.fill_value` records the sentinel used, a list when
+multiple sentinels are recorded, or JSON `null` when none is recorded. The cutter
+reads `_FillValue`, `missing_value`, and `nodata` on each variable; it never assumes
+a sentinel or applies scale/offset transforms. Non-finite sentinel values are
+recorded as strings (`nan`, `inf`, `-inf`) for valid JSON. Existing NaNs remain NaN.
+Older fixtures without this metadata must be cut again under a new candidate name
+and reviewed with their sidecars; do not edit the evidence by hand.
 
 The current cube permits provenance and SHA checks. It does not yet contain all
 inputs needed for the numerical invariants:
@@ -58,8 +75,17 @@ inputs needed for the numerical invariants:
   Only stable residual pixels may be finite in those residual grids. Select all
   available independent pairs explicitly with `--vars`; do not repeat a pair or
   use `los_disp_mm` as a rate. Residual grids are flattened only for the rule call.
-- Earthquake NumPy rules are pending (03-02). Only provenance and digest checks
-  run; the rule placeholder skips without importing Earth Engine.
+- Earthquake checks call the offline NumPy functions in
+  `gee_math/earthquake_dpm_math.py`. The coherence-loss test needs real
+  `coherence_R` and `coherence_C` layers. It checks missing-data propagation and
+  the definitional coherence and difference domains. Standardization and DPM
+  additionally need real `footprint_coverage`, `landcover`, and `gunw_mask` layers
+  with per-variable provenance on the same grid. Cut those explicitly with
+  `--vars` when available; otherwise that test skips. Coverage thresholds come
+  from `load_quake_prereg()`. Reference pixels exclude vegetation, water, invalid
+  GUNW samples, and missing ancillary observations. No layer is substituted.
+  Undefined standardization stays NaN, and finite DPM values must be nonnegative.
+  These checks use no expected measured results and never initialize Earth Engine.
 
 No thresholds or input layers are supplied by this harness. Flood parameters come
 from `load_params("flood")`; landslide parameters use the same frozen YAML loader.
