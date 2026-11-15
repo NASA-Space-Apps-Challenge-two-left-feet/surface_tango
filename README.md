@@ -74,7 +74,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 |---|---|---|---|
 | NISAR discovery gate (search script and saved catalog) | live | #23, #52 | [Gate report](reports/gate.md) |
 | Real-data cache builder — COGs + Zarr v3 + provenance manifest (3 AOIs) | cached | #30, #78 | [Builder brief](briefs/feat/data-cache-builder.md) |
-| Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
+| Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached: one shared frame per AOI (intersection of layers with tiles); no-data inside the frame is a hatch. La Picacha, Chocó, and Valle stay not cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
 | Quake damage proxy (tracks 11 and 47; C/K **unsealed** after the freeze, #130; track 11 is post-event control only) | cached: frozen-K proxy contrast is inconclusive; serialized K evidence still uses the old pair pending #141 | #31, #64, #111, #161 | [DPM](reports/quake_dpm.md), [frozen-K interpretation](reports/quake_dpm_interpretation.md) |
 | Release staging and cache download | re-staged after the frozen-K rebuild (#180): three AOIs, hazard evidence artifacts, recorded bulletin artifacts and the unsealed `quake/` zarrs (747 MB part + manifest, source commit recorded); public `make fetch-cache` after the release is published | #42, #67, #163 | [staging report](reports/cache_release_v2.md) |
 | Go-public gate (#46) | secret scan **green** (full history, 0 real leaks, #156); license **Apache-2.0** set (#145); deployment **live** on Google Cloud (https://surface-tango-827987874406.us-central1.run.app); owner actions remaining: flip repo to public, publish release | #46, #83, #156, #145 | [secret scan](reports/full_history_secret_scan.md) |
@@ -125,7 +125,7 @@ flowchart LR
     end
     subgraph CACHE["local_cache/&lt;aoi&gt;/ · never in git"]
         ZARR[("cogs/*.tif · Zarr v3 cube<br/>manifest.json: per-band granule IDs,<br/>status, finite ratios")]
-        TILES["tiles/ S1+S2 curtain XYZ PNGs<br/>transparent outside AOI and no-data"]
+        TILES["tiles/ S1+S2 curtain XYZ PNGs<br/>one shared frame · no-data is a hatch"]
         PAIRS["pairs/ curated scene pairs"]
     end
     UI["app.py FastAPI :8000 (cached)<br/>MapLibre mission control<br/>GET /api/decision posture card<br/>panels: live · cached · not cached ·<br/>gate result · error"]
@@ -180,7 +180,7 @@ flowchart TB
     end
     CHIRPS["CHIRPS Daily · published weeks late"] -.->|"late-2026 windows return 0 images<br/>band recorded 'missing', never synthesized"| BUILD
     BUILD --> CACHE[("local_cache/&lt;aoi&gt;/<br/>cogs/*.tif · &lt;aoi&gt;_sar_cube.zarr · manifest.json<br/>per-band: granule ID or 'missing',<br/>finite pixel count & ratio · build 2026-11-14")]
-    CACHE --> TILES["scripts/prestage_tiles.py (#65)<br/>rule-selected Sentinel-1 + Sentinel-2 XYZ PNGs<br/>(COPERNICUS/S2_SR_HARMONIZED)<br/>transparent outside AOI and where no data"]
+    CACHE --> TILES["scripts/prestage_tiles.py (#65)<br/>rule-selected Sentinel-1 + Sentinel-2 XYZ PNGs<br/>(COPERNICUS/S2_SR_HARMONIZED)<br/>one shared frame · no-data inside it is a hatch, never 0"]
     GUARD["mcp_servers/cache_guard.py (planned)<br/>per-tool budget · provenance on fallback"] -.-> AGENTS
     CACHE -.-> GUARD
     TILES -.-> GUARD
