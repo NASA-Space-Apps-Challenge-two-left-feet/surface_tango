@@ -82,8 +82,8 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |
 | La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
-| Mission-control UI, curtain slider and story map | not cached | #22, #37 | [frontend status](status/frontend-video.md) |
-| Submission video (30 s) | planned; **headline ratified: La Mojana flood** (L-band vs C-band open water) | #39, #43, #102 | [storyboard](video/storyboard.md) |
+| Mission-control UI, curtain slider and story map | cached (offline, opens on La Mojana; numbers parsed from the reports via `/api/pitch-facts`; quake C/K sealed) | #22, #37 | [frontend status](status/frontend-video.md) |
+| Submission video (30 s) | silent draft cut from `video/assemble.py`; voice-over pending; **headline ratified: La Mojana flood** | #39, #43, #102 | [storyboard](video/storyboard.md), [video README](video/README.md) |
 | Biomass agent · GOFF rupture · split-spectrum ionosphere · S-band fusion · `/math-lab` | dropped | #41, #55, #56 | — |
 
 ## Architecture
@@ -274,6 +274,17 @@ reported with recovery instructions. Application readers do not use this lock.
 
 **Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>; end-to-end offline operation is pending, and the current Compose configuration expects local credential mount paths and invokes the cache warmer when its manifest is absent.
 
+### Offline web app and video draft (no Docker)
+
+With a cache in `local_cache/` (or `BAILASAR_CACHE_DIR` pointing at one):
+
+```bash
+OFFLINE_DEMO_MODE=1 uv run uvicorn app:app --port 8000   # http://localhost:8000
+uv run python video/assemble.py                          # silent 30 s draft -> video/draft_cut.mp4
+```
+
+The page opens on the La Mojana chapter; `?chapter=live` shows mission control, `?split=a,b` sets the curtain positions (percent). Every on-screen number comes from `/api/pitch-facts`, which parses `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. The Docker image does not yet copy those files, so under `make pitch` the chapters show **Error** until the Dockerfile is updated. The video needs `ffmpeg`; see [video/README.md](video/README.md).
+
 ### Live mode (credentials required)
 
 Configure keys from [.env.example](.env.example): Earthdata authentication for ASF/NISAR (token as Bearer — see [docs/kb/earthaccess-netrc-vs-bearer-token.md](docs/kb/earthaccess-netrc-vs-bearer-token.md)); a Google Cloud project and bucket plus Earth Engine credentials; an LLM provider key for bulletins. Cloud processing is restricted to the account holders named in [AGENTS.md](AGENTS.md).
@@ -338,7 +349,7 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 | `briefs/`, `status/` | per-branch briefs; per-lane status |
 | `tests/` | offline suite (180 passing *(measured)*; command and run provenance in [reports/tests.md](reports/tests.md)) |
 | `local_cache/` | real-data cache — **never in git** |
-| `video/` | storyboard, run sheet, 30-second submission |
+| `video/` | storyboard, run sheet, report-fact parser, silent draft-cut script (`assemble.py`) |
 
 ## Development workflow
 
