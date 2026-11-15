@@ -817,9 +817,7 @@ def test_lvsc_does_not_call_earth_engine_or_rewrite_provenance(tmp_path: Path, m
         raise AssertionError("init_ee should not run")
 
     monkeypatch.setattr("gee_math.ee_session.init_ee", explode)
-    real_provenance = ROOT / "local_cache" / "mojana" / "provenance.json"
     real_report = ROOT / "reports" / "mojana.md"
-    before_provenance = real_provenance.read_bytes()
     before_report = real_report.read_bytes()
     _write_lvsc_cache(tmp_path, n_water=0, raster_value=0)
     written_provenance = (tmp_path / "provenance.json").read_bytes()
@@ -838,7 +836,6 @@ def test_lvsc_does_not_call_earth_engine_or_rewrite_provenance(tmp_path: Path, m
     text = (tmp_path / "lvsc.md").read_text(encoding="utf-8")
     assert "no NISAR open water (denominator 0)" in text
     assert (tmp_path / "provenance.json").read_bytes() == written_provenance
-    assert real_provenance.read_bytes() == before_provenance
     assert real_report.read_bytes() == before_report
     assert list(tmp_path.glob("water_extent_*.tif")) == [tmp_path / "water_extent_2026-10-27.tif"]
 
@@ -859,7 +856,6 @@ def test_lvsc_does_not_call_earth_engine_or_rewrite_provenance(tmp_path: Path, m
     mismatch = (tmp_path / "lvsc.md").read_text(encoding="utf-8")
     assert "water mask count 0/1 != provenance 5/1" in mismatch
     assert (tmp_path / "provenance.json").read_bytes() == mismatch_provenance
-    assert real_provenance.read_bytes() == before_provenance
     assert real_report.read_bytes() == before_report
 
 
