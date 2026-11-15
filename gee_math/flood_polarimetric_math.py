@@ -1809,7 +1809,10 @@ def run_bounded_process(argv: list[str], timeout_s: float) -> int | None:
         return proc.wait(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
+            if hasattr(os, "killpg"):  # POSIX: kill the whole group (reader + HTTP client)
+                os.killpg(proc.pid, signal.SIGKILL)
+            else:  # Windows has no process groups via os.killpg
+                proc.kill()
         except ProcessLookupError:
             pass
         try:
