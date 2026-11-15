@@ -303,6 +303,31 @@ def _independent(dates_a: frozenset[str], dates_b: frozenset[str]) -> bool:
     return dates_a.isdisjoint(dates_b)
 
 
+def check_noise_floor_rule(landslide_block: dict | None) -> str:
+    """Verify the pre-registered keep-rule keys match the rule `noise_floor` implements.
+
+    `config/preregistered.yaml` → `landslide.noise_floor` must say
+    `min_pairs: 2` and `require_sign_agreement: true` (the design doc's rule).
+    Any other value is a pre-registration the code does not implement, so it
+    raises instead of silently running a different rule. Returns a short note
+    for the report.
+    """
+    block = (
+        (landslide_block or {}).get("noise_floor") if isinstance(landslide_block, dict) else None
+    )
+    if not isinstance(block, dict):
+        raise ValueError("config/preregistered.yaml has no landslide.noise_floor block")
+    min_pairs = block.get("min_pairs")
+    agree = block.get("require_sign_agreement")
+    if min_pairs != 2 or agree is not True:
+        raise ValueError(
+            "landslide.noise_floor is "
+            f"{{min_pairs: {min_pairs}, require_sign_agreement: {agree}}}; "
+            "noise_floor() implements min_pairs 2 with sign agreement only"
+        )
+    return "landslide.noise_floor {min_pairs: 2, require_sign_agreement: true} read and matched"
+
+
 def noise_floor(
     los_mm: list[np.ndarray],
     downslope_mm: list[np.ndarray],
@@ -1336,12 +1361,16 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
     prereg = _read_yaml(root / "config" / "preregistered.yaml")
     ops = _read_yaml(root / "config" / "bailasar.yaml")
     landslide_block = None if not isinstance(prereg, dict) else prereg.get("landslide")
+    rule_note = check_noise_floor_rule(landslide_block)
     if isinstance(landslide_block, dict) and "valley_floor_max_slope_deg" in landslide_block:
         valley = float(landslide_block["valley_floor_max_slope_deg"])
-        prereg_text = "present; valley_floor_max_slope_deg read from the file"
+        prereg_text = f"{rule_note}; valley_floor_max_slope_deg read from the file"
     else:
         valley = VALLEY_FLOOR_MAX_SLOPE_DEG
-        prereg_text = "absent (no landslide key)"
+        prereg_text = (
+            f"{rule_note}; valley_floor_max_slope_deg not pre-registered, "
+            f"code constant {VALLEY_FLOOR_MAX_SLOPE_DEG} used"
+        )
     config_bbox, aoi_key = aburra_bbox_from_config(ops if isinstance(ops, dict) else None)
     if bbox is None:
         bbox = config_bbox
@@ -1681,6 +1710,8 @@ def calibrate_from_cache(root: Path, draws: int, seed: int) -> list[dict]:
     """
     import json
 
+    prereg = _read_yaml(root / "config" / "preregistered.yaml")
+    check_noise_floor_rule(prereg.get("landslide") if isinstance(prereg, dict) else None)
     base = root / "local_cache" / "aburra"
     summary = json.loads((base / "summary.json").read_text(encoding="utf-8"))
     groups: dict[tuple, list[dict]] = {}
