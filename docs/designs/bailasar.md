@@ -54,7 +54,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 1. **NISAR record window.** The public L-band archive covers acquisitions from **Jun 17 2026** onward. Validated L2 GCOV/GUNW were released Nov 6 2026, and earlier products may be *provisional*. Every granule records its version, and the UI labels provisional data.
 2. **Build priority and headline.** The build priority is (1) Aburrá landslides, (2) the Aug 10 2026 quake, (3) La Mojana flood. **The 30-second video headlines the quake**, because it is the largest event inside the NISAR record and can be validated against published damage. Biomass is dropped from scope (TODO).
 3. **Aburrá.** NISAR GUNW for Jun–Nov 2026 shows **currently** moving slopes. The Granizal (Bello) debris flow of **Jun 24 2025** predates NISAR and serves only as historical context and validation. If the velocity field doesn't beat the noise floor, the UI says so.
-4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó); SGC gives a depth of **96 km**. A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking: the frozen formula in Hazard 2 (built-up-pixel DPM × WorldPop × hospital distance; footprints only classify pixels). Murindó/Romeral and GOFF surface rupture move to TODO.
+4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó) at a depth of **116 km** (preferred origin, event us6000tjl2). A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking: the frozen formula in Hazard 2 (built-up-pixel DPM × WorldPop × hospital distance; footprints only classify pixels). Murindó/Romeral and GOFF surface rupture move to TODO.
 5. **Flood.** Over Colombia, L-band is **dual-pol HH/HV**, so the flood physics is HH change detection against a dry baseline plus HAND gating:
    - darker HH means open water;
    - brighter HH with a stable HV/HH ratio means flooded vegetation.
@@ -278,7 +278,7 @@ surface_tango/
 - **Bulletin contract:**
   - **Placeholders, not digits.** The LLM writes ES and EN prose with placeholders such as `{eq.precision_radar}` or `{flood.class2_ha}`, referencing tool-output keys. It may not write digits.
   - **Unit and place names** (e.g. "Comuna 13") are rendered through placeholders from the ranking output; **sensor names** (Sentinel-1, Sentinel-2) are on the allow-list.
-  - **Event constants** (Aug 10 2026, M7.4, 96 km) come from an allow-list, `validation/event_facts.json`. Each entry has its primary source: USGS event ID, SGC bulletin.
+  - **Event constants** (Aug 10 2026, M7.4, 116 km) come from an allow-list, `validation/event_facts.json`. Each entry has its primary source: USGS event ID, SGC bulletin.
   - **Locale rendering.** A renderer fills the placeholders from the tool outputs with per-locale formatting: ES uses a decimal comma, EN a decimal point, with rounding rules per key and units appended.
   - **Check, at generation and again at serve time** (including for cached bulletins): reject the bulletin if
     - the LLM text contains any digit outside a placeholder or allow-listed constant;
@@ -310,7 +310,7 @@ surface_tango/
 
 ### 30-second video (quake headline)
 
-- **0–4 s:** event card (Aug 10 2026, M7.4, 96 km deep; USGS/SGC).
+- **0–4 s:** event card (Aug 10 2026, M7.4, 116 km deep; USGS).
 - **4–10 s:** curtain slider drag on the quake AOI: post-event optical → pre-event coherence → co-event coherence loss.
 - **10–20 s:** damage proxy over Pereira/Armenia/Manizales; ranked barrios rise as Deck.gl columns.
 - **20–27 s:** the measured scorecard, radar vs population-only with CIs, plus one shown miss. If the scorecard is uninformative or radar loses, this segment states that outcome instead (see Hazard 2).
@@ -692,7 +692,7 @@ Premise table (unverified=3):
 |---|---|---|---|
 | NISAR public window | acquisitions from Jun 17 2026 | docs/designs/bailasar.md:54 (ASF notice, web) | verified |
 | validated L2 release | Nov 6 2026 | docs/designs/bailasar.md:54 (Earthdata alert, web) | verified |
-| quake depth | 96 km | docs/designs/bailasar.md:57 (SGC via secondary source) | verified (secondary) |
+| quake depth | 116 km | USGS us6000tjl2 preferred origin (116.13 km; docs/kb/event-2026-08-10-earthquake.md) | verified (primary) |
 | dual-pol over Colombia | HH/HV baseline | docs/designs/bailasar.md:58 (NASA polarimetry page) | verified (plan-level) |
 | GUNW posting / iono layer | 20/80 m, iono not applied | docs/designs/bailasar.md:195 (ASF GUNW docs, web) | verified |
 | no S-band over Colombia | absence of evidence | docs/designs/bailasar.md:62 | unverified |
