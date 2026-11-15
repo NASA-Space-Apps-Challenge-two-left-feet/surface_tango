@@ -285,7 +285,7 @@ function _resetModelOverrideWarningCacheForTests() {
  * `Object.hasOwn` lookup defeats `__proto__`/`constructor` lookups on the plain
  * object literal so those reserved keys cannot return a truthy non-string.
  */
-function mapClaudeOverrideForRuntime(override, 
+function mapClaudeOverrideForRuntime(override,
 // The ACTIVE runtime (#4505). Previously the raw `config['runtime']`, which
 // made an explicit claude pin collapse to a bare alias whenever the runtime
 // was declared via GSD_RUNTIME or the install marker rather than the config —

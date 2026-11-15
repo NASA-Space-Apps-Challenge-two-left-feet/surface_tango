@@ -1223,4 +1223,3 @@ if (require.main === module) {
 }
 
 module.exports = { computeHunks, annotateHunks, buildFileHunks, HUNK_REASON, HUNK_RECOMMENDATION, DISPOSITION, computeUserAddedLines, isSignificantLine, verifyFile, classifyFile, walk, REASON, CLASSIFICATION, PRISTINE_RESOLUTION, resolvePristineBaseline, readPristineHashes, sha256, resolveInstalledPath, resolveSkillsRedirect, coverageHeadline, classifyBaselineCoverage };
-

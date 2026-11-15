@@ -1,6 +1,8 @@
 # gee_math/landslide_insar_math.py
 import math
+
 import ee
+
 
 def compute_landslide_insar_kinematics(
     gunw_unw_gcs: str,
@@ -61,15 +63,15 @@ def compute_landslide_insar_kinematics(
     # Pure deformation phase -> LOS displacement in millimeters (NISAR L-band lambda = 240.0 mm)
     lambda_mm = 240.0
     d_los_mm = (
-        phi_iono_corr.subtract(phi_tropo)
-        .multiply(-lambda_mm / (4.0 * math.pi))
-        .rename("d_los_mm")
+        phi_iono_corr.subtract(phi_tropo).multiply(-lambda_mm / (4.0 * math.pi)).rename("d_los_mm")
     )
 
     # 4. Exact 3D Vector Projection onto Steepest Downslope (u_LOS . u_slope)
     deg2rad = math.pi / 180.0
-    projection_img = ee.Image.cat([d_los_mm, slope_deg, aspect_deg]).expression(
-        """
+    projection_img = (
+        ee.Image.cat([d_los_mm, slope_deg, aspect_deg])
+        .expression(
+            """
         // Unit LOS vector (East, North, Up)
         var theta = inc_deg * deg2rad;
         var alpha = heading_deg * deg2rad;
@@ -92,13 +94,16 @@ def compute_landslide_insar_kinematics(
         var v_downslope_mm_yr = d_downslope_mm * (365.25 / dt_days);
         v_downslope_mm_yr
         """,
-        {
-            "inc_deg": inc_angle_deg,
-            "heading_deg": sat_heading_deg,
-            "dt_days": temporal_baseline_days,
-            "deg2rad": deg2rad,
-        },
-    ).updateMask(slope_deg.gte(15.0)).rename("v_downslope_mm_yr")
+            {
+                "inc_deg": inc_angle_deg,
+                "heading_deg": sat_heading_deg,
+                "dt_days": temporal_baseline_days,
+                "deg2rad": deg2rad,
+            },
+        )
+        .updateMask(slope_deg.gte(15.0))
+        .rename("v_downslope_mm_yr")
+    )
 
     # 5. Hydro-Geotechnical Pore Pressure Coupling (CHIRPS 15-day + Topographic Wetness Index proxy)
     chirps_15d = (
@@ -111,13 +116,17 @@ def compute_landslide_insar_kinematics(
     )
 
     # Composite Hydro-Kinematic Landslide Susceptibility Index (0.0 to 1.0)
-    hklsi = ee.Image.cat([projection_img, slope_deg, chirps_15d]).expression(
-        """
+    hklsi = (
+        ee.Image.cat([projection_img, slope_deg, chirps_15d])
+        .expression(
+            """
         var v_norm = clamp(b('v_downslope_mm_yr') / 120.0, 0.0, 1.0);
         var s_norm = clamp((b('slope') - 15.0) / 30.0, 0.0, 1.0);
         var r_norm = clamp(b('rain_15d_mm') / 200.0, 0.0, 1.0);
         (0.50 * v_norm) + (0.25 * s_norm) + (0.25 * r_norm)
         """
-    ).rename("landslide_hazard_index")
+        )
+        .rename("landslide_hazard_index")
+    )
 
     return ee.Image.cat([d_los_mm, projection_img, slope_deg, chirps_15d, coh, hklsi])

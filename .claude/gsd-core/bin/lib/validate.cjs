@@ -44,18 +44,18 @@ exports.textEncodingError = textEncodingError;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseIdMod = require("./phase-id.cjs");
 const phase_entry_grammar_cjs_1 = require("./phase-entry-grammar.cjs");
-const { OPTIONAL_PROJECT_CODE_PREFIX_SOURCE, 
+const { OPTIONAL_PROJECT_CODE_PREFIX_SOURCE,
 // #2528 review: taken from the owner rather than derived here by
 // `replaceAll('A-Z', 'A-Za-z')` — that derivation silently no-ops (and narrows
 // this module to uppercase-only) the day phase-id.cts renders the class any
 // other way. See the constants' doc comment in phase-id.cts.
-CASE_FLEXIBLE_PROJECT_CODE_PREFIX_SOURCE, CASE_FLEXIBLE_PHASE_NUMBER_TOKEN_SOURCE, PHASE_CONTINUATION_SEGMENT_SOURCE, BRACKET_DIR_PREFIX_SRC, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE, extractPhaseToken, isSentinelPhaseId, 
+CASE_FLEXIBLE_PROJECT_CODE_PREFIX_SOURCE, CASE_FLEXIBLE_PHASE_NUMBER_TOKEN_SOURCE, PHASE_CONTINUATION_SEGMENT_SOURCE, BRACKET_DIR_PREFIX_SRC, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE, extractPhaseToken, isSentinelPhaseId,
 // #612 / #3309 re-homing: `checkBracketCoherence` (below) moved into this
 // module when #3309 migrated `cmdValidateHealth` onto the rule table and
 // deleted every local helper it used to sit beside in `verify.cts`. These
 // four are the grammar owners it consumes, imported unchanged — nothing about
 // the check is widened by the relocation.
-BRACKET_ID_SRC, PHASE_NUMBER_TOKEN_SOURCE, 
+BRACKET_ID_SRC, PHASE_NUMBER_TOKEN_SOURCE,
 // #2761 M3: canonical bracket milestone intro, re-homed here with
 // checkBracketCoherence when health diagnostics moved to the rule table.
 BRACKET_MILESTONE_INTRO_CAPTURING_SRC, foldBracketId, } = phaseIdMod;

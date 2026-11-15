@@ -357,7 +357,7 @@ function createHub({ cjsRegistry, manifest, logger } = {}) {
                 // Finding 1: runtime-validate ok:false variant shape; coerce malformed to HandlerFailure
                 const violation = _validateErrResult(result);
                 if (violation !== null) {
-                    return makeHandlerFailure('handler returned malformed Result variant: ' + violation, 
+                    return makeHandlerFailure('handler returned malformed Result variant: ' + violation,
                     // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-plus-operands
                     new Error('expected ' + (result['kind'] ?? '<no kind>') + ', got ' + _safeJson(result)));
                 }

@@ -146,7 +146,7 @@ if [ -n "$FILES_OVERRIDE" ]; then
     if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
   }
   REPO_ROOT=$(_gsd_norm_path "$(git rev-parse --show-toplevel 2>/dev/null)")
-  
+
   for file_path in "${FILES_ARRAY[@]}"; do
     # Security: validate path is within repository (prevent path traversal). Compare on a path
     # boundary: the root itself or anything under "<root>/" — a sibling such as "<root>-other"
@@ -159,7 +159,7 @@ if [ -n "$FILES_OVERRIDE" ]; then
       echo "Error: File path outside repository, skipping: ${file_path}"
       continue
     fi
-    
+
     # Validate path exists (relative to repo root)
     if [ -f "${REPO_ROOT}/${file_path}" ] || [ -f "${file_path}" ]; then
       REVIEW_FILES+=("$file_path")
@@ -167,7 +167,7 @@ if [ -n "$FILES_OVERRIDE" ]; then
       echo "Warning: File not found, skipping: ${file_path}"
     fi
   done
-  
+
   echo "File scope: ${#REVIEW_FILES[@]} files from --files override"
 fi
 ```
@@ -224,7 +224,7 @@ if [ -z "$FILES_OVERRIDE" ]; then
     if (files.length) console.log(files.join('\n'));
 NODE
   }
-  
+
   if [ -n "$SUMMARIES" ]; then
     # Rewrapped through unquoted command substitution (gsd-core#4109): a bare
     # `$VAR` word-splits under bash but not zsh, collapsing every element onto
@@ -241,7 +241,7 @@ NODE
       # Extract key_files.created and key_files.modified using node for reliable YAML parsing
       # This avoids fragile awk parsing that breaks on indentation differences
       EXTRACTED=$(extract_summary_files "$summary")
-      
+
       # Add extracted files to REVIEW_FILES array
       if [ -n "$EXTRACTED" ]; then
         while IFS= read -r file; do
@@ -251,7 +251,7 @@ NODE
         done <<< "$EXTRACTED"
       fi
     done
-    
+
     if [ ${#REVIEW_FILES[@]} -eq 0 ]; then
       echo "Warning: SUMMARY artifacts found but contained no file paths. Falling back to the phase evaluation scope."
     fi
@@ -885,10 +885,10 @@ if [ -f "${REVIEW_PATH}" ]; then
     const match = content.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/);
     if (match && /status:/.test(match[1])) { console.log('valid'); } else { console.log('invalid'); }
   " 2>/dev/null)
-  
+
   if [ "$HAS_STATUS" = "valid" ]; then
     echo "REVIEW.md created at ${REVIEW_PATH}"
-    
+
     if [ "$COMMIT_DOCS" = "true" ]; then
       gsd_run query commit \
         "docs(${PADDED_PHASE}): add code review report" \
@@ -943,7 +943,7 @@ Display inline summary to user:
 
   Depth:           ${REVIEW_DEPTH} (${DEPTH_PROVENANCE})
   Files Reviewed:  ${FILES_REVIEWED}
-  
+
   Findings:
     Critical:  ${CRITICAL}
     Warning:   ${WARNING}

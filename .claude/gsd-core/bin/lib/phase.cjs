@@ -62,18 +62,18 @@ const planningScopeMod = require("./planning-scope.cjs");
 const { SCOPE } = planningScopeMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- roadmap-parser.cjs is an export= CommonJS module
 const roadmapParserMod = require("./roadmap-parser.cjs");
-const { stripShippedMilestones, extractCurrentMilestone, extractCurrentMilestoneScoped, currentMilestoneRawRanges, withPhaseSection, editCurrentMilestone, findMilestoneScopeHeadingLines, getMilestoneInfo, 
+const { stripShippedMilestones, extractCurrentMilestone, extractCurrentMilestoneScoped, currentMilestoneRawRanges, withPhaseSection, editCurrentMilestone, findMilestoneScopeHeadingLines, getMilestoneInfo,
 // #5679: the STATE.md milestone read getMilestoneInfo itself uses, and the
 // archive-aware owner of a ROADMAP offset.
-readStateMilestoneScalar, classifyMilestoneScalar, milestoneVersionAtOffset, blankCodeAndComments, scanMilestonePhaseIds, 
+readStateMilestoneScalar, classifyMilestoneScalar, milestoneVersionAtOffset, blankCodeAndComments, scanMilestonePhaseIds,
 // #4304: every recognized milestone heading in the document,
 // not just the active one — see bracketProgressSectionOwnedByOtherMilestone.
-listMilestoneHeadings, selectMilestoneHeading, 
+listMilestoneHeadings, selectMilestoneHeading,
 // #4304: the SAME bracket milestone-boundary grammar the
 // window locator uses (bracketAwareMilestoneSection), reused so the
 // marker set below recognizes a version-less bracket milestone heading
 // too, not only a version-token one.
-isBracketMilestoneBoundary, 
+isBracketMilestoneBoundary,
 // #4304: the SAME closed/shipped-heading predicate
 // currentMilestoneRawRanges uses, reused so the pre-mutation window guard
 // (bracketOwnedLineOutsideActiveWindow) can recognize an archived section

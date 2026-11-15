@@ -1,6 +1,7 @@
 # gee_math/flood_polarimetric_math.py
 import ee
 
+
 def compute_flood_scattering_decomposition(
     gcov_hhhh_pre_gcs: str,
     gcov_hvhv_pre_gcs: str,
@@ -28,24 +29,24 @@ def compute_flood_scattering_decomposition(
 
     # 2. Dual-Pol Freeman-Style Power Decomposition (Linear Power Domain)
     # Volume power Pv = 4 * HVHV; Surface/Double-Bounce power P_sd = max(HHHH - 2*HVHV, 0)
-    decomp = ee.Image.cat([hh_post, hv_post, hh_pre, hv_pre]).expression(
-        """
+    decomp = (
+        ee.Image.cat([hh_post, hv_post, hh_pre, hv_pre])
+        .expression(
+            """
         var pv_post  = 4.0 * b(1);
         var psd_post = max(b(0) - (2.0 * b(1)), 0.0);
         var span_post = b(0) + (2.0 * b(1));
         var double_bounce_fraction = psd_post / (span_post + 1e-6);
         double_bounce_fraction
         """
-    ).rename("double_bounce_fraction")
+        )
+        .rename("double_bounce_fraction")
+    )
 
     # 3. Ancillary Hydrological Conditioning: MERIT Hydro HAND & JRC Permanent Water
     hand = ee.Image("MERIT/Hydro/v1_0_1").select("hnd").clip(aoi).rename("hand_m")
     perm_water = (
-        ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
-        .select("seasonality")
-        .gte(10)
-        .clip(aoi)
-        .unmask(0)
+        ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("seasonality").gte(10).clip(aoi).unmask(0)
     )
     floodplain_mask = hand.lt(18.0).And(perm_water.Not())
 
@@ -82,11 +83,17 @@ def compute_flood_scattering_decomposition(
 
     # Categorical Flood Class (0: Non-Flood, 1: Specular Open Water, 2: Sub-Canopy Double-Bounce)
     flood_class = (
-        open_water_flood.multiply(1)
-        .add(subcanopy_flood.multiply(2))
-        .rename("flood_regime_class")
+        open_water_flood.multiply(1).add(subcanopy_flood.multiply(2)).rename("flood_regime_class")
     )
 
-    return ee.Image.cat([
-        hh_post_db, hv_post_db, delta_hh_db, decomp, open_water_flood, subcanopy_flood, flood_class
-    ])
+    return ee.Image.cat(
+        [
+            hh_post_db,
+            hv_post_db,
+            delta_hh_db,
+            decomp,
+            open_water_flood,
+            subcanopy_flood,
+            flood_class,
+        ]
+    )

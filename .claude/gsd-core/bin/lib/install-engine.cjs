@@ -1627,7 +1627,7 @@ function installOpencodeFamilySkills(runtime, targetDir, rawCommandsDir, pathPre
         .filter((e) => e.isFile() && e.name.endsWith('.md'))
         .map((e) => `${skillsKindEntry.prefix}${e.name.slice(0, -3)}`));
     const ownsSkillDir = createSkillDirOwnership(runtime, targetDir, dest, skillsKindEntry.prefix);
-    _warnPreservedSkillDirs(dest, 
+    _warnPreservedSkillDirs(dest,
     // Never pruned, as in installRuntimeArtifacts: the restore skips symlinks.
     _removeGsdEntries(dest, skillsKindEntry, (name) => !USER_OWNED_SKILL_DIRS.includes(name) && (rawStemNames.has(name) || ownsSkillDir(name))));
     let count = 0;

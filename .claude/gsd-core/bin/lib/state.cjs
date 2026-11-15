@@ -29,7 +29,7 @@ const configLoaderMod = require("./config-loader.cjs");
 const { loadConfig } = configLoaderMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseIdMod = require("./phase-id.cjs");
-const { parsePhaseFromProse, phaseNumberTokenSource, phaseKeyFromToken, phaseKeyFromDir, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE, isSentinelPhaseId, scopeToPhase, 
+const { parsePhaseFromProse, phaseNumberTokenSource, phaseKeyFromToken, phaseKeyFromDir, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE, isSentinelPhaseId, scopeToPhase,
 // #2761 M3: owns the bracket milestone intro and canonical pad2 spelling.
 bracketMilestoneIntroSrcFor, } = phaseIdMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -2693,7 +2693,7 @@ function countRoadmapPhaseHeadings(scope, convention, retiredPhaseNums, applyCon
  * from it, and `statePhaseDirsToScan` hands it to `phase remove`'s pre-write
  * validation, so the two cannot disagree about which reports a rebuild reads.
  */
-function scanStatePhaseDirs(cwd, phasesDir, phaseConvention, storedMilestone, 
+function scanStatePhaseDirs(cwd, phasesDir, phaseConvention, storedMilestone,
 // `quiet` suppresses ONLY the duplicate-phase-key stderr warning. A pre-write
 // validation pass that is followed by the real rebuild scan sets it, so the
 // one command prints the warning once (the rebuild scan owns the warning).
@@ -2797,13 +2797,13 @@ function isMilestoneExplicitlyNull(existingFm) {
  * a YAML frontmatter object. Allows hooks and scripts to read state
  * reliably via `state json` instead of fragile regex parsing.
  */
-function buildStateFrontmatter(bodyContent, cwd, storedMilestone, storedTotalPhases, 
+function buildStateFrontmatter(bodyContent, cwd, storedMilestone, storedTotalPhases,
 // #4094: the stored siblings of storedTotalPhases, threaded from each call
 // site exactly the same way — see readStoredProgressCounter below. Under the
 // #3354/#3573 withhold condition the disk scan returns null for all four
 // counters, and these stored values are what the progress block falls back
 // to (else the keys are omitted).
-storedCompletedPhases, storedTotalPlans, storedCompletedPlans, 
+storedCompletedPhases, storedTotalPlans, storedCompletedPlans,
 // #5038: explicit `milestone: null` (vs an absent key); withholds progress
 // counters on a sectioned ROADMAP without the unbound warning.
 milestoneExplicitlyNull) {
@@ -4130,7 +4130,7 @@ function assertStatePreservationOptions(options, caller) {
         throw err;
     }
 }
-function applyPostSyncPreservation(originalContent, transformedContent, syncedContent, statePath, options, 
+function applyPostSyncPreservation(originalContent, transformedContent, syncedContent, statePath, options,
 // #5626: the project's phase-id convention, resolved by the caller from its cwd (null: unset). Trailing and
 // optional so `options` stays the fifth parameter the options guard and its callers rely on.
 phaseIdConvention = null, directoryContext) {
@@ -4929,11 +4929,11 @@ function stateTargetChanged(snapshotFm, snapshotBody, persistedFm, persistedBody
         return true;
     return before.trim() !== after.trim();
 }
-function reconcileReportedFields(statePath, preWriteState, reported, divergedFields, 
+function reconcileReportedFields(statePath, preWriteState, reported, divergedFields,
 // ADR-4629 §8.2 / Decision 4 (C2): names in `reported` that are declared
 // `target: 'section'` assertions, measured as whole-section deltas. Omitted
 // by every pre-C2 caller, whose output is unchanged.
-sectionTargets = NO_SECTION_TARGETS, 
+sectionTargets = NO_SECTION_TARGETS,
 // #4998 review: the caller writes session fields inside the session section.
 sessionScope = false) {
     void divergedFields; // ADR-3473 §8.7 D18: out-param only, not a candidate source here.

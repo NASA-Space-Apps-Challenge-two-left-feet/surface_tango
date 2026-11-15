@@ -622,7 +622,7 @@ function scanFileWideNegativeGateConflict(content) {
                 continue;
             // FIX 5: Negation at a command boundary: start of segment, or after ; & | ( newline / then / do.
             // Also handles ! negating an entire pipeline (e.g. ! cat FILE | grep ...).
-            const hasLeadingNot = 
+            const hasLeadingNot =
             // Direct ! grep: negation immediately before grep keyword
             /(?:^|[\n;&|(]|\bthen\b|\bdo\b)\s*!\s*grep/.test(seg) ||
                 // Pipeline negation: ! at command boundary, grep appears in pipeline after |

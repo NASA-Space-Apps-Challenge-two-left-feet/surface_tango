@@ -29,24 +29,24 @@ const markdown_sectionizer_cjs_1 = require("./markdown-sectionizer.cjs");
 const phase_entry_grammar_cjs_1 = require("./phase-entry-grammar.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseIdModule = require("./phase-id.cjs");
-const { phaseMarkdownRegexSource, stripProjectCodePrefix, OPTIONAL_PHASE_TAG_SOURCE, 
+const { phaseMarkdownRegexSource, stripProjectCodePrefix, OPTIONAL_PHASE_TAG_SOURCE,
 // #2121: roadmapPhaseLookupSources now lives in phase-id.cjs (single owner of
 // the lookup-source ordering); imported here rather than defined locally.
-roadmapPhaseLookupSources, extractPhaseToken, isSentinelPhaseId, 
+roadmapPhaseLookupSources, extractPhaseToken, isSentinelPhaseId,
 // #3641: the single-owner heading-intro and digit-token grammar sources —
 // see BRACKET_PHASE_ENTRY_HEADING_RE below.
-PHASE_HEADING_PREFIX_SRC, PHASE_NUMBER_TOKEN_SOURCE, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE, 
+PHASE_HEADING_PREFIX_SRC, PHASE_NUMBER_TOKEN_SOURCE, phaseHeadingPrefixSrcFor, PHASE_HEADING_BASELINE,
 // #612: the disk-side milestone filter resolves bracket directories through
 // the owner's gated helpers rather than spelling the grammar a second time.
-phaseTokenMatches, 
+phaseTokenMatches,
 // #2761 B1: the version-less bracket milestone boundary (computeSectionEnd /
 // preambleCutoff, below) is built from this single-owner source rather than a
 // re-typed bracket-id literal.
-BRACKET_ID_SRC, 
+BRACKET_ID_SRC,
 // #2761 M3: the PINNED bracket milestone intro, owning the pad2 spelling rule
 // as well as the grammar — consumed by the bracket-fallback selector below,
 // which re-typed the project-code class and restated the padding rule.
-bracketMilestoneIntroSrcFor, 
+bracketMilestoneIntroSrcFor,
 // #2761 B1 (round-2 fix): fold-before-identity for the SAME-MILESTONE
 // continuation check in isBracketMilestoneBoundary, below — the branch's own
 // convention (matches bracketQualifiedKey/isSentinelPhaseId).

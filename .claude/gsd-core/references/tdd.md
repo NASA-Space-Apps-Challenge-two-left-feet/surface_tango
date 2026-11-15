@@ -310,7 +310,7 @@ PHASE_N="$((10#$PHASE_INT))${PHASE_REST//./\\.}"
 PLAN_N=$((10#${PLAN}))
 # Check for RED gate commit
 git log --oneline -E --grep="^test\((0*${PHASE_N})-(0*${PLAN_N})\):" | head -1
-# Check for GREEN gate commit  
+# Check for GREEN gate commit
 git log --oneline -E --grep="^feat\((0*${PHASE_N})-(0*${PLAN_N})\):" | head -1
 # Check for optional REFACTOR gate commit
 git log --oneline -E --grep="^refactor\((0*${PHASE_N})-(0*${PLAN_N})\):" | head -1

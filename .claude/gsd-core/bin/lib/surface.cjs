@@ -41,7 +41,7 @@ const args_terminator_cjs_1 = require("./args-terminator.cjs");
 const installProfiles = require("./install-profiles.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const testHomeGuard = require("./real-home-guard.cjs");
-const { readActiveProfile, resolveProfile, loadSkillsManifest, 
+const { readActiveProfile, resolveProfile, loadSkillsManifest,
 // #2322 HIGH-3: shared marker name — single source of truth with the writer
 // (install-profiles.cts stageSkillsForRuntimeAsSkills) so the prune reader
 // below can never drift from what the stage-time writer actually wrote.

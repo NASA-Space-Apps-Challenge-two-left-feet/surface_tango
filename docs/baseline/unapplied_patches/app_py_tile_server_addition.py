@@ -13,7 +13,7 @@ async def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
     so the 3-panel MapLibre GL curtain slider works with zero internet connectivity.
     """
     ds = xr.open_zarr(ZARR_PATH)
-    
+
     if domain == "landslide":
         arr = np.clip(ds["downslope_disp_mm"].values / 30.0, 0, 1)
         rgba = np.stack([arr * 255, (1 - arr) * 200, np.zeros_like(arr), (arr > 0.15) * 210], axis=-1)
