@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from pathlib import Path
 
 import ee
@@ -31,10 +32,8 @@ app.add_middleware(
 CACHE_ROOT = Path(
     os.environ.get("BAILASAR_CACHE_DIR", Path(__file__).resolve().parent / "local_cache")
 )
-CACHE_DIR = CACHE_ROOT / "antioquia_aburra"
-TILE_CUBE = CACHE_DIR / "antioquia_sar_cube.zarr"
-TILE_MANIFEST = CACHE_DIR / "manifest.json"
-PANEL_GATE_RESULTS = CACHE_DIR / "gate-panel-results.json"
+ABURRA_CACHE = CACHE_ROOT / "aburra"
+LEGACY_ABURRA_CACHE = CACHE_ROOT / "antioquia_aburra"
 STORY_RESULTS = CACHE_ROOT / "story-results.json"
 OFFLINE_ASSETS = CACHE_ROOT / "frontend-assets"
 ASSET_PATHS = {
@@ -57,6 +56,69 @@ def frontend_asset(name: str):
     return FileResponse(asset)
 
 
+SENTINEL_AOIS = {"aburra", "eje_cafetero", "mojana"}
+SENTINEL_LAYERS = {"s1": "cband_s1", "s2": "optical_s2"}
+
+
+def sentinel_manifest(aoi: str) -> tuple[Path, dict]:
+    if aoi not in SENTINEL_AOIS:
+        raise HTTPException(404, "Unknown Sentinel tile area")
+    tiles = CACHE_ROOT / aoi / "tiles"
+    path = tiles / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    if manifest and manifest.get("aoi") != aoi:
+        raise HTTPException(500, "Sentinel manifest does not match the area")
+    return tiles, manifest
+
+
+def cached_sentinel_layer(manifest: dict, layer: str) -> dict | None:
+    entry = manifest.get("layers", {}).get(SENTINEL_LAYERS[layer], {})
+    scene_ids = entry.get("scene_ids")
+    if (
+        entry.get("status") == "cached"
+        and isinstance(scene_ids, list)
+        and scene_ids
+        and all(isinstance(scene, str) and scene.strip() for scene in scene_ids)
+        and entry.get("tiles", {}).get("written", 0) > 0
+    ):
+        return entry
+    return None
+
+
+@app.get("/api/sentinel-tiles/{aoi}")
+def sentinel_tile_status(aoi: str):
+    tiles, manifest = sentinel_manifest(aoi)
+    panels = {}
+    for layer in SENTINEL_LAYERS:
+        entry = cached_sentinel_layer(manifest, layer)
+        if entry is None or not next((tiles / layer).glob("*/*/*.png"), None):
+            panels[layer] = {"state": "not cached"}
+            continue
+        panels[layer] = {
+            "state": "cached",
+            "source": "cache",
+            "scene_ids": entry["scene_ids"],
+            "date": entry.get("date"),
+            "cache_built_at": manifest.get("generated_utc"),
+            "tile_url": f"/api/sentinel-tiles/{aoi}/{layer}/{{z}}/{{x}}/{{y}}.png",
+            "bounds": manifest["bbox_wsen"],
+            "minzoom": manifest["zoom"]["min"],
+            "maxzoom": manifest["zoom"]["max"],
+        }
+    return panels
+
+
+@app.get("/api/sentinel-tiles/{aoi}/{layer}/{z}/{x}/{y}.png")
+def serve_sentinel_tile(aoi: str, layer: str, z: int, x: int, y: int):
+    if layer not in SENTINEL_LAYERS or not valid_xyz(z, x, y):
+        raise HTTPException(404, "Invalid Sentinel tile")
+    tiles, manifest = sentinel_manifest(aoi)
+    tile = tiles / layer / str(z) / str(x) / f"{y}.png"
+    if cached_sentinel_layer(manifest, layer) is None or not tile.is_file():
+        raise HTTPException(404, "Sentinel tile not cached")
+    return FileResponse(tile, media_type="image/png")
+
+
 @app.get("/api/story-results")
 def story_results():
     if not STORY_RESULTS.is_file():
@@ -68,42 +130,96 @@ def story_results():
 def panel_gate(domain: str):
     if domain not in HAZARD_DOMAINS:
         raise HTTPException(404, "Unknown tile domain")
-    if not PANEL_GATE_RESULTS.is_file():
+    for cache_dir in (ABURRA_CACHE, LEGACY_ABURRA_CACHE):
+        results_path = cache_dir / "gate-panel-results.json"
+        if results_path.is_file():
+            break
+    else:
         return Response(status_code=204)
-    results = json.loads(PANEL_GATE_RESULTS.read_text(encoding="utf-8"))
+    results = json.loads(results_path.read_text(encoding="utf-8"))
     statement = results.get(domain)
     if not isinstance(statement, str) or not statement.strip():
         return Response(status_code=204)
     return {"statement": statement.strip()}
 
 
+@dataclass(frozen=True)
+class LandslideTileCache:
+    cube: Path
+    bbox: list[float]
+    granule_id: str
+    built_at: str | None
+
+
+def find_landslide_tile_cache() -> LandslideTileCache | None:
+    layouts = (
+        (ABURRA_CACHE, "aburra_sar_cube.zarr"),
+        (LEGACY_ABURRA_CACHE, "antioquia_sar_cube.zarr"),
+    )
+    for cache_dir, cube_name in layouts:
+        cube_path = cache_dir / cube_name
+        manifest_path = cache_dir / "manifest.json"
+        if not cube_path.is_dir() or not manifest_path.is_file():
+            continue
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        source = manifest.get("nisar_granule_provenance", {}).get(LANDSLIDE_BAND)
+        if not isinstance(source, str) or source.strip().lower() in {"", "missing"}:
+            return None
+        band = manifest.get("bands", {}).get(LANDSLIDE_BAND)
+        if band is not None and (band.get("status") != "cached" or band.get("source_id") != source):
+            return None
+
+        bbox = manifest.get("bbox")
+        if (
+            not isinstance(bbox, list)
+            or len(bbox) != 4
+            or not all(isinstance(value, (int, float)) and np.isfinite(value) for value in bbox)
+            or not (bbox[0] < bbox[2] and bbox[1] < bbox[3])
+        ):
+            raise HTTPException(500, "Invalid bounds in the Aburrá cache manifest")
+
+        with xr.open_zarr(cube_path) as cube:
+            if LANDSLIDE_BAND not in cube:
+                return None
+            if set(cube[LANDSLIDE_BAND].dims) != {"x", "y"}:
+                raise HTTPException(500, "Invalid dimensions in the Aburrá cache cube")
+
+        built_at = manifest.get("cache_built_at")
+        return LandslideTileCache(
+            cube_path, bbox, source.strip(), built_at if isinstance(built_at, str) else None
+        )
+    return None
+
+
 @app.get("/api/local-tiles/{domain}")
 def local_tile_status(domain: str):
     if domain not in HAZARD_DOMAINS:
         raise HTTPException(404, "Unknown tile domain")
-    if domain != "landslide":
-        # The baseline cube can reuse one granule or select an unapproved pair.
-        # Comparative products belong to the validated story tile inputs.
+    # Comparative products belong to the validated story tile inputs.
+    cache = find_landslide_tile_cache() if domain == "landslide" else None
+    if cache is None:
         return {"state": "not cached"}
-    if TILE_CUBE.is_dir() and TILE_MANIFEST.is_file():
-        manifest = json.loads(TILE_MANIFEST.read_text(encoding="utf-8"))
-        source = manifest.get("nisar_granule_provenance", {}).get(LANDSLIDE_BAND)
-        if not isinstance(source, str) or source.strip().lower() in {"", "missing"}:
-            return {"state": "not cached"}
-        with xr.open_zarr(TILE_CUBE) as cube:
-            if LANDSLIDE_BAND in cube:
-                return {
-                    "state": "cached",
-                    "tile_url": f"/api/local-tiles/{domain}/{{z}}/{{x}}/{{y}}.png",
-                }
-    return {"state": "not cached"}
+    return {
+        "state": "cached",
+        "source": "cache",
+        "granule_ids": [cache.granule_id],
+        "cache_built_at": cache.built_at,
+        "tile_url": f"/api/local-tiles/{domain}/{{z}}/{{x}}/{{y}}.png",
+    }
 
 
+def valid_xyz(z: int, x: int, y: int) -> bool:
+    return 0 <= z <= 24 and 0 <= x < 2**z and 0 <= y < 2**z
+
+
+@app.get("/api/local-tiles/aburra/{domain}/{z}/{x}/{y}.png")
 @app.get("/api/local-tiles/{domain}/{z}/{x}/{y}.png")
 def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
-    if not 0 <= z <= 24 or not (0 <= x < 2**z and 0 <= y < 2**z):
+    if not valid_xyz(z, x, y):
         raise HTTPException(404, "Invalid XYZ tile")
-    if local_tile_status(domain)["state"] != "cached":
+    cache = find_landslide_tile_cache() if domain == "landslide" else None
+    if cache is None:
         raise HTTPException(404, "Tile data not cached")
 
     # XYZ addresses divide the Web Mercator world into equal squares.
@@ -112,14 +228,13 @@ def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
     left, top = -half_world + x * span, half_world - y * span
     size = 256
     transform = from_bounds(left, top - span, left + span, top, size, size)
-    bounds = json.loads(TILE_MANIFEST.read_text(encoding="utf-8"))["bbox"]
-    with xr.open_zarr(TILE_CUBE) as cube:
+    with xr.open_zarr(cache.cube) as cube:
         source = cube[LANDSLIDE_BAND].transpose("y", "x").values.astype(np.float32, copy=False)
         values = np.full((size, size), np.nan, dtype=np.float32)
         reproject(
             source,
             values,
-            src_transform=from_bounds(*bounds, source.shape[1], source.shape[0]),
+            src_transform=from_bounds(*cache.bbox, source.shape[1], source.shape[0]),
             src_crs="EPSG:4326",
             src_nodata=np.nan,
             dst_transform=transform,

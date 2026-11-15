@@ -102,12 +102,7 @@ function openLiveView() {
   maps.forEach(map => map.resize());
   setCurtainLabels("");
   mapNisar.jumpTo(INITIAL_VIEW);
-  const liveUrls = [liveReferenceTiles.optical_s2_tile_url, liveReferenceTiles.cband_s1_tile_url];
-  storyPanels.slice(0, 2).forEach(({ id, map, sourceId }, index) => {
-    const url = liveUrls[index];
-    setTileLayer(map, sourceId, url);
-    panelStatus(id, url ? "Live" : "Not cached", comparisonLabels[index]);
-  });
+  restoreReferencePanels();
   refreshDeckHotspots();
   inspectHazardDomain(selectedDomain);
 }
