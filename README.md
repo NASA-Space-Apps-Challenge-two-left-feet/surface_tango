@@ -65,7 +65,7 @@ OFFLINE_DEMO_MODE=0 docker compose --profile live up --build -d
 OFFLINE_DEMO_MODE=1 docker compose --profile pitch up -d
 ```
 
-Without make, run `scripts/fetch_cache.sh` with the same two variables. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
+Without make, run `uv run python scripts/fetch_cache.py` with the same two variables. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
 
 ## Status
 

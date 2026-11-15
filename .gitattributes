@@ -1,0 +1,4 @@
+# GitHub language stats: count the project's own code, not vendored tooling or planning docs.
+.claude/** linguist-vendored
+.planning/** linguist-documentation
+docs/** linguist-documentation

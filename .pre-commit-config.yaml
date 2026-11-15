@@ -43,8 +43,8 @@ repos:
     hooks:
       - id: up-to-date-with-main
         name: branch is up to date with origin/main
-        entry: scripts/check_up_to_date.sh
-        language: script
+        entry: python3 scripts/check_up_to_date.py
+        language: system
         pass_filenames: false
         always_run: true
 

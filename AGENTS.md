@@ -57,6 +57,18 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 - LangGraph: `nisar_ingestion` → landslide / earthquake / flood agents → `cross_hazard_synthesis`. Biomass is a TODO.
 - Every UI panel renders exactly one of: live · cached · not cached · gate result · error. Never blank.
 
+## Language: Python everywhere except the browser
+
+- **All project code is Python 3.12**, run through `uv` (`uv run python …`). That covers data and cache scripts, Earth Engine, ASF/NISAR access, hazard math, MCP servers, agents, tests and repo tooling (hooks, worktrees, release fetch).
+  - Tooling that must run before `uv sync` (the `up-to-date-with-main` hook, `scripts/new_worktree.py`) uses the standard library only and runs with `python3`.
+  - Don't add shell, JavaScript, R or notebook code for these jobs. One-line shell recipes inside `Makefile` targets are fine; anything longer becomes a Python script in `scripts/`.
+- **Earth Engine only through the Python API** (`earthengine-api`, `import ee`), initialised only by `gee_math/ee_session.init_ee()` (ADC identity plus `GCP_PROJECT_ID`).
+  - No Code Editor JavaScript, no `ee.Authenticate()`, no `earthengine` CLI credentials, no service-account key files.
+  - Pixel pulls use `ee.data.computePixels` / `ee.data.getPixels`; tiles use `getMapId`.
+  - Every GEE read records its asset ID and dates in the provenance.
+- **JavaScript is allowed only for browser rendering** in `static/` (MapLibre, Deck.gl, the story map), served by the FastAPI app. It never computes hazard numbers: it only displays values that come from the Python tools and the cache.
+- GitHub's language bar counts `.claude/` as vendored and `.planning/` and `docs/` as documentation (`.gitattributes`).
+
 ## Commands
 
 ```bash
