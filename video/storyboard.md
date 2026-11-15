@@ -32,6 +32,6 @@ The nominal value and sensitivity range are rounded on screen. The range describ
 ## Capture handoff for #43
 
 1. Confirm [the submission deadline](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/29) and the D−6 h capture start in Bogotá time. Both times remain pending.
-2. Stage the released cache and prepare the story display with `uv run python static/prepare_story_cache.py --cache-dir <shared-cache-root>` once #37 is available. Rehearse the La Mojana chapter with network access disabled.
+2. Stage the released cache and prepare the story display with `uv run python scripts/prepare_story_cache.py --cache-dir <shared-cache-root> --release-manifest <downloaded-cache-manifest>` once #37 is available. Rehearse the La Mojana chapter with network access disabled.
 3. Record the title, curtain, and measured water mask. Show the dated July comparison as its own card after the June map. Keep the valid Sentinel-1 denominator visible in the card or its evidence caption.
 4. Record the outcome and credits, then check the 30-second cut for readable dates, units, denominators, caveats, and matching subtitles. Use this locked cut for the headline and evidence. Log the chosen takes in the [recording run sheet](recording-run-sheet.md#capture).

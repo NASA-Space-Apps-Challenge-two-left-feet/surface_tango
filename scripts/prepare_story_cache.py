@@ -76,7 +76,7 @@ def pre_event_coherence(cache_dir: Path) -> dict | None:
     granule = band.get("source_id")
     if band.get("status") != "cached" or not granule or granule == "missing":
         return None
-    # Read only the released pre-event variable. Co-event values remain sealed.
+    # This chapter displays only pre-event coherence, regardless of release contents.
     with xr.open_zarr(cube_path) as cube:
         values = cube["coherence_R"].transpose("y", "x").values
     valid = np.isfinite(values)
