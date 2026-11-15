@@ -508,6 +508,154 @@ def calibrate_keep_rule(
     )
 
 
+@dataclass(frozen=True)
+class StableFalsePositive:
+    """Keep-rule false-positive rate on the stable valley-floor sample."""
+
+    n_stable: int
+    n_kept: int
+    kept_fraction: float
+
+
+def stable_pixel_false_positive(
+    los_mm: list[np.ndarray],
+    downslope_mm: list[np.ndarray],
+    rate_mm_per_yr: list[np.ndarray],
+    residual_rms_mm: list[float],
+    acquisition_dates: list[frozenset[str]],
+) -> StableFalsePositive:
+    """Apply ``noise_floor`` to stable-pixel downslope fields.
+
+    Each downslope and rate array is finite only on that pair's tropo sample
+    (valley floor, inside the reference component, outside layover and shadow)
+    and NaN elsewhere. The denominator is the number of pixels with a finite
+    stable downslope in at least one pair. The numerator is how many of those
+    the keep-rule retains. The inputs are measurements; nothing is generated.
+    """
+    downs = [np.asarray(item, dtype=np.float64) for item in downslope_mm]
+    if not downs:
+        return StableFalsePositive(0, 0, math.nan)
+    eligible = np.zeros(downs[0].shape, dtype=bool)
+    for down in downs:
+        if down.shape != eligible.shape:
+            raise ValueError("stable-pixel inputs must share one grid")
+        eligible |= np.isfinite(down)
+    result = noise_floor(los_mm, downs, rate_mm_per_yr, residual_rms_mm, acquisition_dates)
+    kept = np.isfinite(result.kept_rate_mm_per_yr) & eligible
+    return StableFalsePositive(
+        int(np.count_nonzero(eligible)),
+        int(np.count_nonzero(kept)),
+        _kept_fraction(result, eligible),
+    )
+
+
+def exceeds_stable_rate(hillslope_fraction: float, stable_fraction: float) -> bool:
+    """True when the hillslope kept fraction is above the stable-pixel rate.
+
+    No extra margin is pre-registered. A missing fraction does not exceed.
+    """
+    return bool(
+        math.isfinite(hillslope_fraction)
+        and math.isfinite(stable_fraction)
+        and hillslope_fraction > stable_fraction
+    )
+
+
+def _join_stacks(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return ", ".join(names[:-1]) + f", and {names[-1]}"
+
+
+def _row_fraction(row: dict, key: str) -> float:
+    value = row.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return math.nan
+    return float(value)
+
+
+def stable_comparison_sentence(rows: list[dict]) -> str:
+    """One line on the hillslope kept fraction against the stable-pixel rate.
+
+    A higher hillslope fraction is a candidate only when it also exceeds the
+    sign-flip 95th percentile. Below that null, the null holds. The wording
+    does not call either case a detection.
+    """
+    if not rows:
+        return "No stack produced a stable-pixel false-positive rate."
+    missing = []
+    above_stable = []
+    above_both = []
+    for row in rows:
+        name = str(row.get("stack", "missing"))
+        hill = _row_fraction(row, "observed_kept_fraction")
+        stable = _row_fraction(row, "stable_kept_fraction")
+        null_p95 = _row_fraction(row, "null_p95")
+        if not math.isfinite(hill) or not math.isfinite(stable):
+            missing.append(name)
+            continue
+        if hill > stable:
+            above_stable.append(name)
+            if math.isfinite(null_p95) and hill > null_p95:
+                above_both.append(name)
+    if above_both:
+        return (
+            "The hillslope kept fraction exceeds the stable-pixel false-positive "
+            f"rate and the sign-flip null on {_join_stacks(above_both)}; "
+            "candidate, PROVISIONAL."
+        )
+    if above_stable:
+        return (
+            "The hillslope kept fraction is above the stable-pixel false-positive "
+            f"rate on {_join_stacks(above_stable)}, and below the sign-flip null, "
+            "so the null holds."
+        )
+    if missing:
+        return f"The stable-pixel false-positive rate is missing on {_join_stacks(missing)}."
+    return (
+        "The hillslope kept fraction is consistent with the stable-pixel "
+        "false-positive rate, so the null holds."
+    )
+
+
+def calibration_headline(noise_floor_mm: float, n_pairs: int, rows: list[dict]) -> str:
+    """Null sentence, unless a track exceeds both the stable-pixel rate and the sign-flip null.
+
+    The candidate wording does not call that exceedance a detection.
+    """
+    sentence = stable_comparison_sentence(rows)
+    if "candidate, PROVISIONAL" in sentence:
+        floor = format_mm(noise_floor_mm) if math.isfinite(noise_floor_mm) else "missing"
+        return f"{sentence} Noise floor {floor} mm ({n_pairs} pairs)."
+    return null_motion_sentence(noise_floor_mm, n_pairs)
+
+
+def _calibration_row(
+    stack: str,
+    n_pairs: int,
+    cal: KeepRuleCalibration,
+    stable: StableFalsePositive,
+) -> dict:
+    """Sign-flip null fields plus the stable-pixel false-positive rate."""
+    return {
+        "stack": stack,
+        "n_pairs": n_pairs,
+        "n_eligible": cal.n_eligible,
+        "observed_kept_fraction": _json_float(cal.observed_fraction),
+        "null_mean": _json_float(cal.null_mean),
+        "null_p95": _json_float(cal.null_p95),
+        "draws": cal.draws,
+        "seed": cal.seed,
+        "exceeds_null": cal.exceeds_null,
+        "n_stable": stable.n_stable,
+        "stable_n_kept": stable.n_kept,
+        "stable_kept_fraction": _json_float(stable.kept_fraction),
+        "exceeds_stable": exceeds_stable_rate(cal.observed_fraction, stable.kept_fraction),
+    }
+
+
 def correct_pair(
     unwrapped_rad: np.ndarray,
     ionosphere_rad: np.ndarray,
@@ -529,9 +677,10 @@ def correct_pair(
     """Run one GUNW pair from phase arrays to LOS, downslope, and the pair RMS.
 
     Valley-floor pixels define the troposphere line and the residual RMS.
-    They are removed from the downslope rate so the calibration sample is
-    not tested against itself. Layover and shadow are masked. Pixels outside
-    the reference connected component stay NaN.
+    They are removed from ``d_downslope_mm`` so the hillslope test does not
+    score the calibration sample. ``d_downslope_stable_mm`` keeps only that
+    sample, for the same keep-rule's false-positive rate. Layover and shadow
+    are masked. Pixels outside the reference connected component stay NaN.
     """
     phase = subtract_ionosphere(unwrapped_rad, ionosphere_rad)
     los_raw = los_displacement_mm(phase, wavelength_m)
@@ -553,15 +702,21 @@ def correct_pair(
     offset, scale, rms, n_stable = fit_los_elevation(los_ref, elev_ref, stable)
     corrected = remove_stratified_troposphere(los_ref, elev_ref, offset, scale)
     corrected[~valid | ~np.isfinite(elev_ref)] = np.nan
-    down = downslope_displacement_mm(
+    down_full = downslope_displacement_mm(
         corrected, slope_ref, aspect_ref, los_east, los_north, los_up, min_abs_cos
     )
+    down = down_full.copy()
     down[stable | layover | ~np.isfinite(slope_ref)] = np.nan
     rate = annual_rate_mm_per_yr(down, temporal_baseline_days)
+    down_stable = down_full.copy()
+    down_stable[~stable] = np.nan
+    rate_stable = annual_rate_mm_per_yr(down_stable, temporal_baseline_days)
     return {
         "d_los_mm": corrected,
         "d_downslope_mm": down,
         "rate_mm_per_yr": rate,
+        "d_downslope_stable_mm": down_stable,
+        "rate_stable_mm_per_yr": rate_stable,
         "residual_rms_mm": rms,
         "tropo_offset_mm": offset,
         "tropo_scale_mm_per_m": scale,
@@ -747,64 +902,56 @@ def render_report(summary: dict) -> str:
         "Granizal (2025-06-24) predates the NISAR record and is not a detection here.",
         "HKLSI is not computed.",
         "",
-        "## Verdict",
-        "",
-        summary["verdict"],
-        "",
-        f"Noise floor: {summary['noise_floor_text']} *(measured)*.",
-        (
-            f"Denominator: {summary['n_pairs_with_rms']} pairs with a finite "
-            "stable-pixel residual RMS,"
-        ),
-        f"out of {summary['n_granules_sh']} single-pol HH granules returned by the search",
-        (
-            f"({summary['n_granules_searched']} GUNW hits before the SH filter; "
-            f"{summary['n_ur_copies_skipped']} UR copies of a PR pair were not reprocessed)."
-        ),
-        f"Pixels with a kept downslope rate: {summary['n_pixels_kept']}.",
-        "",
-        "## Reproduce",
-        "",
-        "```",
-        summary["command"],
-        "```",
-        "",
-        (
-            f"Measured {summary['measured_at_bogota']} Bogotá (UTC−5); "
-            f"log time {summary['measured_at_utc']}."
-        ),
-        "Search: `asf.geo_search`, platform NISAR, processingLevel GUNW,",
-        (
-            f"bbox [W, S, E, N] = {summary['bbox']} from `{summary['aoi_key']}`, "
-            f"start {summary['search_start']}, end {summary['search_end']}."
-        ),
-        "",
-        "## Method",
-        "",
-        "- Ionosphere screen subtracted from `unwrappedPhase` (the screen ships unapplied).",
-        "- Stratified troposphere: LOS-vs-elevation least squares on valley-floor pixels",
-        f"  (FABDEM slope ≤ {summary['valley_floor_max_slope_deg']}°), inside the reference",
-        "  connected component, outside layover and shadow. Those pixels are the noise",
-        "  sample and are excluded from detection.",
-        "- Reference component: largest label other than 0 and fill 65535.",
-        "- d_LOS = −λ Δφ / 4π with λ = 0.24 m. Positive LOS points toward the sensor.",
-        "  The product spec states radians and the LOS unit vector; it does not state",
-        "  the phase sign. The sign used here is the ISCE convention cited in",
-        "  `los_displacement_mm`.",
-        "- Downslope projection uses FABDEM slope and aspect and the granule LOS unit",
-        f"  vector. |cos ξ| < {summary['min_abs_cos']} stays missing.",
-        "- A rate is kept only where |LOS| exceeds that pair's residual RMS and the",
-        "  downslope sign agrees on two pairs that do not share an acquisition date,",
-        "  on the same native grid. Ascending and descending grids are not resampled",
-        "  onto each other.",
-        f"- `config/preregistered.yaml` landslide block: {summary['preregistered_landslide']}.",
-        (f"- AOI `{summary['aoi_key']}` read from `config/bailasar.yaml`: {summary['bbox']}."),
-        "",
-        "## Pairs",
-        "",
-        "| Granule | Track | Ref → sec | Δt days | n stable | RMS mm | n eligible | n |LOS|>RMS |",
-        "|---|---|---|---:|---:|---:|---:|---:|",
     ]
+    lines.extend(_verdict_lines(summary))
+    lines.extend(
+        [
+            "## Reproduce",
+            "",
+            "```",
+            summary["command"],
+            "```",
+            "",
+            (
+                f"Measured {summary['measured_at_bogota']} Bogotá (UTC−5); "
+                f"log time {summary['measured_at_utc']}."
+            ),
+            "Search: `asf.geo_search`, platform NISAR, processingLevel GUNW,",
+            (
+                f"bbox [W, S, E, N] = {summary['bbox']} from `{summary['aoi_key']}`, "
+                f"start {summary['search_start']}, end {summary['search_end']}."
+            ),
+            "",
+            "## Method",
+            "",
+            "- Ionosphere screen subtracted from `unwrappedPhase` (the screen ships unapplied).",
+            "- Stratified troposphere: LOS-vs-elevation least squares on valley-floor pixels",
+            f"  (FABDEM slope ≤ {summary['valley_floor_max_slope_deg']}°), inside the reference",
+            "  connected component, outside layover and shadow. Those pixels are the noise",
+            "  sample and are excluded from detection.",
+            "- Reference component: largest label other than 0 and fill 65535.",
+            "- d_LOS = −λ Δφ / 4π with λ = 0.24 m. Positive LOS points toward the sensor.",
+            "  The product spec states radians and the LOS unit vector; it does not state",
+            "  the phase sign. The sign used here is the ISCE convention cited in",
+            "  `los_displacement_mm`.",
+            "- Downslope projection uses FABDEM slope and aspect and the granule LOS unit",
+            f"  vector. |cos ξ| < {summary['min_abs_cos']} stays missing.",
+            "- A rate is kept only where |LOS| exceeds that pair's residual RMS and the",
+            "  downslope sign agrees on two pairs that do not share an acquisition date,",
+            "  on the same native grid. Ascending and descending grids are not resampled",
+            "  onto each other.",
+            "- The same keep-rule is applied to the stable valley-floor pixels. Their kept",
+            "  fraction is the empirical false-positive rate. Those pixels stay excluded",
+            "  from the hillslope count.",
+            f"- `config/preregistered.yaml` landslide block: {summary['preregistered_landslide']}.",
+            (f"- AOI `{summary['aoi_key']}` read from `config/bailasar.yaml`: {summary['bbox']}."),
+            "",
+            "## Pairs",
+            "",
+            "| Granule | Track | Ref → sec | Δt days | n stable | RMS mm | n eligible | n |LOS|>RMS |",
+            "|---|---|---|---:|---:|---:|---:|---:|",
+        ]
+    )
     for pair in summary["pairs"]:
         lines.append(
             (
@@ -832,7 +979,10 @@ def render_report(summary: dict) -> str:
     for stack in summary["stacks"]:
         lines.append(
             f"- {stack['key']}: {stack['n_pairs']} pairs on one grid, "
-            f"{stack['n_pixels_kept']} pixels kept, "
+            f"{stack['n_pixels_kept']} of {stack.get('n_grid', 'missing')} pixels kept "
+            f"(grid {stack.get('grid_text', 'missing')}; positive = downhill: "
+            f"{stack.get('n_pixels_positive', 'missing')} positive and "
+            f"{stack.get('n_pixels_negative', 'missing')} negative), "
             f"stack median RMS {stack['rms_text']} mm *(measured)*."
         )
     lines.extend(["", "## FABDEM", ""])
@@ -1335,6 +1485,129 @@ def _fmt_num(value, digits: int = 3) -> str:
     return f"{number:.{digits}f}"
 
 
+def _fmt_frac(value, digits: int = 4) -> str:
+    return _fmt_num(value, digits)
+
+
+def _fmt_int(value) -> str:
+    if isinstance(value, bool) or value is None:
+        return "missing"
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return "missing"
+    return f"{number:,}"
+
+
+def _fmt_bool(value) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "missing"
+
+
+def _verdict_lines(summary: dict) -> list[str]:
+    """Headline, calibration table, then the raw keep-rule counts."""
+    lines = ["## Verdict", ""]
+    calibration = summary.get("calibration") or []
+    if calibration:
+        headline = str(summary["verdict"]).strip()
+        if headline[:1].islower():
+            headline = headline[0].upper() + headline[1:]
+        if not headline.endswith("."):
+            headline += "."
+        lines.append(f"**{headline}** *(measured, PROVISIONAL)*")
+        lines.append("")
+        lines.append(
+            "The keep-rule below passes noise, so its raw kept count is not a detection. "
+            "The hillslope kept fraction is shown beside the stable-pixel false-positive "
+            "rate and the sign-flip null. All of these fractions are *(measured, PROVISIONAL)*."
+        )
+        lines.append("")
+        lines.append(
+            "| Stack | Pairs | Hillslope px | Hillslope kept fraction | Stable px | "
+            "Stable kept fraction | Sign-flip null mean | Null 95th pct | "
+            "Exceeds sign-flip null | Exceeds stable |"
+        )
+        lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---|---|")
+        for row in calibration:
+            lines.append(
+                "| {stack} | {pairs} | {eligible} | {observed} | {n_stable} | {stable} | "
+                "{null_mean} | {null_p95} | {exceeds_null} | {exceeds_stable} |".format(
+                    stack=row.get("stack", "missing"),
+                    pairs=row.get("n_pairs", "missing"),
+                    eligible=_fmt_int(row.get("n_eligible")),
+                    observed=_fmt_frac(row.get("observed_kept_fraction")),
+                    n_stable=_fmt_int(row.get("n_stable")),
+                    stable=_fmt_frac(row.get("stable_kept_fraction")),
+                    null_mean=_fmt_frac(row.get("null_mean")),
+                    null_p95=_fmt_frac(row.get("null_p95")),
+                    exceeds_null=_fmt_bool(row.get("exceeds_null")),
+                    exceeds_stable=_fmt_bool(row.get("exceeds_stable")),
+                )
+            )
+        lines.append("")
+        lines.append(f"{summary.get('stable_comparison', 'missing')} *(measured, PROVISIONAL)*")
+        lines.append("")
+        slope = summary.get("valley_floor_max_slope_deg", "missing")
+        lines.append(
+            "- Hillslope px: finite downslope in at least one pair of the stack "
+            "(valley-floor stable pixels excluded upstream)."
+        )
+        lines.append(
+            "- Stable px: finite downslope on the valley-floor sample in at least one "
+            f"pair (FABDEM slope ≤ {slope}°, inside the reference component, outside "
+            "layover and shadow). The stable kept fraction is the keep-rule's empirical "
+            "false-positive rate on those pixels."
+        )
+        lines.append(
+            "- Sign-flip null: each draw multiplies every pair's downslope field by one "
+            f"seeded ±1 ({summary.get('calibration_draws', 'missing')} draws, "
+            f"seed {summary.get('calibration_seed', 'missing')}). That keeps each pair's "
+            "noise and spatial structure and breaks the sign consistency real motion "
+            "would show across pairs. No value is generated."
+        )
+        lines.append(
+            "- Exceeds stable: the hillslope kept fraction is greater than the stable-pixel "
+            "kept fraction. No extra margin is pre-registered. That comparison becomes a "
+            "candidate only when the hillslope fraction also exceeds the sign-flip 95th "
+            "percentile. Below that null, the headline stays the null sentence."
+        )
+        lines.append(f"- Command: `{summary['command']}`.")
+        lines.append("")
+        lines.append("Raw keep-rule output, kept for the record, **not a detection**:")
+        lines.append("")
+        raw = summary.get("raw_keep_verdict")
+        if raw:
+            lines.append(f"{raw}.")
+            lines.append("")
+    else:
+        lines.append(str(summary["verdict"]))
+        lines.append("")
+    lines.extend(
+        [
+            f"Noise floor: {summary['noise_floor_text']} *(measured)*.",
+            (
+                f"Denominator: {summary['n_pairs_with_rms']} pairs with a finite "
+                "stable-pixel residual RMS,"
+            ),
+            (f"out of {summary['n_granules_sh']} single-pol HH granules returned by the search"),
+            (
+                f"({summary['n_granules_searched']} GUNW hits before the SH filter; "
+                f"{summary['n_ur_copies_skipped']} UR copies of a PR pair were not reprocessed)."
+            ),
+            f"Pixels with a kept downslope rate: {summary['n_pixels_kept']}.",
+            (
+                "That count is the sum of the per-track native grids. "
+                "The grids are not resampled onto each other."
+            ),
+            "",
+        ]
+    )
+    return lines
+
+
 def _gate_window(root) -> tuple[str, str]:
     """Search window recorded in the hour-2 gate catalog."""
     import json
@@ -1346,8 +1619,18 @@ def _gate_window(root) -> tuple[str, str]:
     return str(start), str(end)
 
 
-def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
-    """Search, correct, and score every single-pol HH Aburrá GUNW in the window."""
+def run_aburra(
+    bbox: tuple[float, float, float, float] | None = None,
+    *,
+    draws: int = 200,
+    seed: int = 20261115,
+) -> dict:
+    """Search, correct, and score every single-pol HH Aburrá GUNW in the window.
+
+    ``draws`` and ``seed`` size the sign-flip null. They are not a detection
+    threshold. The stable-pixel false-positive rate uses the same keep-rule
+    and no draws.
+    """
     import json
     import os
     from datetime import datetime
@@ -1518,6 +1801,8 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
                     "d_los_mm": corrected["d_los_mm"],
                     "d_downslope_mm": corrected["d_downslope_mm"],
                     "rate_mm_per_yr": corrected["rate_mm_per_yr"],
+                    "d_downslope_stable_mm": corrected["d_downslope_stable_mm"],
+                    "rate_stable_mm_per_yr": corrected["rate_stable_mm_per_yr"],
                 }
             )
             print(
@@ -1539,6 +1824,7 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
         pair_rows.append(record)
 
     stacks_out = []
+    calibration_rows: list[dict] = []
     kept_total = 0
     rms_values = [
         float(pair["residual_rms_mm"])
@@ -1546,19 +1832,44 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
         if math.isfinite(pair["residual_rms_mm"])
     ]
     for group in _stack_pairs(processed):
-        result = noise_floor(
-            [pair["d_los_mm"] for pair in group],
-            [pair["d_downslope_mm"] for pair in group],
-            [pair["rate_mm_per_yr"] for pair in group],
-            [pair["residual_rms_mm"] for pair in group],
-            [pair["dates"] for pair in group],
-        )
+        los = [pair["d_los_mm"] for pair in group]
+        down = [pair["d_downslope_mm"] for pair in group]
+        rate = [pair["rate_mm_per_yr"] for pair in group]
+        rms = [pair["residual_rms_mm"] for pair in group]
+        dates = [pair["dates"] for pair in group]
+        result = noise_floor(los, down, rate, rms, dates)
         kept_total += result.n_pixels_kept
         head = group[0]
         key = f"track {head['track']} frame {head['frame']} {head['direction']}"
+        print(f"stack {key}: {result.verdict}", flush=True)
+        print(
+            f"calibrating {key}: stable-pixel false-positive rate and "
+            f"sign-flip null ({draws} draws, seed {seed})",
+            flush=True,
+        )
+        stable_fp = stable_pixel_false_positive(
+            los,
+            [pair["d_downslope_stable_mm"] for pair in group],
+            [pair["rate_stable_mm_per_yr"] for pair in group],
+            rms,
+            dates,
+        )
+        cal = calibrate_keep_rule(los, down, rate, rms, dates, draws=draws, seed=seed)
+        row = _calibration_row(key, result.n_pairs, cal, stable_fp)
+        calibration_rows.append(row)
+        print(
+            f"  hillslope kept {_fmt_frac(row['observed_kept_fraction'])} "
+            f"of {cal.n_eligible}; stable-pixel false-positive "
+            f"{_fmt_frac(row['stable_kept_fraction'])} "
+            f"({stable_fp.n_kept} of {stable_fp.n_stable}); "
+            f"sign-flip null mean {_fmt_frac(row['null_mean'])}, "
+            f"p95 {_fmt_frac(row['null_p95'])}",
+            flush=True,
+        )
         stack_dir = root / "local_cache" / "aburra" / "stacks"
         stack_dir.mkdir(parents=True, exist_ok=True)
         safe = key.replace(" ", "_")
+        shape = result.kept_rate_mm_per_yr.shape
         np.savez_compressed(
             stack_dir / f"{safe}.npz",
             kept_rate_mm_per_yr=result.kept_rate_mm_per_yr.astype(np.float32),
@@ -1572,24 +1883,28 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
                 "n_pixels_kept": result.n_pixels_kept,
                 "n_pixels_positive": result.n_pixels_positive,
                 "n_pixels_negative": result.n_pixels_negative,
+                "n_grid": int(result.kept_rate_mm_per_yr.size),
+                "grid_text": f"{shape[0]}×{shape[1]}" if len(shape) == 2 else "missing",
                 "noise_floor_mm": _json_float(result.noise_floor_mm),
                 "rms_text": _fmt_num(result.noise_floor_mm, 3),
                 "verdict": result.verdict,
             }
         )
-        print(f"stack {key}: {result.verdict}", flush=True)
+    calibration_rows.sort(key=lambda item: str(item["stack"]))
 
     floor_mm = (
         float(np.median(np.asarray(rms_values, dtype=np.float64))) if rms_values else math.nan
     )
     if kept_total == 0:
-        verdict = null_motion_sentence(floor_mm, len(rms_values))
+        raw_verdict = null_motion_sentence(floor_mm, len(rms_values))
     else:
         shown = format_mm(floor_mm) if math.isfinite(floor_mm) else "missing"
-        verdict = (
+        raw_verdict = (
             f"kept downslope rates on {kept_total} pixels; "
             f"noise floor {shown} mm ({len(rms_values)} pairs)"
         )
+    comparison = stable_comparison_sentence(calibration_rows)
+    verdict = calibration_headline(floor_mm, len(rms_values), calibration_rows)
     notes = []
     if skipped_ur:
         notes.append(
@@ -1657,6 +1972,11 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
     ]
     summary = {
         "verdict": verdict,
+        "raw_keep_verdict": raw_verdict,
+        "stable_comparison": comparison,
+        "calibration": calibration_rows,
+        "calibration_draws": draws,
+        "calibration_seed": seed,
         "noise_floor_mm": _json_float(floor_mm),
         "noise_floor_text": (f"{format_mm(floor_mm)} mm" if math.isfinite(floor_mm) else "missing"),
         "n_pairs_with_rms": len(rms_values),
@@ -1678,7 +1998,17 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
             {
                 key: value
                 for key, value in pair.items()
-                if key not in {"d_los_mm", "d_downslope_mm", "rate_mm_per_yr", "x", "y", "dates"}
+                if key
+                not in {
+                    "d_los_mm",
+                    "d_downslope_mm",
+                    "rate_mm_per_yr",
+                    "d_downslope_stable_mm",
+                    "rate_stable_mm_per_yr",
+                    "x",
+                    "y",
+                    "dates",
+                }
             }
             for pair in pair_rows
         ],
@@ -1689,6 +2019,10 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
     }
     cache_dir = root / "local_cache" / "aburra"
     cache_dir.mkdir(parents=True, exist_ok=True)
+    if calibration_rows:
+        (cache_dir / "calibration.json").write_text(
+            json.dumps(calibration_rows, indent=1) + "\n", encoding="utf-8"
+        )
     (cache_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, default=str), encoding="utf-8"
     )
@@ -1697,22 +2031,51 @@ def run_aburra(bbox: tuple[float, float, float, float] | None = None) -> dict:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report, encoding="utf-8")
     print(verdict, flush=True)
+    print(comparison, flush=True)
     print(f"wrote {report_path}", flush=True)
     return summary
 
 
+_STABLE_RATE_KEYS = ("n_stable", "stable_n_kept", "stable_kept_fraction", "exceeds_stable")
+
+
+def _saved_stable_rates(path: Path) -> dict[str, dict]:
+    """Stable-pixel fields already written by a live run, keyed by stack."""
+    import json
+
+    if not path.is_file():
+        return {}
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(rows, list):
+        return {}
+    saved: dict[str, dict] = {}
+    for row in rows:
+        if not isinstance(row, dict) or "stack" not in row:
+            continue
+        kept = {key: row[key] for key in _STABLE_RATE_KEYS if key in row}
+        if kept:
+            saved[str(row["stack"])] = kept
+    return saved
+
+
 def calibrate_from_cache(root: Path, draws: int, seed: int) -> list[dict]:
-    """Keep-rule calibration from the cached per-pair arrays (no network).
+    """Keep-rule sign-flip null from the cached per-pair arrays (no network).
 
     Reads ``local_cache/aburra/summary.json`` (per-pair RMS and dates) and
     ``local_cache/aburra/pairs/<scene>.npz``; groups pairs by track and frame
     exactly as the run does; writes ``local_cache/aburra/calibration.json``.
+    The cached pair files have no stable mask, so this path keeps any
+    stable-pixel false-positive fields a live run already wrote.
     """
     import json
 
     prereg = _read_yaml(root / "config" / "preregistered.yaml")
     check_noise_floor_rule(prereg.get("landslide") if isinstance(prereg, dict) else None)
     base = root / "local_cache" / "aburra"
+    prior_stable = _saved_stable_rates(base / "calibration.json")
     summary = json.loads((base / "summary.json").read_text(encoding="utf-8"))
     groups: dict[tuple, list[dict]] = {}
     for pair in summary["pairs"]:
@@ -1741,17 +2104,27 @@ def calibrate_from_cache(root: Path, draws: int, seed: int) -> list[dict]:
             draws=draws,
             seed=seed,
         )
+        stack = f"track {track} frame {frame} {direction}"
         row = {
-            "stack": f"track {track} frame {frame} {direction}",
+            "stack": stack,
             "n_pairs": len(group),
             "n_eligible": cal.n_eligible,
-            "observed_kept_fraction": cal.observed_fraction,
-            "null_mean": cal.null_mean,
-            "null_p95": cal.null_p95,
+            "observed_kept_fraction": _json_float(cal.observed_fraction),
+            "null_mean": _json_float(cal.null_mean),
+            "null_p95": _json_float(cal.null_p95),
             "draws": cal.draws,
             "seed": cal.seed,
             "exceeds_null": cal.exceeds_null,
         }
+        saved = prior_stable.get(stack, {})
+        row.update(saved)
+        if (
+            row.get("stable_kept_fraction") is not None
+            and row.get("observed_kept_fraction") is not None
+        ):
+            row["exceeds_stable"] = exceeds_stable_rate(
+                float(row["observed_kept_fraction"]), float(row["stable_kept_fraction"])
+            )
         out.append(row)
         print(
             f"{row['stack']}: {row['n_pairs']} pairs, eligible {cal.n_eligible} px; "
@@ -1787,7 +2160,11 @@ def main() -> None:
     if args.calibrate_from_cache:
         calibrate_from_cache(Path(__file__).resolve().parents[1], args.draws, args.seed)
         return
-    run_aburra(tuple(args.bbox) if args.bbox is not None else None)
+    run_aburra(
+        tuple(args.bbox) if args.bbox is not None else None,
+        draws=args.draws,
+        seed=args.seed,
+    )
 
 
 if __name__ == "__main__":

@@ -311,6 +311,92 @@ def test_calibration_is_deterministic_for_a_seed():
     assert a == b
 
 
+def test_stable_pixel_false_positive_fraction_and_denominator():
+    """Hand-computed kept fraction on the stable sample.
+
+    Two independent pairs, residual RMS 2 mm on both.
+    Pixel 0: LOS 5 and 6, downslope 5 and 4. Both exceed the RMS with the
+    same sign, so the keep-rule retains it.
+    Pixel 1: LOS 1.0 and 1.5, downslope 1.0 and 1.5. Both are below the
+    RMS, so it is not retained.
+    Pixel 2: LOS 5 and -6, downslope 5 and -4. The signs disagree, so the
+    rule cancels it.
+    Pixel 3: LOS 10 and 10, downslope NaN. It is outside the stable sample,
+    so it is not in the denominator.
+    Denominator 3, numerator 1, fraction 1/3.
+    """
+    los = [
+        np.array([[5.0, 1.0, 5.0, 10.0]]),
+        np.array([[6.0, 1.5, -6.0, 10.0]]),
+    ]
+    down = [
+        np.array([[5.0, 1.0, 5.0, np.nan]]),
+        np.array([[4.0, 1.5, -4.0, np.nan]]),
+    ]
+    rate = [item.copy() for item in down]
+    dates = [
+        frozenset({"2026-06-17", "2026-06-29"}),
+        frozenset({"2026-07-11", "2026-07-23"}),
+    ]
+    result = slide.stable_pixel_false_positive(los, down, rate, [2.0, 2.0], dates)
+    assert result.n_stable == 3
+    assert result.n_kept == 1
+    assert result.kept_fraction == pytest.approx(1.0 / 3.0)
+
+
+def test_stable_comparison_keeps_the_null_unless_both_nulls_are_exceeded():
+    """Hand-written fractions. Above the stable rate but below the sign-flip p95 stays a null."""
+    near = [
+        {
+            "stack": "track 11",
+            "observed_kept_fraction": 0.37,
+            "stable_kept_fraction": 0.35,
+            "null_p95": 0.50,
+        }
+    ]
+    near_line = slide.stable_comparison_sentence(near)
+    assert "below the sign-flip null" in near_line
+    assert "null holds" in near_line
+    assert "candidate" not in near_line
+    assert slide.calibration_headline(9.105, 17, near) == (
+        "no motion detected above 9.105 mm (17 pairs)"
+    )
+    level = [
+        {
+            "stack": "track 47",
+            "observed_kept_fraction": 0.20,
+            "stable_kept_fraction": 0.40,
+            "null_p95": 0.50,
+        }
+    ]
+    assert "consistent with the stable-pixel" in slide.stable_comparison_sentence(level)
+    clear = [
+        {
+            "stack": "track 47",
+            "observed_kept_fraction": 0.80,
+            "stable_kept_fraction": 0.25,
+            "null_p95": 0.50,
+        }
+    ]
+    clear_line = slide.stable_comparison_sentence(clear)
+    assert "candidate, PROVISIONAL" in clear_line
+    assert "detected" not in clear_line
+
+
+def test_stable_pixel_false_positive_empty_sample_is_missing():
+    los = [np.array([[5.0]]), np.array([[6.0]])]
+    down = [np.array([[np.nan]]), np.array([[np.nan]])]
+    rate = [item.copy() for item in down]
+    dates = [
+        frozenset({"2026-06-17", "2026-06-29"}),
+        frozenset({"2026-07-11", "2026-07-23"}),
+    ]
+    result = slide.stable_pixel_false_positive(los, down, rate, [2.0, 2.0], dates)
+    assert result.n_stable == 0
+    assert result.n_kept == 0
+    assert math.isnan(result.kept_fraction)
+
+
 def test_noise_floor_rule_matches_the_preregistration():
     block = {"noise_floor": {"min_pairs": 2, "require_sign_agreement": True}}
     assert "read and matched" in slide.check_noise_floor_rule(block)

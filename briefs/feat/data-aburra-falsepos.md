@@ -29,3 +29,16 @@ Write `BLOCKED: <reason>` at the end of this file and stop.
 
 ## Report (append when done)
 What you built, the live command and its output tail (fractions + denominators only), the stable-vs-hillslope-vs-null comparison, and the verdict.
+
+### Done
+
+`stable_pixel_false_positive` applies `noise_floor` to the valley-floor sample (finite downslope on that sample in at least one pair). `run_aburra` writes the fraction and denominator into `local_cache/aburra/calibration.json` next to the sign-flip fields, and `reports/aburra.md` shows them in the same table. A candidate requires the hillslope fraction to exceed both the stable-pixel rate and the sign-flip 95th percentile. Hand-written-array tests cover the fraction, the denominator, and that verdict rule.
+
+Live command: `uv run python -m gee_math.landslide_insar_math` (foreground, exit 0). Output tail, fractions and denominators only *(measured, PROVISIONAL)*:
+
+- track 47 frame 5 ASCENDING: hillslope kept 0.4073 of 112958; stable-pixel false-positive 0.3600 (8696 of 24155); sign-flip null mean 0.4857, p95 0.5390
+- track 11 frame 85 DESCENDING: hillslope kept 0.3748 of 113424; stable-pixel false-positive 0.3511 (8613 of 24531); sign-flip null mean 0.4131, p95 0.4974
+
+Comparison: on both tracks the hillslope kept fraction is above the stable-pixel rate and below the sign-flip null (mean and 95th percentile). The excess over the stable rate is not a candidate.
+
+Verdict: **No motion detected above 9.105 mm (17 pairs).** *(measured, PROVISIONAL)* The null holds.
