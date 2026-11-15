@@ -24,7 +24,11 @@ tool call, including state-supplied overrides of the plan.
 Earthquake domain requests may be ordinary DPM arguments or an object with
 `tool` and `arguments`. Approved selections are `analyze_earthquake_dpm`,
 `rank_first_aid_barrios` and `score_against_baseline`. Scoring receives a real
-staged `dataset_id`; MCP delegates numerical work to `validation/scoring.py`.
+staged `dataset_id` in the graph request contract. On `main`, however,
+`mcp_servers/scoring_tools.py` exposes ranking arrays and ordered labels; it does
+not resolve `dataset_id`. The graph's scoring routes are therefore not executable
+against those MCP schemas yet. Resolve this with the scoring/MCP owner before
+selecting either scoring operation in a live plan. Do not substitute invented
 The other domains retain their approved hazard tools.
 
 For configured prose, set `llm` to `configured` and use the operational settings
@@ -50,8 +54,8 @@ bulletins must contain checked ES/EN prose and the SI-Assisted Analytics badge.
 GeoJSON passes through deterministic tool output; the LLM supplies no geometry
 or numerical observations.
 
-Review/merge the separate transport, bulletin-contract, scoring backend and MCP
-branches before accepting the full deployment. Real freeze records, source-linked
-datasets and cache, measured transport/backend parity, rendered map review and
-the Docker pitch walkthrough remain required. Offline contract tests do not
-establish scientific accuracy or completed real-data acceptance.
+The guarded graph and live bilingual bulletin were merged to `main` in PRs #151
+and #162. Their current evidence and remaining acceptance gates are summarized
+in [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md). The server-side redirect
+guard and scoring schema alignment are cross-lane MCP work; offline agent
+contract tests do not establish those server behaviors or scientific accuracy.
