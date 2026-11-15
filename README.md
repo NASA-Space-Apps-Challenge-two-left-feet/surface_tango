@@ -78,7 +78,8 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | First-aid ranking and scorecard (offline scoring functions merged; real-data run pending, ground truth uninformative so far) | planned | #18, #32 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth (research handoff available; accepted labels and boundaries pending) | planned | #24 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | planned | #33 | pending (branch under review) |
-| La Mojana flood classes (dual-pol HH/HV, bounded reads) | planned | #34 | pending (branch under review) |
+| La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |
+| La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
 | Mission-control UI, curtain slider and story map | not cached | #22, #37 | [frontend status](status/frontend-video.md) |
 | Submission video (30 s) | planned | — | pending |

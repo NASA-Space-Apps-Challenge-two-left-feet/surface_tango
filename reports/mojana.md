@@ -371,7 +371,8 @@ Status row for the README table (component, state, issue, report).
 
 | Component | State | Issue | Report |
 |---|---|---|---|
-| La Mojana dual-pol flood classes | live | #34 | reports/mojana.md |
+| La Mojana open water per date | cached | #34 | reports/mojana.md |
+| La Mojana change classes | not cached: degenerate reference date (1 valid pixel) | #34 | reports/mojana.md#baseline |
 
 ## Notes
 
