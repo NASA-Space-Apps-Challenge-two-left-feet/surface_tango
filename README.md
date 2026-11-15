@@ -382,3 +382,7 @@ The team and project names play on our challenge, *Dancing with the SARs*: we ta
 | [@EstebanOchoaedos](https://github.com/EstebanOchoaedos) | knowledge base, cloud cache checks, README |
 | [@alicealanapineda-byte](https://github.com/alicealanapineda-byte) | MCP, agents, bulletin |
 | [@SaritaRpo](https://github.com/SaritaRpo) | UI and video |
+
+### MCP transport foundation
+
+Run each server with `uv run --frozen python -m mcp_servers.nisar_asf_mcp` or `uv run --frozen python -m mcp_servers.gee_fusion_mcp`. Both use the SSE transport and endpoints configured in `config/bailasar.yaml`. Startup does not authenticate to remote services. In offline mode, a cache miss returns `not cached`. Cached tool outputs live in `local_cache/tool_outputs/<tool>/<request-key>.json` and require matching request metadata plus source, granule IDs and cache build time. No fallback generates data. Live budget measurement and the quake adapter remain pending owner integration.
