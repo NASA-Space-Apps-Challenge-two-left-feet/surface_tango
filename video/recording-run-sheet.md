@@ -1,33 +1,38 @@
 # Mission control recording run sheet
 
-## Lock before capture
+## Capture inputs
 
-| Input | Handoff |
+| Input | Confirmed handoff |
 |---|---|
-| Submission deadline and capture start in Bogotá time, alicealanapineda-byte | [D] and [D−6 h] |
-| Selected headline, Jack4Codes | [Approved entry in validation/README.md] |
-| Measured outcome or documented null | [Maru816 quake scorecard or LEONOB2014 hazard report] |
-| Shot timing and approved wording | [Locked storyboard from #39] |
-| Mission control version | [Commit with the #22 and #37 frontend changes] |
-| Shared cache and tiles, LEONOB2014 | [Zarr cube, manifest and map tiles] |
-| Display inputs | [Approved gate statements and story results] |
+| Official deadline D and capture start D−6 h in Bogotá | Pending [#29](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/29). |
+| Headline | La Mojana absolute open water, ratified in the [hour-4 decision](../validation/README.md#power-check-and-headline-plan-02-03-25). |
+| Measured outcome and separate Sentinel-1 comparison | [La Mojana report](../reports/mojana.md). Use the dates, denominators, and caveats in the [locked storyboard](storyboard.md). |
+| Mission control | Record from `main` with the merged story map and evidence gate. The rehearsal used `1d1d2a4`. |
+| Cache and display | Draft release `cache-2026-11-15`. Assemble the cache, then follow the [story cache setup](../status/frontend-video.md) with the downloaded release manifest. |
+| Offline walkthrough | The frontend rehearsal ran with external browser requests blocked. The full `make pitch` walkthrough is tracked in [#40](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/40). |
+| Subtitle handoff | [English SRT](la-mojana.en.srt) follows the locked cue times. Check it against the Spanish voice-over in #44. |
 
-The [gate report](../reports/gate.md) clears the quake scorecard path. The power check and headline decision still determine which sequence to capture.
+## Local review cut
 
-For the provisional products identified by the gate, keep **PROVISIONAL** visible in the footage. If quake is selected, carry the report's temporal-baseline mismatch caveat beside every quake result.
+- Playwright captured the localhost browser page at 1920×1080. FFmpeg encoded the clip at 30 fps. These are capture settings.
+- The local review export is `dist/recording-qa/la-mojana-review-cut.mp4`. It contains the six locked storyboard cues and the timed English subtitle track. FFprobe verified the 30-second export. The Spanish voice-over remains the #44 editor handoff.
+- The source curtain sweep remains at `dist/recording-qa/la-mojana-rehearsal.mp4`.
+- The browser loaded the La Mojana Sentinel panels and NISAR open-water mask from the verified cache with external requests blocked. Keep **PROVISIONAL** visible beside the measured water result.
 
-## Capture
+## Final capture
 
-1. Start the approved mission control build in pitch mode with the shared cache staged. Rehearse the chosen chapter from first frame to last without the network. Confirm the visible tiles and outcome match the approved storyboard.
-2. Set the recorder to capture only the mission control window. Hide browser chrome and silence desktop notifications. Record a short local test and play it back to check for dropped frames and readable labels.
-3. Record an uninterrupted take of the selected curtain layout over the same area. Hold on the approved ranking, flood layer, or coverage state. Capture the approved outcome card and credits as separate takes for the editor.
-4. Play back each take and check that the layers stay aligned, the result is readable, and every measured number matches its source and unit. If a required panel shows an error, fix it and retake the shot or use the approved coverage frame.
-5. Keep the source captures locally. Log the file names, selected takes and any retakes below before handing them to the editor for Spanish voice-over and English subtitles.
+Deadline in Bogotá: [#29 pending]. Full offline walkthrough: [#40 pending].
 
-| Shot | Local file and take | Review notes |
-|---|---|---|
-| Event or coverage card | [File] | [Notes] |
-| Curtain slider | [File] | [Notes] |
-| Map evidence | [File] | [Notes] |
-| Outcome card | [File] | [Notes] |
-| Credits | [File] | [Notes] |
+1. Once the deadline and offline walkthrough are confirmed, start mission control with the shared cache in pitch mode. Select **La Mojana floods** and capture the browser page without desktop notifications or browser chrome.
+2. Set the recorder to 1920×1080 at 30 fps. Sweep the synchronized curtain across the same area. Keep the two Sentinel acquisition dates and the NISAR measurement date visible.
+3. Capture the June open-water mask, the separate July threshold-comparison card, and the outcome and credits cards as directed in the storyboard. Keep the denominators and the uncalibrated-threshold caveat visible where specified.
+4. Review the exported takes for alignment, readability, and correct evidence. Hand the takes and English subtitle timing to the editor for the Spanish voice-over and final cut.
+
+| Shot | Final take |
+|---|---|
+| Title | [Pending final capture] |
+| Curtain slider | [Pending final capture] |
+| June open-water map | [Pending final capture] |
+| July Sentinel-1 comparison | [Pending final capture] |
+| Outcome | [Pending final capture] |
+| Credits | [Pending final capture] |
