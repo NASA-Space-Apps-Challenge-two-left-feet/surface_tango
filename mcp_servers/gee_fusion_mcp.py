@@ -9,10 +9,7 @@ if not __package__:
 import ee
 from fastmcp import FastMCP
 
-from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
 from gee_math.ee_session import init_ee
-from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
-from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
 from mcp_servers.cache_guard import run_server, with_offline_zarr_fallback
 
 mcp = FastMCP(name="gee-hazard-fusion-engine")
@@ -97,6 +94,10 @@ def analyze_landslide_kinematics(
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE mathematical expression graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
+
     landslide_stack = compute_landslide_insar_kinematics(
         gunw_unw_gcs=gunw_unw_gcs,
         gunw_iono_gcs=gunw_iono_gcs,
@@ -191,6 +192,10 @@ def analyze_flood_inundation(
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE polarimetric decomposition graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
+
     flood_stack = compute_flood_scattering_decomposition(
         gcov_hhhh_pre_gcs=gcov_hhhh_pre_gcs,
         gcov_hvhv_pre_gcs=gcov_hvhv_pre_gcs,
@@ -394,6 +399,10 @@ def analyze_biomass_disturbance(
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE allometric GBDT & polarimetric index graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
+
     bio_stack = compute_biomass_and_carbon_flux(
         gcov_hhhh_gcs=gcov_hhhh_gcs,
         gcov_hvhv_gcs=gcov_hvhv_gcs,
