@@ -1,16 +1,20 @@
 # Agents/MCP status
 
-Issue #20 transport/cache foundation and issue #21 bulletin contract are merged
-to `develop`. Issue #36 graph implementation now routes explicit ingestion and
-hazard plans through scoped SSE calls, revalidates bilingual placeholders and
-cached prose, and refuses to invent inputs. Whole-plan validation checks tool
-names, required and optional keys, literal argument types, context references,
-and staged output paths before any tool effects. LangSmith run metadata remains
-attached to graph invocations. The offline agent suite passed 51/51 tests
-(measured; `uv run --frozen pytest -q tests/test_agents`; denominator: 51
-tests; no source granules apply).
+The Agents graph and guarded preflight were merged to `main` in PR #151; the
+live bilingual graph run and evidence-linked report were merged in PR #162.
+The graph validates complete plans before tool effects, checks bilingual
+placeholders and cached prose, and emits explicit unavailable states. The
+captured report at `reports/bulletin_demo.md` contains real tool evidence in
+English and Spanish, source IDs, denominators and explicit unavailable results.
 
-Issue #36 is still awaiting the committed frozen pair set/hash and owner-staged
-real measurements, ground truth and geometry. Live result parity and a real
-ES/EN end-to-end bulletin have not been demonstrated. See
-[the integration handoff](../agents/INTEGRATION_HANDOFF.md).
+At `main` commit `e140c01`, the onboarding verification's offline repository suite passed **438 tests**
+(measured; `uv run pytest -q -m "not network and not cache"`; 448 collected,
+2 skipped and 8 deselected; no source granules apply). The focused Agents suite
+passed **53/53 tests** (measured; `uv run --frozen pytest -q tests/test_agents`;
+denominator: 53 tests; no source granules apply). See
+[the integration handoff](../agents/INTEGRATION_HANDOFF.md) for remaining
+cross-lane acceptance gaps: the captured run lacks its exact invocation command,
+scoring request schemas do not match the MCP wrappers, and GDAL redirect
+validation remains MCP work. The orchestrator closed issue #36 after the graph
+and bulletin merges; these gaps do not mean its Agents implementation remains
+unmerged.
