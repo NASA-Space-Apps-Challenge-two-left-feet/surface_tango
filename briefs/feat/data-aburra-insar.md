@@ -33,5 +33,17 @@
 - Commit locally with Conventional Commits (`git commit -F <file>`), one logical change per commit, body ends with `Co-Authored-By: <your agent name>` and `Refs: #<issue>`. Run `make ci` before each commit and fix failures (never `--no-verify`).
 - **Do not** push, merge, switch branches, reset, stash, open PRs, write to GCS, or run paid LLM calls. The orchestrator reviews the full diff and does those.
 
+## Update 2026-11-14 19:55 Bogotá (orchestrator): resume
+Your first run (grok) stopped on a 600 s background-wait timeout before any commit. State it left:
+- `gee_math/landslide_insar_math.py` modified (about 1.5k lines) and `tests/test_landslide.py` new, both uncommitted; `uv run pytest -q tests/test_landslide.py` gives 12 passed *(measured 19:50)*. Your log claimed 15: reconcile.
+- It stopped while wrapping long lines, before the known-answer tests were complete and before any live Aburrá pair was processed. `reports/aburra.md` doesn't exist yet.
+Resume order: review your diff, finish the known-answer tests (iono subtraction, tropo ramp, sign convention, noise-floor accept/reject), run `make ci`, commit (Refs: #33), then run the live Aburrá pairs and write `reports/aburra.md` with granule IDs, n pairs and the noise floor in mm *(measured)*. A null verdict is valid.
+- Your worktree was synced onto the latest `origin/main` by the orchestrator. Run `make sync` again before every commit.
+- AOIs now live in `config/bailasar.yaml` under `aois:` (`1_aburra`, `2_eje_cafetero_quake`, `3_la_mojana_caregato`). Read them from there with `yaml.safe_load`; don't copy the bboxes into code.
+- The gate catalog is `nisar_colombia_granules_2026.json` at the repo root (not under `local_cache/`). `scripts/discover_nisar_colombia.py` is the reference for parsing NISAR names (stream, product, polarization, dates).
+- Ruff no longer checks line length (E501 is ignored; the formatter owns it). Don't spend time wrapping lines.
+- New README rule (AGENTS.md "README kept current"): `README.md` is not in your file list, so don't edit it. Instead, add a short "README rows" subsection to your Report with the setup/run command and the Status-table row (component · state · issue · report) for the orchestrator to paste.
+- Run long jobs (live downloads, GEE exports) in the foreground, or poll them to completion. The CLI ends background work after its wait timeout.
+
 ## Report (append to the end of this file when done)
 What you built, commands run with their output tail, measured numbers with IDs, what you could not do, open questions.
