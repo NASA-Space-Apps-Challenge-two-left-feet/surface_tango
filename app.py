@@ -1178,37 +1178,67 @@ async def stream_hazards(
     )
 
 
-@app.get("/cube")
+@app.get("/cube", include_in_schema=False)
 def cube_explorer():
-    return FileResponse("static/cube.html")
+    return FileResponse(Path(__file__).resolve().parent / "static/cube.html")
 
 
-@app.get("/api/cube")
+@app.get("/api/cube", tags=["Regional cubes"])
 def cube_catalog():
-    regions = []
-    for entry in AOI_REGISTRY:
-        path = CACHE_ROOT / "regional-cubes" / f"{entry['id']}.zarr" / "catalog.json"
-        catalog = (
-            json.loads(path.read_text())
-            if path.is_file()
-            else {"state": "not cached", "layers": []}
-        )
-        for layer in catalog["layers"]:
-            layer["display"] = cube_display(layer)
-        regions.append(
-            {**catalog, "aoi": entry["id"], "label": entry["label"], "bounds": entry["bbox"]}
-        )
-    return {"regions": regions}
+    """Discover AOI-owned cubes. Each region has its own availability state."""
+    return {
+        "schema": "regional-cube/1",
+        "regions": [cube_region(entry["id"]) for entry in AOI_REGISTRY],
+    }
+
+
+@app.get("/api/cube/{aoi}", tags=["Regional cubes"])
+def cube_region(aoi: str):
+    """Return a region catalog and same-origin URLs for its observations."""
+    entry = next((entry for entry in AOI_REGISTRY if entry["id"] == aoi), None)
+    if entry is None:
+        raise HTTPException(404, "Unknown region")
+    path = CACHE_ROOT / "regional-cubes" / f"{aoi}.zarr" / "catalog.json"
+    catalog = {"state": "not cached", "layers": []}
+    if path.is_file():
+        try:
+            catalog = json.loads(path.read_text())
+            if not isinstance(catalog, dict) or catalog.get("aoi") != aoi:
+                raise ValueError("Region mismatch")
+            if not isinstance(catalog.get("layers"), list):
+                raise ValueError("Missing layers")
+            for layer in catalog["layers"]:
+                name = layer["id"]
+                if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", name):
+                    raise ValueError("Invalid layer identifier")
+                layer["display"] = cube_display(layer)
+                layer["links"] = {
+                    "preview": f"/api/cube/{aoi}/{name}/preview.png",
+                    "sample": f"/api/cube/{aoi}/{name}/sample",
+                }
+            catalog["state"] = "cached" if catalog["layers"] else "not cached"
+        except (OSError, ValueError, KeyError, TypeError):
+            catalog = {"state": "error", "layers": [], "reason": "Regional cube catalog unreadable"}
+    return {
+        **catalog,
+        "aoi": aoi,
+        "label": entry["label"],
+        "bounds": entry["bbox"],
+        "links": {
+            "catalog": f"/api/cube/{aoi}",
+            "explorer": f"/cube?aoi={aoi}",
+            "context": f"/api/sentinel-tiles/{aoi}",
+        },
+    }
 
 
 def cube_layer(aoi: str, layer: str):
-    if aoi not in {entry["id"] for entry in AOI_REGISTRY}:
-        raise HTTPException(404, "Unknown region")
+    catalog = cube_region(aoi)
     store = CACHE_ROOT / "regional-cubes" / f"{aoi}.zarr"
-    catalog_path = store / "catalog.json"
-    if not catalog_path.is_file():
+    if catalog["state"] == "error":
+        raise HTTPException(503, catalog["reason"])
+    if catalog["state"] != "cached":
         raise HTTPException(404, "Regional cube not cached")
-    catalog = json.loads(catalog_path.read_text())
     metadata = next((item for item in catalog["layers"] if item["id"] == layer), None)
     if metadata is None:
         raise HTTPException(404, "Layer not cached")
@@ -1268,7 +1298,7 @@ def cube_colors(values, metadata):
     return rgba
 
 
-@app.get("/api/cube/{aoi}/{layer}/sample")
+@app.get("/api/cube/{aoi}/{layer}/sample", tags=["Regional cubes"])
 def cube_sample(
     aoi: str,
     layer: str,
@@ -1281,12 +1311,20 @@ def cube_sample(
         xs, ys = ds.x.values, ds.y.values
         dx, dy = abs(xs[1] - xs[0]) / 2, abs(ys[1] - ys[0]) / 2
         if not (xs.min() - dx <= x[0] <= xs.max() + dx and ys.min() - dy <= y[0] <= ys.max() + dy):
-            return {"state": "no data", "value": None}
+            return {
+                "state": "cached",
+                "availability": "no data",
+                "value": None,
+                "units": cube_display(metadata)["units"],
+                "provenance": metadata["provenance"],
+                "reason": "Outside the native grid",
+            }
         value = float(
             ds.value.isel(x=int(np.argmin(abs(xs - x[0]))), y=int(np.argmin(abs(ys - y[0])))).values
         )
     return {
-        "state": "cached" if np.isfinite(value) else "no data",
+        "state": "cached",
+        "availability": "observed" if np.isfinite(value) else "no data",
         "value": value if np.isfinite(value) else None,
         "units": cube_display(metadata)["units"],
         "measurement": "measured",
@@ -1295,7 +1333,14 @@ def cube_sample(
     }
 
 
-@app.get("/api/cube/{aoi}/{layer}/preview.png")
+@app.get(
+    "/api/cube/{aoi}/{layer}/preview.png",
+    tags=["Regional cubes"],
+    response_class=Response,
+    responses={
+        200: {"content": {"image/png": {}}, "description": "Projected scientific display image"}
+    },
+)
 def cube_preview(aoi: str, layer: str):
     store, metadata = cube_layer(aoi, layer)
     with xr.open_zarr(store, group=layer, consolidated=False, chunks=None) as dataset:

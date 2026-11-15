@@ -56,7 +56,7 @@ async function selectLayer(item) {
   if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}
   updateMetadata(item);text("status","Loading");text("error","");message("Reading this observation…");
   history.replaceState(null,"","?aoi="+encodeURIComponent(region.aoi)+"&layer="+encodeURIComponent(item.id));
-  const url="/api/cube/"+encodeURIComponent(region.aoi)+"/"+encodeURIComponent(item.id)+"/preview.png";
+  const url=item.links.preview;
   try {
     const response=await fetch(url,{signal:controller.signal});if(!response.ok)throw Error("Preview unavailable");
     const blob=await response.blob();if(token!==generation)return;
@@ -79,11 +79,11 @@ async function selectRegion(preferred) {
   ["coverage","grid","crs","stream","date-label"].forEach(id=>text(id,"—"));["source-file","provenance","method"].forEach(id=>text(id,""));
   $("dates").replaceChildren();$("dates").disabled=true;$("previous").disabled=true;$("next").disabled=true;
   listLayers();fit(region.bounds);
-  if(!region.layers.length){text("status","Not cached");message("This region’s observations are not cached.");history.replaceState(null,"","?aoi="+encodeURIComponent(region.aoi));return;}
+  if(!region.layers.length){text("status",region.state==="error"?"Error":"Not cached");message(region.state==="error"?"This region’s catalog could not be read.":"This region’s observations are not cached.");history.replaceState(null,"","?aoi="+encodeURIComponent(region.aoi));return;}
   const initial=region.layers.find(l=>l.id===preferred)||region.layers.find(l=>l.id.startsWith("water_extent"))||region.layers.find(l=>l.id==="los_disp_mm")||region.layers[0];
   fit(initial.bounds);selectLayer(initial);
   const aoi=region.aoi;
-  try {const response=await fetch("/api/sentinel-tiles/"+aoi);if(!response.ok)return;const context=(await response.json()).s2;
+  try {const response=await fetch(region.links.context);if(!response.ok)return;const context=(await response.json()).s2;
     if(regionToken!==regionGeneration||region.aoi!==aoi||!context?.tile_url)return;
     map.addSource("context",{type:"raster",tiles:[location.origin+context.tile_url],tileSize:256,bounds:context.bounds,minzoom:context.minzoom,maxzoom:context.maxzoom});
     map.addLayer({id:"context",type:"raster",source:"context",paint:{"raster-opacity":0.55}},map.getLayer("observation")?"observation":undefined);
@@ -101,7 +101,7 @@ async function start(){
     map.on("click",async event=>{
       if(!selected)return;sampleController?.abort();sampleController=new AbortController();const token=generation;
       $("point").hidden=false;text("point-value","Reading…");text("point-detail","");
-      try{const response=await fetch("/api/cube/"+region.aoi+"/"+selected.id+"/sample?lon="+event.lngLat.lng+"&lat="+event.lngLat.lat,{signal:sampleController.signal});if(!response.ok)throw Error();const sample=await response.json();if(token!==generation)return;
+      try{const response=await fetch(selected.links.sample+"?lon="+event.lngLat.lng+"&lat="+event.lngLat.lat,{signal:sampleController.signal});if(!response.ok)throw Error();const sample=await response.json();if(token!==generation)return;
         text("point-value",sample.value===null?"No data":sample.value.toLocaleString(undefined,{maximumFractionDigits:4})+" "+sample.units);
         text("point-detail",sample.value===null?"No observed pixel at this location.":"Measured · nearest native pixel. Source and methodology below.");
       }catch(e){if(e.name!=="AbortError"&&token===generation)text("point-value","Unavailable");}
