@@ -11,6 +11,7 @@ DAYS_PER_YEAR = 365.25
 
 # Callers read the preregistered landslide section through bailasar.config.
 # Jack4Codes owns config/; absent keys are reported without supplying defaults.
+# 15 required keys: 13 approved thresholds/weights + 2 per-scene geometry values.
 LANDSLIDE_PARAM_KEYS = [
     "coherence_min",
     "stable_slope_max_deg",
@@ -25,6 +26,7 @@ LANDSLIDE_PARAM_KEYS = [
     "hklsi.slope_offset_deg",
     "hklsi.slope_norm_deg",
     "hklsi.rain_norm_mm",
+    # Per-scene acquisition geometry (2 keys): also required, with no defaults.
     "incidence_deg",
     "heading_deg",
 ]

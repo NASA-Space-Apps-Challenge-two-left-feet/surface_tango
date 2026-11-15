@@ -270,3 +270,11 @@ def test_landslide_tool_partial_section_reports_all_missing_keys(gee_fusion_tool
         "noise_floor.min_pairs",
         "noise_floor.require_sign_agreement",
     ]
+
+
+def test_empty_params_report_all_fifteen_required_keys():
+    from gee_math.landslide_insar_math import LANDSLIDE_PARAM_KEYS, missing_landslide_params
+
+    # 13 thresholds/weights + incidence_deg + heading_deg = 15; none has a default.
+    assert len(LANDSLIDE_PARAM_KEYS) == 15
+    assert missing_landslide_params({}) == LANDSLIDE_PARAM_KEYS
