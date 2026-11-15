@@ -315,6 +315,25 @@ def test_measured_exposure_is_copied_and_not_invented_when_absent():
     assert product["magnitude"]["economic_impact"]["availability"] == "unavailable"
 
 
+def test_unretested_landslide_window_is_not_a_monitor_light():
+    env = evidence.build_landslide_envelope(
+        _landslide("not_retested", text="window only"),
+        {},
+        "analyze_landslide_kinematics",
+    )
+    assert env["state"] == "gate result"
+    assert env["data"]["alert_reason"] == "window only"
+    product = decide(["landslide"], {"landslide": [env]}, _cfg())
+    assert product["lights_applicable"] is True
+    assert product["posture"] == "not_assessed"
+    assert product["chip"] == "Not assessed"
+    assert product["clearance"] is False
+    row = next(item for item in product["hazards"] if item["in_scope"])
+    assert row["light"] == "not_assessed"
+    assert row["reason"] == "window only"
+    assert product["magnitude"]["extent"]["availability"] == "unavailable"
+
+
 def test_unknown_aoi_and_empty_cache(tmp_path):
     assert product_for_aoi("no-such-aoi", cache_root=tmp_path) is None
     product = product_for_aoi("mojana", cache_root=tmp_path)
@@ -356,7 +375,11 @@ def test_staged_cache_does_not_dispatch():
     assert by_id["eje_cafetero"]["buildings"]["amount"] == "unavailable"
     quake = next(row for row in by_id["eje_cafetero"]["hazards"] if row["domain"] == "earthquake")
     assert "value_ha" not in json.dumps(quake["extent"])
-    assert by_id["la_picacha"]["state"] == "not cached"
+    assert by_id["la_picacha"]["state"] == "gate result"
+    assert by_id["la_picacha"]["posture"] == "not_assessed"
+    assert by_id["la_picacha"]["lights_applicable"] is True
+    assert by_id["la_picacha"]["chip"] == "Not assessed"
+    assert by_id["la_picacha"]["clearance"] is False
     assert by_id["choco_epicenter"]["state"] == "not cached"
     assert by_id["valle_del_cauca"]["state"] == "not cached"
     assert board["lights_applicable"] is False
