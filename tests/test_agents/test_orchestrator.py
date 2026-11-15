@@ -5,6 +5,19 @@ import asyncio
 from agents.bulletin import BADGE
 from agents.bulletin_runtime import BulletinCache
 from agents.orchestrator import DOMAIN_TOOLS, build_and_run_multi_hazard_graph
+from agents.run_plan import TOOL_ARGUMENTS
+
+
+def valid_arguments(name):
+    required, _ = TOOL_ARGUMENTS[name]
+    return {
+        key: []
+        if key == "bbox"
+        else "2026-11-14"
+        if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
+        else "transport-check"
+        for key in required
+    }
 
 
 class MissingTools:
@@ -25,8 +38,13 @@ class ContractTools(MissingTools):
 
 def requests():
     return {
-        "ingestion_requests": [{"tool": "search_nisar_granules", "arguments": {}}],
-        "tool_requests": {domain: {} for domain in DOMAIN_TOOLS},
+        "ingestion_requests": [
+            {
+                "tool": "search_nisar_granules",
+                "arguments": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+            }
+        ],
+        "tool_requests": {domain: valid_arguments(tool) for domain, tool in DOMAIN_TOOLS.items()},
         "hazard_reports": {},
     }
 

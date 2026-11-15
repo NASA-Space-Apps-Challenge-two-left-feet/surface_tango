@@ -6,6 +6,19 @@ import json
 import pytest
 
 from agents.orchestrator import build_and_run_multi_hazard_graph
+from agents.run_plan import TOOL_ARGUMENTS
+
+
+def valid_arguments(name):
+    required, _ = TOOL_ARGUMENTS[name]
+    return {
+        key: []
+        if key == "bbox"
+        else "2026-11-14"
+        if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
+        else "transport-check"
+        for key in required
+    }
 
 
 @pytest.mark.parametrize("location", ["plan", "state"])
@@ -101,8 +114,13 @@ def test_legacy_model_change_cannot_reuse_previous_model_prose(tmp_path, monkeyp
     )
     document = {
         "context": {"bbox": [], "start_date": "", "end_date": ""},
-        "ingestion_requests": [{"tool": "search_nisar_granules", "arguments": {}}],
-        "tool_requests": {domain: {} for domain in DOMAIN_TOOLS},
+        "ingestion_requests": [
+            {
+                "tool": "search_nisar_granules",
+                "arguments": valid_arguments("search_nisar_granules"),
+            }
+        ],
+        "tool_requests": {domain: valid_arguments(tool) for domain, tool in DOMAIN_TOOLS.items()},
         "placeholders": {},
         "recipe": "model-cache-contract",
         "model": "first-contract-model",
@@ -134,7 +152,12 @@ def test_unconfigured_explicit_model_has_no_tool_effects(tmp_path, monkeypatch):
     monkeypatch.setattr(llm, "load_llm_config", lambda: {"chain": [], "providers": {}})
     document = {
         "context": {"bbox": [], "start_date": "", "end_date": ""},
-        "ingestion_requests": [{"tool": "search_nisar_granules", "arguments": {}}],
+        "ingestion_requests": [
+            {
+                "tool": "search_nisar_granules",
+                "arguments": valid_arguments("search_nisar_granules"),
+            }
+        ],
         "tool_requests": {},
         "placeholders": {},
         "recipe": "invalid-model-contract",
@@ -155,3 +178,46 @@ def test_unconfigured_explicit_model_has_no_tool_effects(tmp_path, monkeypatch):
         )
     )
     assert result["final_bulletin"]["state"] == "error"
+
+
+def test_invalid_later_staged_reference_prevents_earlier_tool_effect(tmp_path):
+    required, _ = TOOL_ARGUMENTS["search_nisar_granules"]
+    first_arguments = {key: [] if key == "bbox" else "2026-11-14" for key in required}
+    document = {
+        "context": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+        "ingestion_requests": [
+            {"id": "first", "tool": "search_nisar_granules", "arguments": first_arguments},
+            {
+                "id": "second",
+                "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
+                "arguments": {
+                    "https_url": {"from_staged": "unknown", "path": ["data", "https_url"]},
+                    "scene_name": "scene-from-owner",
+                    "bbox": {"from_context": "bbox"},
+                },
+            },
+        ],
+        "tool_requests": {},
+        "placeholders": {},
+        "recipe": "preflight-side-effect-regression",
+    }
+    filename = tmp_path / "plan.json"
+    filename.write_text(json.dumps(document))
+
+    class Tools:
+        calls = []
+
+        async def call(self, server, name, arguments):
+            self.calls.append((server, name))
+            return {"state": "live", "data": {"contract": "transport-check"}}
+
+    tools = Tools()
+    result = asyncio.run(
+        build_and_run_multi_hazard_graph(
+            {**document["context"], "hazard_reports": {}},
+            tool_client=tools,
+            plan_path=filename,
+        )
+    )
+    assert result["final_bulletin"]["state"] == "error"
+    assert tools.calls == []
