@@ -75,3 +75,14 @@ uv run pytest -q tests/test_pipeline_flood.py -m cache -rs
 ```
 
 `uv run pytest -q tests/test_cache_builder.py`: 15 passed.
+
+### Completion note (opencode, acting orchestrator, 2026-11-15 ~08:45 UTC)
+
+Finishing this lane after the session stopped. Findings and corrections:
+
+- Branch synced onto current main; `make ci` at head: **341 passed, 7 deselected** *(measured)* (main 334 + this lane's builder tests).
+- Cache state verified: `local_cache/mojana/manifest.json` lists `hand_m` (source `MERIT/Hydro/v1_0_1`, status `cached`, finite_pixel_ratio 1.0); `local_cache/mojana/provenance.json` sha256 verified unchanged (`996c1e64…`, as the report above claims).
+- **The fixture cut above was vacuous and has been replaced.** Its row 0/col 0 window was NaN in all four GCOV bands (0/1024 finite each; the granule footprint does not cover the grid corner), so the "4 passed" ran on an all-NaN observation. The joint coverage analysis found 19,878 jointly-finite pixels in the cube; the best window is **row 432, col 240** (1024/1024 jointly finite). Re-cut `flood` there (the old untracked cut was never committed and was removed first):
+  - `gcov_hhhh_pre` 0.028–1.446 · `gcov_hvhv_pre` 0.0085–0.244 · `gcov_hhhh_post` 0.026–2.734 · `gcov_hvhv_post` 0.0092–0.276 (linear power) · `hand_m` 0–56.78 m — all *(measured)*, 32×32, digest matches sidecar.
+  - `tests/test_pipeline_flood.py -m cache`: **4 passed** on real coverage; `tests/test_cut_fixtures.py`: 10 passed.
+- The fixture commit still awaits the human review the fixtures README requires (arrays, sidecar, provenance) — flagged to the owner.

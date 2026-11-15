@@ -1,0 +1,63 @@
+{
+  "source_cube": "local_cache/mojana/mojana_sar_cube.zarr",
+  "variables": [
+    "gcov_hhhh_pre",
+    "gcov_hvhv_pre",
+    "gcov_hhhh_post",
+    "gcov_hvhv_post",
+    "hand_m"
+  ],
+  "window": {
+    "row": 432,
+    "col": 240,
+    "size": 32
+  },
+  "nisar_provenance": {
+    "slope_deg": "GEE projects/sat-io/open-datasets/FABDEM",
+    "rain_15d_mm": "missing",
+    "agb_mgha": "GEE projects/sat-io/open-datasets/ESA/ESA_CCI_AGB",
+    "gcov_hhhh_post": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+    "gcov_hvhv_post": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+    "gcov_hhhh_pre": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gcov_hvhv_pre": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "coherence_coseismic": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gunw_coherence": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "coherence_R": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "coherence_C": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "coherence_K": "missing",
+    "gunw_ionosphere": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gunw_conncomp": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gunw_phase_corr": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+    "los_disp_mm": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+    "hand_m": "GEE MERIT/Hydro/v1_0_1 band hnd version v1_0_1 grid EPSG:4326 512x512"
+  },
+  "nisar_provenance_attribute": null,
+  "provenance_source": "local_cache/mojana/manifest.json",
+  "variable_provenance": {
+    "gcov_hhhh_pre": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gcov_hvhv_pre": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+    "gcov_hhhh_post": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+    "gcov_hvhv_post": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+    "hand_m": "GEE MERIT/Hydro/v1_0_1 band hnd version v1_0_1 grid EPSG:4326 512x512"
+  },
+  "variable_metadata": {
+    "gcov_hhhh_pre": {
+      "fill_value": "nan"
+    },
+    "gcov_hvhv_pre": {
+      "fill_value": "nan"
+    },
+    "gcov_hhhh_post": {
+      "fill_value": "nan"
+    },
+    "gcov_hvhv_post": {
+      "fill_value": "nan"
+    },
+    "hand_m": {
+      "fill_value": "nan"
+    }
+  },
+  "sha256": "e1324bd21615be4add51a315e8ba3faeb77f9091daa5d9222591d79aef9d243b",
+  "cut_time_utc": "2026-11-15T07:04:31.915636+00:00",
+  "git_commit": "328d1a017c17ffb8d4980b3707e14198f7a18c15"
+}
