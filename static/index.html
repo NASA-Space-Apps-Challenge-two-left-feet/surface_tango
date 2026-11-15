@@ -360,18 +360,18 @@
     maps.forEach(map => map.once("load", () => {
       const layers = pendingTileLayers.get(map);
       pendingTileLayers.delete(map);
-      layers.forEach((url, id) => setTileLayer(map, id, url));
+      layers.forEach(([url, options], id) => setTileLayer(map, id, url, options));
     }));
 
-    function setTileLayer(mapInstance, sourceId, tileUrl) {
+    function setTileLayer(mapInstance, sourceId, tileUrl, options = {}) {
       if (pendingTileLayers.has(mapInstance)) {
-        pendingTileLayers.get(mapInstance).set(sourceId, tileUrl);
+        pendingTileLayers.get(mapInstance).set(sourceId, [tileUrl, options]);
         return;
       }
       if (mapInstance.getLayer(sourceId)) mapInstance.removeLayer(sourceId);
       if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
       if (!tileUrl) return;
-      mapInstance.addSource(sourceId, { type: "raster", tiles: [tileUrl], tileSize: 256 });
+      mapInstance.addSource(sourceId, { type: "raster", tiles: [tileUrl], tileSize: 256, ...options });
       mapInstance.addLayer({ id: sourceId, type: "raster", source: sourceId, paint: { "raster-opacity": 0.85 } });
     }
 
@@ -457,6 +457,39 @@
       });
     });
 
+    async function restoreReferencePanels({ liveFailed = false } = {}) {
+      const references = liveReferenceTiles;
+      let staged = {};
+      let lookupFailed = false;
+      if (!references.optical_s2_tile_url || !references.cband_s1_tile_url) {
+        try {
+          const response = await fetch("/api/sentinel-tiles/aburra");
+          if (!response.ok) throw new Error("Sentinel cache lookup failed");
+          staged = await response.json();
+        } catch {
+          lookupFailed = true;
+        }
+      }
+      if (activeStory || references !== liveReferenceTiles) return;
+      [
+        [mapOptical, "optical", "s2-optical", "s2", "Sentinel-2", references.optical_s2_tile_url],
+        [mapCBand, "cband", "s1-cband", "s1", "Sentinel-1", references.cband_s1_tile_url],
+      ].forEach(([map, panel, sourceId, layer, name, liveUrl]) => {
+        const cache = staged[layer];
+        if (liveUrl) {
+          setTileLayer(map, sourceId, liveUrl);
+          panelStatus(panel, "Live", name);
+        } else if (cache?.state === "cached") {
+          const { bounds, minzoom, maxzoom } = cache;
+          setTileLayer(map, sourceId, cache.tile_url, { bounds, minzoom, maxzoom });
+          panelStatus(panel, "Cached", [name, cache.date, cache.scene_ids.join(", ")].filter(Boolean).join(" · "));
+        } else {
+          setTileLayer(map, sourceId, null);
+          panelStatus(panel, lookupFailed || liveFailed ? "Error" : "Not cached", name);
+        }
+      });
+    }
+
     function switchNisarDomain(domain) {
       if (activeStory) openLiveView();
       selectedDomain = domain;
@@ -499,17 +532,12 @@
       evtSource.addEventListener("reference_layers", (e) => {
         const refs = JSON.parse(e.data);
         liveReferenceTiles = refs;
-        if (activeStory) return;
-        setTileLayer(mapOptical, "s2-optical", refs.optical_s2_tile_url);
-        setTileLayer(mapCBand, "s1-cband", refs.cband_s1_tile_url);
-        panelStatus("optical", "Live", "Sentinel-2 tile source");
-        panelStatus("cband", "Live", "Sentinel-1 tile source");
+        restoreReferencePanels();
       });
 
       evtSource.addEventListener("reference_error", () => {
-        if (activeStory) return;
-        panelStatus("optical", "Error", "Sentinel-2 unavailable. Launch scan to retry.");
-        panelStatus("cband", "Error", "Sentinel-1 unavailable. Launch scan to retry.");
+        liveReferenceTiles = {};
+        restoreReferencePanels({ liveFailed: true });
       });
 
       evtSource.addEventListener("agent_update", (e) => {
@@ -551,6 +579,7 @@
     }
 
     inspectHazardDomain(selectedDomain);
+    restoreReferencePanels();
     mapNisar.on("load", () => {
       refreshDeckHotspots();
       setLang("es");

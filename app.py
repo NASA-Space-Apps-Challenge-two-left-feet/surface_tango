@@ -56,6 +56,69 @@ def frontend_asset(name: str):
     return FileResponse(asset)
 
 
+SENTINEL_AOIS = {"aburra", "eje_cafetero", "mojana"}
+SENTINEL_LAYERS = {"s1": "cband_s1", "s2": "optical_s2"}
+
+
+def sentinel_manifest(aoi: str) -> tuple[Path, dict]:
+    if aoi not in SENTINEL_AOIS:
+        raise HTTPException(404, "Unknown Sentinel tile area")
+    tiles = CACHE_ROOT / aoi / "tiles"
+    path = tiles / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    if manifest and manifest.get("aoi") != aoi:
+        raise HTTPException(500, "Sentinel manifest does not match the area")
+    return tiles, manifest
+
+
+def cached_sentinel_layer(manifest: dict, layer: str) -> dict | None:
+    entry = manifest.get("layers", {}).get(SENTINEL_LAYERS[layer], {})
+    scene_ids = entry.get("scene_ids")
+    if (
+        entry.get("status") == "cached"
+        and isinstance(scene_ids, list)
+        and scene_ids
+        and all(isinstance(scene, str) and scene.strip() for scene in scene_ids)
+        and entry.get("tiles", {}).get("written", 0) > 0
+    ):
+        return entry
+    return None
+
+
+@app.get("/api/sentinel-tiles/{aoi}")
+def sentinel_tile_status(aoi: str):
+    tiles, manifest = sentinel_manifest(aoi)
+    panels = {}
+    for layer in SENTINEL_LAYERS:
+        entry = cached_sentinel_layer(manifest, layer)
+        if entry is None or not next((tiles / layer).glob("*/*/*.png"), None):
+            panels[layer] = {"state": "not cached"}
+            continue
+        panels[layer] = {
+            "state": "cached",
+            "source": "cache",
+            "scene_ids": entry["scene_ids"],
+            "date": entry.get("date"),
+            "cache_built_at": manifest.get("generated_utc"),
+            "tile_url": f"/api/sentinel-tiles/{aoi}/{layer}/{{z}}/{{x}}/{{y}}.png",
+            "bounds": manifest["bbox_wsen"],
+            "minzoom": manifest["zoom"]["min"],
+            "maxzoom": manifest["zoom"]["max"],
+        }
+    return panels
+
+
+@app.get("/api/sentinel-tiles/{aoi}/{layer}/{z}/{x}/{y}.png")
+def serve_sentinel_tile(aoi: str, layer: str, z: int, x: int, y: int):
+    if layer not in SENTINEL_LAYERS or not valid_xyz(z, x, y):
+        raise HTTPException(404, "Invalid Sentinel tile")
+    tiles, manifest = sentinel_manifest(aoi)
+    tile = tiles / layer / str(z) / str(x) / f"{y}.png"
+    if cached_sentinel_layer(manifest, layer) is None or not tile.is_file():
+        raise HTTPException(404, "Sentinel tile not cached")
+    return FileResponse(tile, media_type="image/png")
+
+
 @app.get("/api/story-results")
 def story_results():
     if not STORY_RESULTS.is_file():
@@ -146,10 +209,14 @@ def local_tile_status(domain: str):
     }
 
 
+def valid_xyz(z: int, x: int, y: int) -> bool:
+    return 0 <= z <= 24 and 0 <= x < 2**z and 0 <= y < 2**z
+
+
 @app.get("/api/local-tiles/aburra/{domain}/{z}/{x}/{y}.png")
 @app.get("/api/local-tiles/{domain}/{z}/{x}/{y}.png")
 def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
-    if not 0 <= z <= 24 or not (0 <= x < 2**z and 0 <= y < 2**z):
+    if not valid_xyz(z, x, y):
         raise HTTPException(404, "Invalid XYZ tile")
     cache = find_landslide_tile_cache() if domain == "landslide" else None
     if cache is None:
