@@ -86,7 +86,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 
 ## Architecture
 
-Software architecture as merged on `main` — what runs today. Grey dotted boxes are not built yet.
+Software architecture as merged on `develop` — what runs today. Grey dotted boxes are not built yet.
 
 ```mermaid
 flowchart LR
@@ -298,7 +298,7 @@ OFFLINE_DEMO_MODE=1 docker compose --profile pitch up -d
 |---|---|
 | `make setup` | uv env, pre-commit + commit-msg hooks, `.env`, `local_cache/` |
 | `make check` / `make test` / `make ci` | hooks on everything / offline tests / both (the merge gate) |
-| `make sync` | rebase your branch onto the latest `origin/main` (before every commit) |
+| `make sync` | rebase your branch onto the latest `origin/develop` (before every commit) |
 | `make worktree BRANCH=<branch>` | new linked worktree for a branch |
 | `make prewarm` / `make fetch-cache` | build the real-data cache locally / fetch a published release cache |
 | `make up` / `make pitch` | live Compose profile (credentials) / offline profile (real cache) |
@@ -343,7 +343,7 @@ Only public inputs. Cached outputs must retain source granule or scene IDs and p
 
 ## Development workflow
 
-- **Trunk-based:** `main` is always demo-able; one task per short-lived branch (`<type>/<lane>-<slug>`), one PR per branch, squash-merged when the gate is green. Never commit on `main`.
+- **Integration:** completed tasks target `develop`; one task per short-lived branch (`<type>/<lane>-<slug>`), one PR per branch, squash-merged when the gate is green. Never commit directly on `main` or `develop`. `main` remains the release branch.
 - **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
 - **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
 - **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).

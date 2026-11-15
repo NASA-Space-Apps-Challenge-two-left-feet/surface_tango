@@ -16,14 +16,15 @@ setup: ## uv env + pre-commit and commit-msg hooks + .env from template
 	@[ -f .env ] || cp .env.example .env
 	@mkdir -p local_cache
 
-sync: ## Bring your branch up to date: rebase onto origin/main (fast-forward on main)
+sync: ## Bring your branch up to date: rebase onto origin/develop (fast-forward on main/develop)
 	@git fetch origin
 	@if [ "$$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then git pull --ff-only origin main; \
-	else git rebase --autostash origin/main; fi
+	elif [ "$$(git rev-parse --abbrev-ref HEAD)" = "develop" ]; then git pull --ff-only origin develop; \
+	else git rebase --autostash origin/develop; fi
 
-worktree: ## New worktree from the latest origin/main: make worktree BRANCH=feat/quake-dpm
+worktree: ## New worktree from the latest origin/develop: make worktree BRANCH=feat/quake-dpm
 	@test -n "$(BRANCH)" || (echo "BRANCH is required, e.g. make worktree BRANCH=feat/quake-dpm" && exit 1)
-	python3 scripts/new_worktree.py "$(BRANCH)"
+	uv run --frozen python scripts/new_worktree.py "$(BRANCH)"
 
 check: ## Every pre-commit hook on every file (identical to CI)
 	uv run pre-commit run --all-files
@@ -36,7 +37,7 @@ diagrams: ## Regenerate the animated README SVGs in docs/diagrams/ (offline)
 	uv run python scripts/diagrams/lakehouse.py
 
 ci: ## Local CI gate: run before opening, marking ready or updating a PR
-	SKIP=no-commit-to-branch uv run pre-commit run --from-ref origin/main --to-ref HEAD
+	SKIP=no-commit-to-branch uv run pre-commit run --from-ref origin/develop --to-ref HEAD
 	$(MAKE) test
 
 # ==============================================================================

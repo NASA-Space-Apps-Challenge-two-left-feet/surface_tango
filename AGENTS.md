@@ -61,7 +61,7 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 ## Language: Python everywhere except the browser
 
 - **All project code is Python 3.12**, run through `uv` (`uv run python …`). That covers data and cache scripts, Earth Engine, ASF/NISAR access, hazard math, MCP servers, agents, tests and repo tooling (hooks, worktrees, release fetch).
-  - Tooling that must run before `uv sync` (the `up-to-date-with-main` hook, `scripts/new_worktree.py`) uses the standard library only and runs with `python3`.
+  - Tooling that must run before `uv sync` (the `up-to-date-with-develop` hook, `scripts/new_worktree.py`) uses the standard library only and runs with `uv run --frozen python` in the project folder environment.
   - Don't add shell, JavaScript, R or notebook code for these jobs. One-line shell recipes inside `Makefile` targets are fine; anything longer becomes a Python script in `scripts/`.
 - **Earth Engine only through the Python API** (`earthengine-api`, `import ee`), initialised only by `gee_math/ee_session.init_ee()` (ADC identity plus `GCP_PROJECT_ID`).
   - No Code Editor JavaScript, no `ee.Authenticate()`, no `earthengine` CLI credentials, no service-account key files.
@@ -74,8 +74,8 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 
 ```bash
 make setup                               # uv env + pre-commit (and commit-msg) hooks + .env from template
-make sync                                # rebase your branch onto the latest origin/main (do this before every commit)
-make worktree BRANCH=feat/quake-dpm      # new worktree from the latest origin/main
+make sync                                # rebase your branch onto the latest origin/develop (do this before every commit)
+make worktree BRANCH=feat/quake-dpm      # new worktree from the latest origin/develop
 make check                               # every pre-commit hook on every file (identical to CI)
 make test                                # tests that need no network or cache (what CI runs)
 make ci                                  # local CI: check + test; run before opening or updating a PR
@@ -87,14 +87,14 @@ Run the relevant tests and the hooks before every commit. A failing hook is a re
 
 ## Trunk-based development
 
-- **`main` is the trunk and is always demo-able.** There is no `develop`, no `release/*` and no long-lived branch.
+- **`develop` is the integration branch.** All completed tasks land through pull requests into `develop`, so other workspaces can build on them. `main` remains the release branch; promoting to it requires a separate owner-approved PR.
 - **Branches are short-lived:** hours, never past the next sync. They are named `<type>/<lane>-<short-description>`, with a Conventional Commits type and a kebab-case description:
   - `feat/quake-dpm`
   - `fix/mcp-sse-transport`
   - `docs/kb-gunw-layers`
-- Branches start from the **latest `origin/main`**. Before a PR, rebase your own branch onto `origin/main` (never rebase a shared branch).
-- **Always build on the latest trunk.** Run `make sync` (fetch + rebase your branch onto `origin/main`; fast-forward on `main`) **when you start a work session, before every commit and before every push**. A pre-commit hook (`up-to-date-with-main`) refuses a commit on a branch that is behind `origin/main` and tells you to run `make sync`; offline it warns and lets the commit through. If the rebase conflicts, resolve only files your lane owns and ask the owner about the rest; never `--no-verify` past the check.
-- **Never commit on `main`, locally or remotely.** The `no-commit-to-branch` hook refuses it. On a private free-plan repo GitHub cannot enforce branch protection, so the hook and the review rule are the guard.
+- Branches start from the **latest `origin/develop`**. Before a PR, rebase your own branch onto `origin/develop` (never rebase a shared branch).
+- **Always build on the latest trunk.** Run `make sync` (fetch + rebase your branch onto `origin/develop`; fast-forward on `main` or `develop`) **when you start a work session, before every commit and before every push**. A pre-commit hook (`up-to-date-with-develop`) refuses a commit on a branch that is behind `origin/develop` and tells you to run `make sync`; offline it warns and lets the commit through. If the rebase conflicts, resolve only files your lane owns and ask the owner about the rest; never `--no-verify` past the check.
+- **Never commit directly on `main` or `develop`, locally or remotely.** The `no-commit-to-branch` hook refuses it. On a private free-plan repo GitHub cannot enforce branch protection, so the hook and the review rule are the guard.
 - Unfinished work merges hidden behind the panel states or a config flag in `config/bailasar.yaml`, never by keeping a branch open.
 - Integrate small and often: one task (issue) per branch, one PR per branch, merge the same hour if the gate is green.
 
@@ -141,7 +141,7 @@ BREAKING CHANGE: scoring reads k from config/preregistered.yaml only.
 ## Pull requests
 
 - Title: a Conventional Commit header. Body: [the template](.github/pull_request_template.md): what and why, issue, how it was tested, numbers (measured/estimate), data or secret impact.
-- Base is always `main`. Open as a **draft**; mark it ready once, when `make ci` passes locally.
+- Task PRs always target `develop`. Open as a **draft**; mark it ready once, when `make ci` passes locally.
 - The orchestrator (LEONOB2014's lead session) reviews against the brief and merges with **squash**. Never delete branches after merging.
 
 ## CI/CD and the Actions-minutes budget
@@ -150,7 +150,7 @@ GitHub Actions minutes are scarce: a private repo bills every job rounded up to 
 
 - **The merge gate is local CI.** `make ci` (pre-commit on the changed files plus the offline tests) must pass before a PR is opened, marked ready or updated. CI is the last check, not the place to find failures.
 - **One Actions job** (`.github/workflows/ci.yml`):
-  - It runs only on **pull requests into `main` that are ready for review**, and only when code changed. Pushes, drafts and docs-only PRs (`*.md`, `docs/**`, `status/**`, `briefs/**`, `video/**`) run nothing.
+  - It runs only on **pull requests into `develop` that are ready for review**, and only when code changed. Pushes, drafts and docs-only PRs (`*.md`, `docs/**`, `status/**`, `briefs/**`, `video/**`) run nothing.
   - `concurrency` cancels a superseded run.
   - It is gated by the repository variable `BAILASAR_ACTIONS_CI` (`on`/`off`), so the owner can switch Actions off when minutes run low.
   - It uses `ubuntu-latest`, a cached `uv` and `timeout-minutes: 10`.
@@ -191,7 +191,7 @@ Every fact the code or the pitch relies on lives as a short note, not in someone
 
 ## README kept current
 
-The README is what the team, new teammates and the judges read first. It must describe `main` as it is now, not the plan.
+The README is what the team, new teammates and the judges read first. It must describe `develop` as it is now, not the plan.
 - **Update it in the same PR** when a task changes any of these:
   - how to set up or run the project (a command, a `make` target, a new `.env` key, a port);
   - what works: a hazard pipeline, an MCP tool, a UI panel or the video moves to live, cached, not cached or dropped;
@@ -199,13 +199,13 @@ The README is what the team, new teammates and the judges read first. It must de
   - the architecture, the scope (an item dropped or moved to TODO) or the AI tools used.
 - **Status table.** The README keeps one table: component · state (live · cached · not cached · planned · dropped) · issue/PR · report. The PR that completes or changes a component updates its row (add the table if it is missing).
 - **Any lane may edit the README sections its change affects.** EstebanOchoaedos owns the structure and the wording pass; don't reorganise it in a feature PR.
-- **Remove what is no longer true** in the same PR: dropped features, stale claims, numbers without a source. Never leave the README promising something `main` doesn't do.
+- **Remove what is no longer true** in the same PR: dropped features, stale claims, numbers without a source. Never leave the README promising something `develop` doesn't do.
 - **The orchestrator checks it** at review (a PR that should have touched the README and didn't is sent back), and after each batch of merges does a README pass in its own `docs/readme-...` PR.
 - A README-only PR is docs-only, so it costs no Actions minutes.
 
 ### Diagrams kept current in the README
 
-The README carries diagrams that describe `main` as it is now; they follow the same rule as the text above — updated in the same PR as the change they depict, checked in the post-batch README pass, and updated regularly, not only when they break.
+The README carries diagrams that describe `develop` as it is now; they follow the same rule as the text above — updated in the same PR as the change they depict, checked in the post-batch README pass, and updated regularly, not only when they break.
 
 - Required content: **Architecture** (processes, MCP servers, ports, cache layout), **Agents & orchestration** (LangGraph nodes, the tools each agent may call, cache_guard flow), **Data flow** (discovery → hour-2 gate → cache build → tiles → agents → bulletin → UI/video).
 - Architecture, orchestration and data-flow diagrams are `mermaid` code blocks: they render natively on GitHub and review as diffs. Use `flowchart` for architecture and data flow (file names in nodes; a grey `:::dropped`/`:::pending` classDef with dotted links for what is not built or out of scope) and `sequenceDiagram` for agent/tool orchestration (cache_guard outcome branches via `alt`).
@@ -229,7 +229,7 @@ The README carries diagrams that describe `main` as it is now; they follow the s
 
 ## Agent conduct
 
-- Ask before destructive or outward-facing actions: pushes, merges into `main`, making the repo public, publishing releases, deleting data, paid runs, editing GitHub settings. Approval of one step never extends to the next.
+- Ask before destructive or outward-facing actions: pushes, merges into `main` or `develop`, making the repo public, publishing releases, deleting data, paid runs, editing GitHub settings. Approval of one step never extends to the next.
 - Prefer the smallest change that fully solves the task, and follow existing patterns.
 - Report outcomes faithfully: say what was tested, what failed and what was skipped.
 - Review every rendered map, chart or frame as an image before accepting it.
