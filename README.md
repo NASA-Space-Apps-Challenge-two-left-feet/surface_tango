@@ -35,7 +35,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 
 ---
 
-> **Evidence rules.** No synthetic or fabricated data. Missing pixels and bands remain missing (NaN, shown as "no data"), never zero-filled. Measured results require the producing command, source granule or scene IDs, denominators and applicable intervals; estimates must be labelled. Agents write prose with `{placeholders}` filled from tool outputs. Only public data; no personal data or secrets. Pre-registration parameters live only in [config/preregistered.yaml](config/preregistered.yaml), currently draft with freeze pending; at freeze, its hash must be recorded in [validation/README.md](validation/README.md). See [AGENTS.md](AGENTS.md).
+> **Evidence rules.** No synthetic or fabricated data. Missing pixels and bands remain missing (NaN, shown as "no data"), never zero-filled. Measured results require the producing command, source granule or scene IDs, denominators and applicable intervals; estimates must be labelled. Agents write prose with `{placeholders}` filled from tool outputs. Only public data; no personal data or secrets. Pre-registration parameters live only in [config/preregistered.yaml](config/preregistered.yaml), **frozen** since 2026-11-15 (#130; blob `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438`, recorded in [validation/README.md](validation/README.md)). See [AGENTS.md](AGENTS.md).
 
 ## The problem, the answer, the impact
 
@@ -71,11 +71,11 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Quake damage proxy (tracks 11 and 47; C/K statistics sealed until the pre-registration freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md) |
 | Release staging and cache download | live; team draft pre-release `cache-2026-11-15` (3 AOIs, 122,697,992 bytes; C-pair coherence and `quake/` withheld); public `make fetch-cache` after the release is published | #42, #67 | [issue #22 instructions](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/22) |
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
-| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE); hazard tools are evidence-envelope adapters over `local_cache/<aoi>/<hazard>_evidence.json` (counts + denominators + sources; C/K sealed; `not cached` until the cache build emits the artifacts) | #20, #103, #122 | [schema note](docs/kb/mcp-evidence-artifact-schema.md) |
+| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE); hazard tools are evidence-envelope adapters over `local_cache/<aoi>/<hazard>_evidence.json` (counts + denominators + sources; C/K statistics served only after the pre-registration freeze, now frozen #130; `not cached` until the data lane serializes the flood/quake artifacts — landslide serves the #109 verdict) | #20, #103, #122, #127 | [schema note](docs/kb/mcp-evidence-artifact-schema.md) |
 | Bulletin placeholder and verified-event contract | live contract; rendering pending; quake depth is a displayable event fact (USGS preferred-origin estimate 116 km; SGC manual bulletin 105 km kept as evidence only) | #21, #103 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields-v2.md) |
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
-| Pre-registration and power check | power check recorded: **scorecard uninformative** (0 verified barrio labels); freeze pending (#26, #86) | #25, #102 | [validation/README.md](validation/README.md) |
+| Pre-registration and power check | **frozen** 2026-11-15 (#130; blob `b4f9cb8…`, differences from the pre-deviation anchor listed); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102 | [validation/README.md](validation/README.md) |
 | First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth | researched; no complete barrio damage dataset; candidate boundaries not adopted | #24, #97 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | cached: **no motion detected above 9.105 mm (17 pairs, provisional)**; keep-rule calibrated against a sign-flip null | #33 | [reports/aburra.md](reports/aburra.md) |
@@ -135,7 +135,7 @@ flowchart LR
 
 - **Agents route, tools compute:** numeric bulletin content comes only from deterministic tool outputs or sourced event constants in [validation/event_facts.json](validation/event_facts.json). LLM text interpolates `{placeholders}`.
 - **Cache guard:** the fallback serves only real pre-staged tiles with provenance, or an explicit "not cached" error. [config/bailasar.yaml](config/bailasar.yaml) records the measured `search_nisar_granules` breaker budget, documented in [reports/tool_latency.md](reports/tool_latency.md); the other tools still use the default budget, an estimate pending measurement (#28).
-- Draft thresholds, ranking parameters and pair choices live only in [config/preregistered.yaml](config/preregistered.yaml), with freeze pending; operational settings in [config/bailasar.yaml](config/bailasar.yaml). Design and binding decisions: [docs/designs/bailasar.md](docs/designs/bailasar.md).
+- Frozen thresholds, ranking parameters and pair choices live only in [config/preregistered.yaml](config/preregistered.yaml) (frozen, #130); operational settings in [config/bailasar.yaml](config/bailasar.yaml). Design and binding decisions: [docs/designs/bailasar.md](docs/designs/bailasar.md).
 
 The same system as an animated SVG, generated by [`scripts/diagrams/architecture.py`](scripts/diagrams/architecture.py) with `make diagrams` (flows animate; `prefers-reduced-motion` stops them):
 
@@ -321,7 +321,7 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 |---|---|
 | `scripts/` | discovery (`discover_nisar_colombia.py`), cache builder (`build_cache.py`), tooling (Python) |
 | `gee_math/` | hazard math: quake DPM, landslide InSAR, flood dual-pol, EE session |
-| `config/` | `preregistered.yaml` (draft, freeze pending) · `bailasar.yaml` (operational) |
+| `config/` | `preregistered.yaml` (frozen, #130) · `bailasar.yaml` (operational) |
 | `mcp_servers/` | the two FastMCP SSE servers + `cache_guard.py` |
 | `agents/` | LangGraph orchestration, state, bulletin rendering |
 | `validation/` | scoring, event facts, ALLOWLIST, pre-registration record |
@@ -339,7 +339,7 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 - **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
 - **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
 - **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).
-- **Pre-registration:** parameters live only in `config/preregistered.yaml`, currently draft with freeze pending. At freeze, its hash must be recorded in `validation/README.md`; the hash record is currently pending. Co-event (C-pair) coherence must remain withheld until the freeze commit (see [recorded deviation](validation/README.md#deviations)).
+- **Pre-registration:** parameters live only in `config/preregistered.yaml`, frozen since 2026-11-15 (#130) with its hash recorded in [validation/README.md](validation/README.md) (blob `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438`; differences from the pre-deviation anchor are listed there). The freeze unsealed co-event (C-pair) coherence, which had remained withheld after [deviation 1](validation/README.md#deviations) until the freeze commit.
 - **README + diagrams in the same PR** as the change they depict (see "Diagrams kept current in the README" in AGENTS.md).
 
 ## Data sources and citations
@@ -396,7 +396,7 @@ The team and project names play on our challenge, *Dancing with the SARs*: we ta
 
 ### MCP transport foundation
 
-Run each server with `uv run --frozen python -m mcp_servers.nisar_asf_mcp` or `uv run --frozen python -m mcp_servers.gee_fusion_mcp`. Both use the SSE transport and endpoints configured in `config/bailasar.yaml`. Startup does not authenticate to remote services. In offline mode, a cache miss returns `not cached`. Cached tool outputs live in `local_cache/tool_outputs/<tool>/<request-key>.json` and require matching request metadata plus source, granule IDs and cache build time. No fallback generates data. Live budget measurement and the quake adapter remain pending owner integration.
+Run each server with `uv run --frozen python -m mcp_servers.nisar_asf_mcp` or `uv run --frozen python -m mcp_servers.gee_fusion_mcp`. Both use the SSE transport and endpoints configured in `config/bailasar.yaml`. Startup does not authenticate to remote services. In offline mode, a cache miss returns `not cached`. Cached tool outputs live in `local_cache/tool_outputs/<tool>/<request-key>.json` and require matching request metadata plus source, granule IDs and cache build time. No fallback generates data. Live budget measurement remains pending; the flood/quake evidence artifacts are pending the data-lane serializers (`scripts/write_hazard_evidence.py`).
 
 ### Bulletin evidence contract
 
