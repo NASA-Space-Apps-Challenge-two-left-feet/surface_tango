@@ -4,13 +4,17 @@
 
 | Input | Handoff |
 |---|---|
-| Submission deadline and capture start in Bogotá time | [D] and [D−6 h] |
-| Selected headline and outcome | [Approved entry in validation/README.md] |
+| Submission deadline and capture start in Bogotá time, alicealanapineda-byte | [D] and [D−6 h] |
+| Selected headline, Jack4Codes | [Approved entry in validation/README.md] |
+| Measured outcome or documented null | [Maru816 quake scorecard or LEONOB2014 hazard report] |
 | Shot timing and approved wording | [Locked storyboard from #39] |
 | Mission control version | [Commit with the #22 and #37 frontend changes] |
-| Cache and results | [Shared cache location, approved gate statements and story results] |
+| Shared cache and tiles, LEONOB2014 | [Zarr cube, manifest and map tiles] |
+| Display inputs | [Approved gate statements and story results] |
 
 The [gate report](../reports/gate.md) clears the quake scorecard path. The power check and headline decision still determine which sequence to capture.
+
+For the provisional products identified by the gate, keep **PROVISIONAL** visible in the footage. If quake is selected, carry the report's temporal-baseline mismatch caveat beside every quake result.
 
 ## Capture
 
