@@ -44,3 +44,7 @@ The nominal value and sensitivity range are rounded on screen. The range describ
 2. Follow the [story cache setup](../status/frontend-video.md) with the downloaded release manifest. Check that the flood timeline and recorded bulletin both load in the [offline walkthrough](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/40).
 3. Record the title and bulletin, the curtain, and the measured timeline ending on the June water mask. Show the dated July comparison as its own card after the June map. Keep the valid Sentinel-1 denominator visible in the card or its evidence caption.
 4. Record the outcome and credits, then check the 30-second cut for readable dates, units, denominators, caveats, and matching subtitles. Use this locked cut for the headline and evidence. Log the chosen takes in the [recording run sheet](recording-run-sheet.md#final-capture).
+
+## Earthquake chapter hook (orchestrator note, do not drop)
+
+Frame the earthquake chapter on the **epicenter**: *"NISAR saw the epicenter no optical satellite could"* — San José del Palmar, Chocó (USGS us6000tjl2), optically blind, covered by NISAR L-band (measured, `reports/quake_extended_aois.md` + `docs/kb/quake-epicenter-optical-blind.md`). On-screen numbers only from measured reports. La Mojana flood stays the ratified headline (#102); this is the supporting earthquake beat so the insight reaches the video.
