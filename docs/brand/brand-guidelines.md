@@ -53,23 +53,28 @@ never out of step." · "Two radars. Both look left. We call that a footprint."
 
 ## Motion motif (platform)
 
-The two-footprint pair is the loading/transition animation, and it dances a
-real Argentine-tango **caminata** that *travels the line of dance* — not a pair
-marking time in place. Alternating left footprints, blue (first/before) and
-vermilion (second/after, the highlight), advance up-and-to-the-right with real
-displacement: each one plants bright with a heel-lead roll (the toe reaches,
-the foot rolls flat, weight sets down), then **decays to a faint trace** as the
-walk moves on. The result is two independent, synchronized traces climbing the
-floor, one step after the other — the dance is legible in the footfalls it
-leaves behind. The prints are always left feet, never mirrored, never leveled
-(blue rides the lower lane, vermilion the upper), a clear step apart, never
-touching and **never cut** (generous stage, `overflow: visible`). Each foot
-moves independently; the stagger is a sixth of the phrase. Tempo ~2.4 s per
-phrase. Use it for the homepage intro, loading states and chapter transitions;
-respect `prefers-reduced-motion` (feet rest, no animation). One shared glyph
-(`#lfoot`) placed by a static `<g transform>`; CSS animates only the plant
-(`trail-step` keyframes, class `trail-foot` with slot classes `s1`–`s6`) in
-`static/index.html`. On the vermilion run button the walk goes white (class
-`mono`). The chapter-transition curtain reuses the same trail
-(`playFeetTransition` in `static/story-map.js`). "Two left feet, one
-coordinated surface tango."
+The loading/transition animation dances the **authentic tango basic** — the
+five-step figure counted **slow-slow-quick-quick-slow** (T-A-N-G-O), eight
+beats: *1 forward (slow, long) · 2 forward (slow, long) · 3 forward (quick,
+smaller) · 4 side (quick) · 5 close (slow)*. What makes it read as tango is the
+**amplitude**: the first two forward steps are long strides along the line of
+dance, then the figure tightens into a small side-step and a close — the steps
+shrink. It is not an even march, and it is not a pair marking time in place.
+
+One foot per colour so each foot leaves **its own trace**: vermilion dances
+steps 1, 3, 5 and blue dances steps 2, 4 (the two radars / passes). Each print
+plants bright with a heel-lead roll, then decays to a faint trace as the figure
+moves on, so the whole basic stays legible in the footfalls. The prints are
+always left feet, never mirrored, never leveled, a clear step apart, never
+touching and **never cut** (generous stage, `overflow: visible`, checked at the
+step-1 and step-5 extremes). Phrase ~3.2 s. Use it for the homepage intro,
+loading states and chapter transitions; respect `prefers-reduced-motion` (feet
+rest, no animation).
+
+One shared glyph (`#lfoot`), placed and angled per step by a static
+`<g transform>` (step 4 toes out, the side step); CSS animates only the plant
+(`trail-step` keyframes, class `trail-foot`, slot classes `s1`–`s5` carrying
+the S-S-Q-Q-S delays) in `static/index.html`. On the vermilion run button the
+figure goes white (class `mono`). The chapter-transition curtain reuses the
+same figure (`playFeetTransition` in `static/story-map.js`). "Two left feet,
+one coordinated surface tango."
