@@ -1,0 +1,124 @@
+{
+  "requests": [
+    {
+      "server": "nisar_asf",
+      "tool": "search_nisar_granules",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello",
+      "granule_ids": [],
+      "arguments": {
+        "bbox": {
+          "config_path": [
+            "aois",
+            "1_aburra_medellin_bello"
+          ]
+        },
+        "start_date": {
+          "catalog_path": [
+            "window",
+            0
+          ]
+        },
+        "end_date": {
+          "catalog_path": [
+            "window",
+            1
+          ]
+        },
+        "product_level": "GCOV"
+      }
+    },
+    {
+      "server": "nisar_asf",
+      "tool": "stage_nisar_gcov_to_gcs",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello.granules",
+      "granule_ids": [
+        "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+      ],
+      "arguments": {
+        "https_url": {
+          "catalog_path": [
+            "aois",
+            "1_aburra_medellin_bello",
+            "granules",
+            1,
+            "url"
+          ]
+        },
+        "scene_name": {
+          "catalog_path": [
+            "aois",
+            "1_aburra_medellin_bello",
+            "granules",
+            1,
+            "scene_name"
+          ]
+        },
+        "bbox": {
+          "config_path": [
+            "aois",
+            "1_aburra_medellin_bello"
+          ]
+        },
+        "polarizations": [
+          "HHHH",
+          "HVHV"
+        ]
+      }
+    },
+    {
+      "server": "nisar_asf",
+      "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
+      "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello.granules",
+      "granule_ids": [
+        "NISAR_L2_PR_GUNW_023_047_A_005_024_4000_SH_20260617T103906_20260617T103941_20260629T103906_20260629T103940_P05023_N_F_J_001"
+      ],
+      "arguments": {
+        "https_url": {
+          "catalog_path": [
+            "aois",
+            "1_aburra_medellin_bello",
+            "granules",
+            0,
+            "url"
+          ]
+        },
+        "scene_name": {
+          "catalog_path": [
+            "aois",
+            "1_aburra_medellin_bello",
+            "granules",
+            0,
+            "scene_name"
+          ]
+        },
+        "bbox": {
+          "config_path": [
+            "aois",
+            "1_aburra_medellin_bello"
+          ]
+        }
+      }
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_landslide_kinematics",
+      "source": "owner-supplied staged real GUNW artifacts required",
+      "granule_ids": [],
+      "arguments": {}
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_flood_inundation",
+      "source": "owner-supplied staged real GCOV artifacts required",
+      "granule_ids": [],
+      "arguments": {}
+    },
+    {
+      "server": "gee_fusion",
+      "tool": "analyze_earthquake_dpm",
+      "source": "owner-supplied frozen pair artifacts required",
+      "granule_ids": [],
+      "arguments": {}
+    }
+  ]
+}

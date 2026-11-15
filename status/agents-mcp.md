@@ -24,3 +24,7 @@ _Last update: 2026-11-15 (UTC−5)_ · branch `feat/mcp-scoring-tools`
 - No numbers of their own: every weight/threshold/k comes from `config/preregistered.yaml`; a null or missing value raises, never a default. `get_earthquake_pair_set` raises until the pairs are filled and frozen (#26).
 - Tests: `tests/test_mcp_scoring_tools.py` (11 offline), expected values taken from calling `validation.scoring` directly (no hand-computed constants, nothing to allowlist).
 - Handoff (hazard-modeling lane, LEONOB2014): `mcp_servers/gee_fusion_mcp.py` `analyze_earthquake_dpm` imports `compute_earthquake_dpm_and_rupture`, which no longer exists in `gee_math/earthquake_dpm_math.py` (now lazy on `main`, so import survives but the call would fail). Not in my lane; flagged for the owner.
+
+## Live tool latency handoff (#28, alicealanapineda-byte)
+
+Offline owner-runner and preregistered call plan in `mcp_servers/tool_latency.py` + `reports/tool_latency_plan.json`; a cloud owner runs it to fill live measurements (the readiness report has none yet).
