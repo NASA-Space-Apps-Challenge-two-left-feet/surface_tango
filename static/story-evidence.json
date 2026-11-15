@@ -1,0 +1,17 @@
+{
+  "earthquake": {
+    "state": "gate",
+    "summary": "The quake scorecard is uninformative. No verified barrio damage labels were available, so no ranking or precision score was produced. Co-event coherence remains withheld pending the freeze.",
+    "source": "validation/README.md · Power check and headline"
+  },
+  "flood": {
+    "state": "gate",
+    "summary": "PROVISIONAL, measured 2026-06-17. NISAR mapped 4,487 ha of absolute open water (5,539 of 197,758 valid pixels). Threshold sensitivity: 2,799–6,726 ha. The thresholds are uncalibrated and the dry reference does not support change classes. The staged Sentinel scenes provide context and were acquired on different dates.",
+    "source": "reports/mojana.md · Absolute open water and sensitivity",
+    "granule": "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001",
+    "command": "uv run python -m gee_math.flood_polarimetric_math",
+    "date": "2026-06-17",
+    "water_pixels": 5539,
+    "valid_pixels": 197758
+  }
+}
