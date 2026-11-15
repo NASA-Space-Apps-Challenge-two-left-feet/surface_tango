@@ -6,11 +6,11 @@ const ready = new Promise(resolve => {
   setTimeout(()=>resolve(false),12000);
   if (!window.maplibregl) { resolve(false); return; }
   try {
-    map = new maplibregl.Map({container:"map", style:{version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#202524"}}]},center:[-75,6],zoom:6, attributionControl:false});
+    map = new maplibregl.Map({container:"map", style:contextBasemapStyle("#202524"),center:[-75,6],zoom:6, attributionControl:false});
     map.addControl(new maplibregl.NavigationControl({showCompass:false}),"bottom-right");
     map.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
     map.once("load",()=>resolve(true));
-    map.on("error",()=>text("error","A map source could not load. Retry the observation."));
+    map.on("error",(event)=>{ if(event?.sourceId==="context-basemap")return; text("error","A map source could not load. Retry the observation."); });
   } catch { resolve(false); }
 });
 function message(title) { $("empty").hidden=false; $("empty").querySelector("h3").textContent=title; }
