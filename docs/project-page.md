@@ -1,26 +1,26 @@
-# Project page text (draft, #45)
+# Project page text (reviewed draft, #45)
 
 **Team:** two left feet — Surface Tango · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia
 
 ## Plain-language summary
 
-Floods, landslides and earthquakes in Colombia compound each other, but radar answers arrive too slowly and too raw for the people who need them. **Surface Tango** is a multi-agent observatory that turns NISAR L-band radar into a sentence a person can act on. Two FastMCP servers do the geospatial computation under strict time budgets; three LangGraph hazard agents interrogate them; a synthesis step writes a bilingual (ES/EN) bulletin in which **no number comes from the language model** — every quantity is a placeholder filled from a measured tool output or a primary-sourced event constant, and anything withheld stays visibly "not available".
+Surface Tango brings public radar observations and their limits together in one map and evidence-backed bulletin. It examines open water in La Mojana, ground motion in the Aburrá Valley, and an earthquake damage proxy in the Eje Cafetero. NISAR L-band data and public context layers pass through geospatial tools and LangGraph hazard agents. The agents write bilingual prose; measured quantities and sourced event facts come from tool outputs, while missing observations remain visible. The earthquake proxy has no verified neighborhood damage labels and cannot support a response-priority claim.
 
-## What we measured (all numbers cited to commands and granule IDs in the repo)
+## What the data shows
 
-- **La Mojana floods (headline):** 4,487 ha of open water mapped on 2026-06-17 (5,539 of 197,758 valid pixels, 90 m NISAR GCOV posting; sensitivity 2,799–6,726 ha across uncalibrated thresholds) — measured by `gee_math/flood_polarimetric_math`.
-- **Aburrá Valley landslides:** a **calibrated null** — no motion above the 9.105 mm noise floor across 17 GUNW pairs, against a sign-flip null on both stacks — measured by `gee_math/landslide_insar_math`.
-- **Eje Cafetero earthquake (M 7.4, USGS us6000tjl2):** coherence-loss damage proxy with frozen pre-registered pairs; the scorecard is honestly **uninformative** (no verified barrio damage labels); the contrast E_C − E_K is disclosed with its baseline mismatch (C 24 d vs R/K 12 d).
-- **Agent stack:** the hazard graph ran end to end into a live bilingual bulletin (`reports/bulletin_demo.md`), with every number traced to its tool evidence field.
+- **La Mojana (headline):** A provisional NISAR mask mapped **4,487 ha of absolute open water** on 2026-06-17, rounded from 4,486.59 ha (5,539 of 197,758 valid pixels; *measured, uncalibrated threshold*). The sensitivity range is 2,799–6,726 ha (3,455–8,304 positive pixels over the same valid-data domain; *measured, rounded*). The dry reference cannot support a flood-change estimate. Evidence: `uv run python -m gee_math.flood_polarimetric_math`; GCOV granule `NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001`; [report](../reports/mojana.md).
+- **Aburrá Valley:** The landslide analysis found **no motion above its 9.105 mm noise floor** across 17 GUNW pairs (*measured, provisional*). The hillslope kept fraction stayed below the sign-flip null on both tracks. Evidence: `uv run python -m gee_math.landslide_insar_math`; the [report](../reports/aburra.md) lists the pair IDs and per-track denominators. This is a measured null for the analyzed window, not proof that no landslide occurred.
+- **Eje Cafetero:** The coherence-loss proxy contrast is inconclusive. The frozen control pair replaced an older control pass; a temporal-baseline mismatch remains. The scorecard is **uninformative** because no verified neighborhood damage labels were adopted. Evidence: [frozen-pair interpretation, commands and granule IDs](../reports/quake_dpm_interpretation.md) and [power check](../validation/README.md#power-check-and-headline-plan-02-03-25). The proxy is not a validated damage map.
+- **Bulletin:** A live run produced an English and Spanish bulletin from the hazard graph. Its quantities were filled from evidence fields, not invented by the language model. Evidence: [live-run report](../reports/bulletin_demo.md).
 
-## Why it is different
+## How it works
 
-Nulls are first-class results. The pre-registration is frozen and hashed; the scoring rule is pre-registered so the radar must beat geography itself; every panel answers one of live · cached · not cached · gate result · error — never blank, never fabricated.
+Separate FastMCP servers provide radar and contextual evidence to LangGraph hazard agents. A synthesis step writes the bulletin from checked tool outputs. Source identifiers and cache provenance travel with the results. The interface labels each panel as live, cached, not cached, gate result or error, so an unavailable layer is explicit. The [README](../README.md) describes the implemented architecture and current component states.
 
 ## AI disclosure
 
-Built with Claude Code, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph. Bulletins are AI-written prose over measured tool outputs and carry the **SI-Assisted Analytics** badge.
+Built with Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph. AI-written bulletins carry the **SI-Assisted Analytics** badge. Agency attribution does not imply endorsement.
 
-## Data sources
+## Data and reuse
 
-NISAR L1/L2 products (ASF DAAC, provisional CRID P05023), Copernicus Sentinel-1/2, FABDEM/MERIT terrain, FAO GAUL admin units, USGS/SGC event parameters, WorldPop. Public data only; code Apache-2.0; see DATA_LICENSES.md.
+The analysis uses public NISAR observations distributed by ASF DAAC and public contextual sources listed in the [README](../README.md#data-sources-and-citations). Apache-2.0 is **proposed** for team-owned code; the team has not finalized that choice. Third-party data and derived cache assets have separate terms, and release redistribution remains under review in [DATA_LICENSES.md](../DATA_LICENSES.md).
