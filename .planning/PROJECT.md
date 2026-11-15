@@ -22,7 +22,7 @@ See `.planning/REQUIREMENTS.md` (v1: GATE, DATA, CFG, QUAKE, SCORE, SLIDE, FLOOD
 
 - Biomass agent / root cohesion — dropped from the hackathon scope (TODO 1)
 - ISRO S-band fusion — no Colombia coverage found (TODO 2)
-- GOFF surface rupture — the quake was 96 km deep, so there is no rupture (TODO 3)
+- GOFF surface rupture — the quake was 116 km deep, so there is no rupture (TODO 3)
 - Quad-pol H/ᾱ, Freeman — Colombia is dual-pol HH/HV (TODO 4)
 - RSLC→coherence generation — not feasible in 30 h; a missing GUNW pair counts as missing
 - "What radar knew" time-machine replay (TODO 5)

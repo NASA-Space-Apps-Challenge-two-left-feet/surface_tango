@@ -17,13 +17,29 @@
         "classification": "estimate",
         "source": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson",
         "field": "properties.place"
+      },
+      "depth_km": {
+        "classification": "estimate",
+        "unit": "km",
+        "usgs_preferred_origin": {
+          "value": 116.13,
+          "source": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson",
+          "field": "products.origin[0].properties.depth (source us)",
+          "kb_note": "docs/kb/event-2026-08-10-earthquake.md"
+        },
+        "sgc_manual_bulletin": {
+          "value": 105,
+          "source": "https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen",
+          "field": "Profundidad (status Manual)",
+          "kb_note": "docs/kb/event-2026-08-10-earthquake-sgc.md"
+        },
+        "removed": "96 km had no primary source (added in 11242b8) and matches neither agency"
       }
     }
   },
   "_pending_verification": {
     "quake_2026_08_10": {
-      "depth_km": "Withheld pending preferred-origin/SGC reconciliation; never substitute a product depth.",
-      "sgc_bulletin": "https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen (403 on access)"
+      "depth_km": "Both agency depths are verified in docs/kb (USGS preferred origin 116.13 km, used by BailaSAR; SGC manual bulletin 105 km). Promotion to a displayable field is pending the agents lane (tests/test_event_facts.py and a rounding rule)."
     }
   },
   "quake_2026_08_10": {
@@ -34,7 +50,8 @@
     "epicenter": "4 km SSW of San José del Palmar, Colombia",
     "sources": {
       "usgs_event_id": "us6000tjl2",
-      "usgs_detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson"
+      "usgs_detail": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson",
+      "sgc_bulletin": "https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen"
     },
     "status": "verified",
     "kb_note": "docs/kb/event-usgs-verified-display-fields.md"
