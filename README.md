@@ -76,6 +76,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | LangSmith tracing of agent runs (project `surface-tango`) | planned (wired; needs `LANGSMITH_API_KEY`) | this PR | pending |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
 | First-aid ranking and scorecard (offline scoring functions merged; real-data run pending, ground truth uninformative so far) | planned | #18, #32 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
+| Neighborhood ground truth (research handoff available; accepted labels and boundaries pending) | planned | #24 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | planned | #33 | pending (branch under review) |
 | La Mojana flood classes (dual-pol HH/HV, bounded reads) | planned | #34 | pending (branch under review) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
