@@ -21,6 +21,13 @@ missing observations. Repeated calls to the same tool need different request IDs
 The complete ingestion/domain request collection is validated before its first
 tool call, including state-supplied overrides of the plan.
 
+Staging URLs must use HTTPS on `nisar.asf.earthdatacloud.nasa.gov`, point to an
+HDF5 path, and contain no credentials, query or fragment. Scene names must match
+a safe basename grammar; GCOV polarizations are restricted to HHHH and HVHV.
+The server-side GDAL redirect
+chain still needs destination validation before this flow is safe to run with
+owner credentials and bucket access.
+
 Earthquake domain requests may be ordinary DPM arguments or an object with
 `tool` and `arguments`. Approved selections are `analyze_earthquake_dpm`,
 `rank_first_aid_barrios` and `score_against_baseline`. Scoring receives a real

@@ -180,7 +180,19 @@ def test_unconfigured_explicit_model_has_no_tool_effects(tmp_path, monkeypatch):
     assert result["final_bulletin"]["state"] == "error"
 
 
-@pytest.mark.parametrize("defect", ["unknown_id", "unknown_path", "wrong_type"])
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "unknown_id",
+        "unknown_path",
+        "wrong_type",
+        "unsafe_url",
+        "unsafe_host",
+        "unsafe_extension",
+        "unsafe_scene",
+        "unsafe_pol",
+    ],
+)
 def test_invalid_later_request_prevents_earlier_tool_effect(tmp_path, defect):
     required, _, _ = TOOL_ARGUMENTS["search_nisar_granules"]
     first_arguments = {
@@ -196,14 +208,25 @@ def test_invalid_later_request_prevents_earlier_tool_effect(tmp_path, defect):
             {"id": "first", "tool": "search_nisar_granules", "arguments": first_arguments},
             {
                 "id": "second",
-                "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
+                "tool": (
+                    "stage_nisar_gcov_to_gcs"
+                    if defect == "unsafe_pol"
+                    else "stage_nisar_gunw_ionosphere_corrected_to_gcs"
+                ),
                 "arguments": {
                     "https_url": {
                         "from_staged": "unknown" if defect == "unknown_id" else "first",
                         "path": [0, "unknown_field"] if defect == "unknown_path" else ["https_url"],
-                    },
-                    "scene_name": "scene-from-owner",
+                    }
+                    if defect not in {"unsafe_url", "unsafe_host", "unsafe_extension"}
+                    else {
+                        "unsafe_url": "http://127.0.0.1/private.h5",
+                        "unsafe_host": "https://evil.example/private.h5",
+                        "unsafe_extension": "https://nisar.asf.earthdatacloud.nasa.gov/not.h5.tif",
+                    }[defect],
+                    "scene_name": "../escape" if defect == "unsafe_scene" else "scene-from-owner",
                     "bbox": "bad" if defect == "wrong_type" else {"from_context": "bbox"},
+                    **({"polarizations": ["../../outside"]} if defect == "unsafe_pol" else {}),
                 },
             },
         ],
@@ -231,3 +254,59 @@ def test_invalid_later_request_prevents_earlier_tool_effect(tmp_path, defect):
     )
     assert result["final_bulletin"]["state"] == "error"
     assert tools.calls == []
+
+
+def test_untrusted_staged_url_is_rejected_before_staging_effect(tmp_path):
+    document = {
+        "context": {
+            "bbox": [-75.70, 6.12, -75.42, 6.45],
+            "start_date": "2026-11-14",
+            "end_date": "2026-11-15",
+        },
+        "ingestion_requests": [
+            {
+                "id": "search",
+                "tool": "search_nisar_granules",
+                "arguments": {
+                    "bbox": [-75.70, 6.12, -75.42, 6.45],
+                    "start_date": "2026-11-14",
+                    "end_date": "2026-11-15",
+                },
+            },
+            {
+                "id": "stage",
+                "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
+                "arguments": {
+                    "https_url": {"from_staged": "search", "path": [0, "https_url"]},
+                    "scene_name": {"from_staged": "search", "path": [0, "scene_name"]},
+                    "bbox": {"from_context": "bbox"},
+                },
+            },
+        ],
+        "tool_requests": {},
+        "placeholders": {},
+        "recipe": "post-resolution-security-check",
+    }
+    filename = tmp_path / "plan.json"
+    filename.write_text(json.dumps(document))
+
+    class MaliciousSearchResult:
+        calls = []
+
+        async def call(self, server, name, arguments):
+            self.calls.append(name)
+            return {
+                "state": "live",
+                "data": [{"https_url": "https://127.0.0.1/private.h5", "scene_name": "safe"}],
+            }
+
+    tools = MaliciousSearchResult()
+    result = asyncio.run(
+        build_and_run_multi_hazard_graph(
+            {**document["context"], "hazard_reports": {}},
+            tool_client=tools,
+            plan_path=filename,
+        )
+    )
+    assert result["final_bulletin"]["state"] == "error"
+    assert tools.calls == ["search_nisar_granules"]

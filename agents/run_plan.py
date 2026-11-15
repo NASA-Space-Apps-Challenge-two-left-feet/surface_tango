@@ -2,7 +2,9 @@
 
 import json
 import math
+import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from agents.bulletin import BulletinContractError, Placeholder
 
@@ -30,12 +32,17 @@ TOOL_ARGUMENTS = {
     "stage_nisar_gcov_to_gcs": (
         {"https_url", "scene_name", "bbox"},
         {"polarizations"},
-        {"https_url": str, "scene_name": str, "bbox": "bbox", "polarizations": "strings"},
+        {
+            "https_url": "https_url",
+            "scene_name": "scene_name",
+            "bbox": "bbox",
+            "polarizations": "polarizations",
+        },
     ),
     "stage_nisar_gunw_ionosphere_corrected_to_gcs": (
         {"https_url", "scene_name", "bbox"},
         set(),
-        {"https_url": str, "scene_name": str, "bbox": "bbox"},
+        {"https_url": "https_url", "scene_name": "scene_name", "bbox": "bbox"},
     ),
     "analyze_landslide_kinematics": (
         {"gunw_unw_gcs", "gunw_iono_gcs", "gunw_coh_gcs", "gunw_conncomp_gcs", "bbox"},
@@ -87,6 +94,9 @@ TOOL_ARGUMENTS = {
 
 SEARCH_RESULT_FIELDS = {"scene_name", "start_time", "https_url", "s3_url", "product_level"}
 STAGING_RESULT_FIELDS = {"corrected_phase_gcs", "coherence_gcs"}
+NISAR_DATA_HOST = "nisar.asf.earthdatacloud.nasa.gov"
+SAFE_SCENE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,254}\Z")
+GCOV_POLARIZATIONS = {"HHHH", "HVHV"}
 
 
 def domain_request(domain, specification):
@@ -139,10 +149,32 @@ def _output_path_exists(request, path):
 
 
 def _value_matches(value, expected):
+    if expected == "https_url":
+        if not isinstance(value, str):
+            return False
+        try:
+            parsed = urlsplit(value)
+            return (
+                parsed.scheme == "https"
+                and parsed.hostname == NISAR_DATA_HOST
+                and parsed.port in (None, 443)
+                and parsed.username is None
+                and parsed.password is None
+                and bool(parsed.path)
+                and parsed.path.lower().endswith(".h5")
+                and not parsed.query
+                and not parsed.fragment
+            )
+        except ValueError:
+            return False
+    if expected == "scene_name":
+        return isinstance(value, str) and SAFE_SCENE_NAME.fullmatch(value) is not None
     if expected == "bbox":
         return _validate_bbox(value)
     if expected == "strings":
         return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    if expected == "polarizations":
+        return isinstance(value, list) and all(item in GCOV_POLARIZATIONS for item in value)
     if expected == "number":
         return (
             isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
@@ -206,7 +238,7 @@ def _validate_tool_arguments(name, arguments, *, context, available_requests):
                 context[value["from_context"]], expected
             ):
                 raise BulletinContractError("context value has an invalid tool argument type")
-            if "from_staged" in value and expected is not str:
+            if "from_staged" in value and expected not in {str, "https_url", "scene_name"}:
                 raise BulletinContractError("staged reference has an invalid tool argument type")
         elif not _value_matches(value, expected):
             raise BulletinContractError("tool argument has an invalid value type")
@@ -242,6 +274,11 @@ def validate_requests(ingestion_requests, tool_requests, context):
         _validate_tool_arguments(
             name, arguments, context=context, available_requests=prior_requests
         )
+
+
+def validate_resolved_arguments(name, arguments):
+    """Recheck concrete values after references resolve and before dispatch."""
+    _validate_tool_arguments(name, arguments, context={}, available_requests={})
 
 
 def load_run_plan(filename: Path):

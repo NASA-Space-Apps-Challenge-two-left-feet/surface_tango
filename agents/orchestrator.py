@@ -19,12 +19,14 @@ from agents.run_plan import (
     plan_schema,
     resolve_arguments,
     validate_requests,
+    validate_resolved_arguments,
 )
 from agents.state import MultiHazardGraphState
 from agents.tracing import configure_tracing, run_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 SUCCESS = {"live", "cached"}
+SCORING_TOOLS = {"rank_first_aid_barrios", "score_against_baseline"}
 
 
 def prose_model_config(plan):
@@ -191,6 +193,7 @@ async def create_compiled_multi_hazard_graph(
             request_id = request.get("id", name)
             try:
                 arguments = resolve_arguments(request.get("arguments", {}), results, state)
+                validate_resolved_arguments(name, arguments)
             except Exception:
                 return {
                     "staged_nisar_assets": {
@@ -219,7 +222,9 @@ async def create_compiled_multi_hazard_graph(
                 try:
                     operation, arguments = domain_request(domain, arguments)
                     arguments = resolve_arguments(arguments, staged["data"], state)
-                    result = await call("gee_fusion", operation, arguments)
+                    validate_resolved_arguments(operation, arguments)
+                    server = "nisar_asf" if operation in SCORING_TOOLS else "gee_fusion"
+                    result = await call(server, operation, arguments)
                 except Exception:
                     result = {"state": "error", "error": "domain reference missing"}
             return {"hazard_reports": {domain: result}}

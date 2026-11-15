@@ -12,11 +12,11 @@ the merged bulletin contract, and cached templates are checked again when
 served. GeoJSON remains deterministic tool output; the prose model cannot
 generate geometry or measurements.
 
-The agent contract suite passed **49/49** cases with
-`python -m pytest -q tests/test_agents` using the project's locked Python 3.12
-environment. These tests cover plan validation, state transitions, caching,
-placeholder checks, offline behavior and full-plan prevalidation before any
-tool effect. They do not establish live tool
+The agent contract suite passed **57/57** tests (measured; command:
+`uv run --frozen pytest -q tests/test_agents`; denominator: 57 tests; no source
+granules apply). The tests cover plan validation, state transitions, caching,
+placeholder checks, offline behavior, full-plan prevalidation, staging URL and
+path checks, and tool-server routing. They do not establish live tool
 connectivity or scientific results.
 
 ## Acceptance still needs owner inputs
@@ -26,6 +26,8 @@ connectivity or scientific results.
 - Data and scoring owners must stage real measurements, provenance, source-linked
   ground truth and geometry. Missing measurements must stay explicit nulls.
 - A cloud owner must complete measured-result parity and live tool integration.
+- The MCP staging layer must validate every GDAL redirect destination before
+  fetching, in addition to the graph's ASF host and path validation.
 - With those inputs, run the graph through actual SSE servers, verify ES and EN
   output and badge insertion, and inspect any rendered map before claiming
   end-to-end scientific acceptance.

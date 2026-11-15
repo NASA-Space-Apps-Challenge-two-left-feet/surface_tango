@@ -277,6 +277,7 @@ def test_explicit_scoring_operation_routes_without_rewriting_arguments():
         async def call(self, server, name, arguments):
             self.calls.append(name)
             if name == "score_against_baseline":
+                assert server == "nisar_asf"
                 assert arguments == {"dataset_id": "contract-only"}
                 return {"state": "gate result", "reason": "no_evaluated_units"}
             return {"state": "cached", "data": {"contract": "transport-check"}}
