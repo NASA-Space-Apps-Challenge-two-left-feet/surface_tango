@@ -1,6 +1,15 @@
 # Status: frontend-video
 
-_Last update: 2026-11-14 (UTC−5)_
+_Last update: 2026-11-15 (UTC−5)_
+
+## feat/web-offline-pitch (#37, #39/#43 prep)
+
+- Done: The page opens on **La Mojana** (the ratified headline). `?chapter=live` keeps mission control. Chapter numbers come from `/api/pitch-facts`. That endpoint uses `video/report_facts.py` to parse `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. `static/story-evidence.json` now holds `{placeholders}` only, and each summary carries its report sources (`data-fact-sources`). If a report line changes shape, the chapter shows **Error** instead of an old number.
+- Done: Panel states come from `/api/cache-bands/<aoi>` (manifest band `status`). The quake co-event panel always shows **Not cached · C/K sealed**, whatever the cache holds. Sentinel panels show the share of the AOI imaged, from the tiles manifest (La Mojana S2 86.22%, S1 45.44% *(measured by `scripts/prestage_tiles.py --aoi mojana`)*). This explains the mostly dark S1 curtain.
+- Done: Removed the unsourced coherence/dB numbers from the physics-inspector diagrams.
+- Done: `video/assemble.py` renders the silent 30 s draft (1920×1080, 30 fps) from the storyboard timings. Report-sourced cards and VO placeholders are in `video/README.md`. Output: `video/draft_cut.mp4` (git-ignored; ffprobe duration 30.000000).
+- Offline check (2026-11-15): Docker is not installed on this laptop, so `make pitch` was not run. Instead, the app ran with `OFFLINE_DEMO_MODE=1 uv run uvicorn app:app --port 8765` against the cache release. Every browser request in the La Mojana, Aburrá and quake chapters went to `127.0.0.1` (network log). There were no external URLs, and no panel was blank.
+- Needs another lane (not done here): (1) The `Dockerfile` copies neither `reports/`, `validation/` nor `video/`. Under `make pitch`, `/api/pitch-facts` would return 500 and the chapters would show **Error**. Data + gate lane: add those copies. (2) Brief step 5 (move `static/prepare_story_cache.py` to `scripts/`) is outside this lane's paths. It stays in `static/` for now, and it now reads its expected counts from the report parser. (3) There are no unit tests for `video/report_facts.py` yet, because `tests/` is outside the paths this session was given.
 
 - Doing: #22. Mission control reads the Aburrá cache from the merged builder, exposes the manifest source granule, and removes the remaining biomass inspector and map styling.
 - Doing: #37. Both curtain layouts use the staged Sentinel scenes. Aburrá has LOS context and its calibrated null verdict, Eje Cafetero has the released pre-event coherence and the documented scorecard null, and La Mojana shows the measured open-water mask and sensitivity. Co-event coherence stays unavailable.

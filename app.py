@@ -19,6 +19,7 @@ from rasterio.warp import reproject
 
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
+from video.report_facts import ReportFactError, load_pitch_facts
 
 app = FastAPI(title="Dancing with the SARs - NISAR Multi-Agent SSE API")
 
@@ -99,6 +100,8 @@ def sentinel_tile_status(aoi: str):
             "source": "cache",
             "scene_ids": entry["scene_ids"],
             "date": entry.get("date"),
+            # Share of the AOI the mosaic imaged, as measured by the tile prestage.
+            "coverage_pct": entry.get("coverage_pct"),
             "cache_built_at": manifest.get("generated_utc"),
             "tile_url": f"/api/sentinel-tiles/{aoi}/{layer}/{{z}}/{{x}}/{{y}}.png",
             "bounds": manifest["bbox_wsen"],
@@ -125,6 +128,40 @@ def serve_sentinel_tile(aoi: str, layer: str, z: int, x: int, y: int):
     ):
         raise HTTPException(404, "Sentinel tile not cached")
     return FileResponse(tile, media_type="image/png")
+
+
+@app.get("/api/pitch-facts")
+def pitch_facts():
+    """Measured pitch numbers, parsed from the merged reports with their sources."""
+    try:
+        return load_pitch_facts()
+    except (OSError, ReportFactError) as error:
+        raise HTTPException(500, f"Report facts unavailable: {error}") from error
+
+
+@app.get("/api/cache-bands/{aoi}")
+def cache_bands(aoi: str):
+    """Band states from the AOI manifest. Withheld co-event bands map to `not cached`."""
+    if aoi not in SENTINEL_AOIS:
+        raise HTTPException(404, "Unknown cache area")
+    path = CACHE_ROOT / aoi / "manifest.json"
+    if not path.is_file():
+        return {"state": "not cached", "bands": {}}
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise HTTPException(500, "Cache manifest unreadable") from error
+    bands = {}
+    for name, band in manifest.get("bands", {}).items():
+        status = band.get("status")
+        source = band.get("source_id")
+        cached = status == "cached" and isinstance(source, str) and source not in {"", "missing"}
+        bands[name] = {
+            "state": "cached" if cached else "not cached",
+            "status": status if status in {"cached", "missing", "withheld"} else "missing",
+            "source_id": source if cached else None,
+        }
+    return {"state": "cached", "bands": bands}
 
 
 @app.get("/api/story-results")
