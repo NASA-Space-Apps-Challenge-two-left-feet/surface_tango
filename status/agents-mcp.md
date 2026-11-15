@@ -11,3 +11,7 @@ _Last update: 2026-11-15 (UTC−5)_
 ## Integration workflow
 
 Completed task PRs now target develop. Worktree creation, freshness checks and CI follow that branch; helpers use the project uv environment. Cloud measurements and unfinished science acceptance remain pending.
+
+## MCP transport foundation (issue #20)
+
+Both servers use configured SSE endpoints without startup authentication. Cache fallback matches the exact request and requires provenance; uncached requests remain explicit. Per-tool budgets come from operational config; live budget measurements remain issue #28. Pair/ranking/score wrappers and graph integration remain separate work.
