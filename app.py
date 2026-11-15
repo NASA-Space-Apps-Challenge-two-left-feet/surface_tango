@@ -114,7 +114,15 @@ def serve_sentinel_tile(aoi: str, layer: str, z: int, x: int, y: int):
         raise HTTPException(404, "Invalid Sentinel tile")
     tiles, manifest = sentinel_manifest(aoi)
     tile = tiles / layer / str(z) / str(x) / f"{y}.png"
-    if cached_sentinel_layer(manifest, layer) is None or not tile.is_file():
+    entry = cached_sentinel_layer(manifest, layer)
+    if entry is None or not tile.is_file():
+        raise HTTPException(404, "Sentinel tile not cached")
+    zoom = manifest["zoom"]
+    failed = entry["tiles"].get("failed", [])
+    # A failed restage can leave an older PNG at the same path.
+    if not zoom["min"] <= z <= zoom["max"] or any(
+        (failure["z"], failure["x"], failure["y"]) == (z, x, y) for failure in failed
+    ):
         raise HTTPException(404, "Sentinel tile not cached")
     return FileResponse(tile, media_type="image/png")
 
