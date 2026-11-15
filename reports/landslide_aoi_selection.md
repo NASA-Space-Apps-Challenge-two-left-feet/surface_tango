@@ -9,12 +9,13 @@ official sources, cited by resolution.
 
 **Evidence note.** Risk categories, comunas and sectors below are **measured** — read
 from the official study text (`knowledge/graphrag/ingest.py` extraction, provenance
-in `local_cache/graphrag/input/_provenance.json`). Study coordinates are in
-**MAGNA-SIRGAS Medellín-local** (e.g. La Picacha 828420 E / 1181464 N); the WGS84
-bounding boxes are marked **(estimate)** — comuna/sector-scale extents for demo
-framing — pending exact reprojection of each study's polygon (the local CRS is not
-yet confirmed, and the detailed studies ship as PDFs with no vector layer; see
-"Coordinate precision" below). No coordinate is fabricated.
+in `local_cache/graphrag/input/_provenance.json`). The studies declare
+**MAGNA-SIRGAS origen Bogotá (EPSG:3116)** (confirmed: La Picacha 828420 E / 1181464 N
+→ lat 6.2349, lon −75.6278, in Belén). **La Picacha's bbox is measured** by
+reprojecting its 157 extracted coordinates to EPSG:4326; the other studies' coordinate
+lists are sparse in the extracted text (table/format variation) and stay
+**(estimate)** at comuna/sector scale until the GraphRAG extraction (Phase B) pulls
+their full coordinate sets. No coordinate is fabricated.
 
 ## Tier 1 — prioritized vulnerable AOIs (detailed-risk studies)
 
