@@ -8,17 +8,37 @@ import pytest
 from agents.bulletin import BulletinContractError
 from agents.bulletin_runtime import BulletinCache
 from agents.orchestrator import DOMAIN_TOOLS, build_and_run_multi_hazard_graph
-from agents.run_plan import load_run_plan, resolve_arguments
+from agents.run_plan import TOOL_ARGUMENTS, load_run_plan, resolve_arguments
+
+
+def valid_arguments(name, *, references=False):
+    required, _ = TOOL_ARGUMENTS[name]
+    return {
+        key: (
+            {"from_staged": "reference", "path": ["contract"]}
+            if references and key != "bbox"
+            else []
+            if key == "bbox"
+            else "2026-11-14"
+            if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
+            else "transport-check"
+        )
+        for key in required
+    }
 
 
 def plan():
     return {
         "context": {"bbox": [], "start_date": "", "end_date": ""},
         "ingestion_requests": [
-            {"id": "reference", "tool": "search_nisar_granules", "arguments": {}}
+            {
+                "id": "reference",
+                "tool": "search_nisar_granules",
+                "arguments": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+            }
         ],
         "tool_requests": {
-            domain: {"marker": {"from_staged": "reference", "path": ["contract"]}}
+            domain: valid_arguments(DOMAIN_TOOLS[domain], references=True)
             for domain in DOMAIN_TOOLS
         },
         "placeholders": {},
@@ -33,7 +53,10 @@ class Tools:
     async def call(self, server, name, arguments):
         self.calls.append((server, arguments))
         if server == "gee_fusion":
-            assert arguments == {"marker": "transport-check"}
+            assert all(
+                value == [] if key == "bbox" else value == "transport-check"
+                for key, value in arguments.items()
+            )
         return {"state": "cached", "data": {"contract": "transport-check"}}
 
 
