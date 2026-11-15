@@ -8,7 +8,15 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import asf_search as asf
+import pydantic._internal._typing_extra as _pydantic_typing
 import rioxarray
+
+# mcp 1.16 still imports this private name. Pydantic 2.14 removed it and
+# left eval_type, which takes the same arguments on Python 3.12.
+# The GEE server sets the same alias; this process imports FastMCP on its own.
+if not hasattr(_pydantic_typing, "eval_type_backport"):
+    _pydantic_typing.eval_type_backport = _pydantic_typing.eval_type
+
 from fastmcp import FastMCP
 from google.cloud import storage
 
