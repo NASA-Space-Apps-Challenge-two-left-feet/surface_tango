@@ -12,7 +12,9 @@ from pathlib import Path
 import numpy as np
 
 from scripts.build_cache import (
+    GEE_NODATA_SENTINEL,
     check_array_coverage,
+    gee_nodata_to_nan,
     load_aois,
     make_missing_band,
     parse_nisar_scene_name,
@@ -149,3 +151,20 @@ def test_no_synthetic_data_in_scripts():
                 assert not forbidden.search(line), (
                     f"Forbidden pattern in {script_file.name}:{i} -> {line}"
                 )
+
+
+def test_gee_nodata_to_nan_maps_sentinel():
+    """Sentinel masked pixels become NaN; real values, including 0.0, are kept."""
+    arr = np.array(
+        [-9999.0, 0.0, 12.5, float("inf"), -9999.0],
+        dtype=np.float32,
+    )
+    out = gee_nodata_to_nan(arr)
+    # Hand-computed expectation: 3 of 5 pixels are NaN (sentinel, inf, sentinel)
+    assert np.isnan(out[0])
+    assert np.isnan(out[3])
+    assert np.isnan(out[4])
+    assert out[1] == 0.0
+    assert out[2] == 12.5
+    assert int(np.isnan(out).sum()) == 3
+    assert GEE_NODATA_SENTINEL == -9999.0

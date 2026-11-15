@@ -46,6 +46,7 @@ CATALOG_PATH = ROOT / "nisar_colombia_granules_2026.json"
 LOCAL_CACHE_DIR = ROOT / "local_cache"
 
 DST_CRS = "EPSG:4326"
+GEE_NODATA_SENTINEL = -9999.0
 DEFAULT_WIDTH = 512
 DEFAULT_HEIGHT = 512
 
@@ -272,6 +273,14 @@ def stream_nisar_h5_subdataset(
         return None
 
 
+def gee_nodata_to_nan(arr: np.ndarray) -> np.ndarray:
+    """Map the GEE nodata sentinel and non-finite values to NaN (missing stays missing)."""
+    out = np.array(arr, dtype=np.float32, copy=True)
+    out[out == GEE_NODATA_SENTINEL] = np.nan
+    out[~np.isfinite(out)] = np.nan
+    return out
+
+
 def fetch_gee_layer(
     image: Any,
     band_name: str,
@@ -284,7 +293,7 @@ def fetch_gee_layer(
 
         region = ee.Geometry.Rectangle(bbox)
         params = {
-            "expression": image.clip(region).unmask(0),
+            "expression": image.clip(region).unmask(GEE_NODATA_SENTINEL),
             "fileFormat": "NPY",
             "grid": {
                 "dimensions": {"width": width, "height": height},
@@ -302,8 +311,7 @@ def fetch_gee_layer(
         raw_bytes = ee.data.computePixels(params)
         structured = np.load(io.BytesIO(raw_bytes))
         arr = structured[band_name].astype(np.float32)
-        arr[~np.isfinite(arr)] = np.nan
-        return arr
+        return gee_nodata_to_nan(arr)
     except Exception as exc:
         print(f"   [WARN] GEE computePixels failed for {band_name}: {exc}")
         return None
@@ -433,7 +441,10 @@ def build_cache_for_aoi(
     bands: dict[str, dict[str, Any]] = {}
 
     def fetch_nisar_band(
-        scene_name: str | None, subdataset: str, asset_type: str
+        scene_name: str | None,
+        subdataset: str,
+        asset_type: str,
+        resampling: Resampling = Resampling.bilinear,
     ) -> tuple[np.ndarray | None, str | None, dict]:
         if not scene_name or not earthdata_token or scene_name not in granule_lookup:
             return None, None, {}
@@ -442,7 +453,9 @@ def build_cache_for_aoi(
         if not url:
             return None, None, {}
         print(f"📡 Streaming {meta['scene_name'][:50]}... [{subdataset.split('/')[-1]}]")
-        arr = stream_nisar_h5_subdataset(url, subdataset, bbox, (height, width), earthdata_token)
+        arr = stream_nisar_h5_subdataset(
+            url, subdataset, bbox, (height, width), earthdata_token, resampling=resampling
+        )
         if arr is not None and check_array_coverage(arr, 0.05):
             return arr, scene_name, meta
         return None, scene_name, meta
@@ -465,17 +478,19 @@ def build_cache_for_aoi(
         except Exception:
             slope_arr = None
 
-        c_start = chirps_start or "2026-10-29"
-        c_end = chirps_end or "2026-11-13"
-        try:
-            chirps = (
-                ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-                .filterDate(c_start, c_end)
-                .sum()
-                .rename("rain")
-            )
-            rain_arr = fetch_gee_layer(chirps, "rain", bbox, width, height)
-        except Exception:
+        if chirps_start and chirps_end:
+            try:
+                chirps = (
+                    ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                    .filterDate(chirps_start, chirps_end)
+                    .sum()
+                    .rename("rain")
+                )
+                rain_arr = fetch_gee_layer(chirps, "rain", bbox, width, height)
+            except Exception:
+                rain_arr = None
+        else:
+            print("   [INFO] No CHIRPS window given; recording rain_15d_mm as 'missing'.")
             rain_arr = None
 
         try:
@@ -498,7 +513,7 @@ def build_cache_for_aoi(
     }
     bands["rain_15d_mm"] = {
         "arr": rain_arr,
-        "source_id": f"GEE UCSB-CHG/CHIRPS/DAILY {chirps_start or '2026-10-29'}..{chirps_end or '2026-11-13'}"
+        "source_id": f"GEE UCSB-CHG/CHIRPS/DAILY {chirps_start}..{chirps_end}"
         if rain_arr is not None
         else None,
         "asset_type": "GEE",
@@ -566,7 +581,10 @@ def build_cache_for_aoi(
             scene_c, f"{gunw_base}/unwrappedInterferogram/HH/ionospherePhaseScreen", "NISAR_GUNW"
         )
         arr_cc, id_cc, _ = fetch_nisar_band(
-            scene_c, f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents", "NISAR_GUNW"
+            scene_c,
+            f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents",
+            "NISAR_GUNW",
+            resampling=Resampling.nearest,
         )
 
         bands["gunw_ionosphere"] = {
@@ -675,7 +693,10 @@ def build_cache_for_aoi(
             gunw_post, f"{gunw_base}/unwrappedInterferogram/HH/ionospherePhaseScreen", "NISAR_GUNW"
         )
         arr_cc, id_cc, _ = fetch_nisar_band(
-            gunw_post, f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents", "NISAR_GUNW"
+            gunw_post,
+            f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents",
+            "NISAR_GUNW",
+            resampling=Resampling.nearest,
         )
 
         bands["gunw_ionosphere"] = {
@@ -814,7 +835,10 @@ def build_cache_for_aoi(
             gunw_post, f"{gunw_base}/unwrappedInterferogram/HH/ionospherePhaseScreen", "NISAR_GUNW"
         )
         arr_cc, id_cc, _ = fetch_nisar_band(
-            gunw_post, f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents", "NISAR_GUNW"
+            gunw_post,
+            f"{gunw_base}/unwrappedInterferogram/HH/connectedComponents",
+            "NISAR_GUNW",
+            resampling=Resampling.nearest,
         )
 
         bands["gunw_ionosphere"] = {
