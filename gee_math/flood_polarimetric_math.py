@@ -6,6 +6,11 @@ dry-baseline rule fails, or when the wettest open-water fraction is 0, Class 2
 is null and only absolute water extent is reported.
 
 The CLI writes class rasters under ``local_cache/mojana/`` and ``reports/mojana.md``.
+
+Each GCOV is read in its own subprocess: a new HTTPS session, socket timeouts,
+two retries, and a hard time limit. The first pass strides to the analysis
+grid instead of reading the native window. Three or fewer usable dates block
+classification.
 """
 
 from __future__ import annotations
@@ -17,7 +22,10 @@ import json
 import math
 import os
 import re
+import signal
+import subprocess
 import sys
+import time
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -41,6 +49,17 @@ ANALYSIS_CELL_M = 90.0
 # Not a backscatter threshold.
 S1_HALF_WINDOW_DAYS = 6
 CHIRPS_DAYS = 15
+
+# Reader limits. Not flood thresholds. One session per attempt, then two
+# retries. The subprocess limit stops a half-closed socket from stalling the run.
+GRANULE_ATTEMPTS = 3
+GRANULE_BACKOFF_S = (2.0, 4.0)
+GRANULE_LIMIT_S = 20 * 60
+FSSPEC_BLOCK_SIZE = 32 * 1024 * 1024
+SOCK_CONNECT_S = 30
+SOCK_READ_S = 120
+# "3 or fewer" usable dates is not enough to classify.
+MIN_USABLE_DATES = 4
 
 FREQ_A = "/science/LSAR/GCOV/grids/frequencyA"
 _POL_CODES = frozenset({"SH", "SV", "DH", "DV", "CL", "CR", "QP", "NA"})
@@ -191,6 +210,19 @@ class S1Comparison:
     median_vh_positive: float | None
     median_vv_domain: float | None
     s1_scene_count: int | None
+
+
+@dataclass(frozen=True)
+class GranuleRead:
+    hh: np.ndarray
+    hv: np.ndarray
+    units: str
+    bytes_read: int
+    seconds: float
+    stride_row: int
+    stride_col: int
+    spacing_y_m: float
+    spacing_x_m: float
 
 
 @dataclass(frozen=True)
@@ -1055,6 +1087,7 @@ def render_report(analysis: Analysis | None, context: ReportContext) -> str:
         ]
     )
     if analysis is None:
+        lines.extend(_readme_rows(True))
         lines.extend(_notes(context))
         return "\n".join(lines).rstrip() + "\n"
 
@@ -1143,6 +1176,7 @@ def render_report(analysis: Analysis | None, context: ReportContext) -> str:
     lines.extend(_sensitivity_lines(analysis))
     lines.extend(_chirps_lines(context))
     lines.extend(_s1_lines(context, analysis))
+    lines.extend(_readme_rows(context.blocked is not None))
     lines.extend(_notes(context))
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1338,6 +1372,21 @@ def _notes(context: ReportContext) -> list[str]:
     return lines
 
 
+def _readme_rows(blocked: bool) -> list[str]:
+    """One README status row. The orchestrator copies it; this branch does not edit README.md."""
+    state = "not cached" if blocked else "live"
+    return [
+        "## README rows",
+        "",
+        "Status row for the README table (component, state, issue, report).",
+        "",
+        "| Component | State | Issue | Report |",
+        "|---|---|---|---|",
+        f"| La Mojana dual-pol flood classes | {state} | #34 | reports/mojana.md |",
+        "",
+    ]
+
+
 def safe_error(exc: BaseException) -> str:
     """Short error text with secrets and request URLs removed."""
     text = f"{type(exc).__name__}: {exc}"
@@ -1486,69 +1535,393 @@ def invalid_gcov_pixels(
     return invalid, "; ".join(notes)
 
 
-def read_granule_power(
+def analysis_stride(spacing_m: float, cell_m: float = ANALYSIS_CELL_M) -> int:
+    """Source-pixel step whose spacing is nearest the analysis cell.
+
+    Half-up, not banker's round: 20 m spacing and a 90 m cell is stride 5
+    (100 m), not 4 (80 m).
+    """
+    if not math.isfinite(spacing_m) or spacing_m <= 0:
+        raise ValueError(f"source spacing must be positive, got {spacing_m}")
+    return max(1, int(math.floor(cell_m / spacing_m + 0.5)))
+
+
+def few_dates_block(n_dates: int) -> str | None:
+    """Block classification when 3 or fewer dates survived the reads."""
+    if n_dates >= MIN_USABLE_DATES:
+        return None
+    return (
+        f"BLOCKED: {n_dates} usable date(s) after granule reads "
+        "(need more than 3). Missing granules were not filled. "
+        "Classes were not computed."
+    )
+
+
+def _axis_spacing_m(coords: np.ndarray) -> float:
+    if coords.size < 2:
+        raise ValueError("coordinate axis has fewer than 2 samples")
+    spacing = float(np.median(np.abs(np.diff(np.asarray(coords, dtype=np.float64)))))
+    if not math.isfinite(spacing) or spacing <= 0:
+        raise ValueError(f"source spacing must be positive, got {spacing}")
+    return spacing
+
+
+class ByteCountFile:
+    """Count bytes h5py pulls through an fsspec file. No network of its own."""
+
+    def __init__(self, raw) -> None:
+        self._raw = raw
+        self.bytes_read = 0
+        self._closed = False
+
+    def read(self, size: int = -1):
+        data = self._raw.read(-1 if size is None else size)
+        if data:
+            self.bytes_read += len(data)
+        return data
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET):
+        return self._raw.seek(offset, whence)
+
+    def tell(self) -> int:
+        return int(self._raw.tell())
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        close = getattr(self._raw, "close", None)
+        if close is not None:
+            close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args) -> bool:
+        self.close()
+        return False
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return False
+
+
+def new_granule_filesystem():
+    """One authenticated HTTPS filesystem. Not the cached earthaccess session.
+
+    ``get_fsspec_https_session`` is memoized and has no read timeout. A stalled
+    socket on that shared client is what hung the previous run.
+    """
+    import aiohttp
+    import earthaccess
+    import fsspec
+
+    auth = earthaccess.login(strategy="environment", persist=False)
+    if not getattr(auth, "authenticated", False):
+        auth = earthaccess.login(strategy="netrc", persist=False)
+    if not getattr(auth, "authenticated", False):
+        raise RuntimeError("Earthdata login failed")
+    token = auth.token["access_token"]
+    return fsspec.filesystem(
+        "https",
+        client_kwargs={
+            "headers": {"Authorization": f"Bearer {token}"},
+            "trust_env": False,
+            "timeout": aiohttp.ClientTimeout(sock_connect=SOCK_CONNECT_S, sock_read=SOCK_READ_S),
+        },
+    )
+
+
+def open_granule_file(filesystem, url: str) -> ByteCountFile:
+    """Block-cached open. 32 MB blocks, nearest-style strided reads happen later."""
+    raw = filesystem.open(
+        url,
+        "rb",
+        cache_type="blockcache",
+        block_size=FSSPEC_BLOCK_SIZE,
+    )
+    return ByteCountFile(raw)
+
+
+def _read_layer(group, name: str, y_idx: slice, x_idx: slice, handle: ByteCountFile, t0: float):
+    print(f"  reading {name}", flush=True)
+    values = np.asarray(group[name][y_idx, x_idx])
+    elapsed = time.perf_counter() - t0
+    print(f"  {name}: {handle.bytes_read} bytes in {elapsed:.1f}s", flush=True)
+    return values
+
+
+def _read_granule_once(
     granule: GranuleRef,
     bbox: tuple[float, float, float, float],
     grid: AnalysisGrid,
-) -> tuple[np.ndarray, np.ndarray, str]:
-    """Stream frequency-A HHHH and HVHV and average linear power onto the grid."""
-    import earthaccess
+    session_factory,
+) -> GranuleRead:
+    """One attempt. The caller opens a new session and applies retries."""
     import h5py
     from rasterio.warp import transform_bounds
 
     if not granule.url:
         raise RuntimeError("granule has no HTTPS url")
-    filesystem = earthaccess.get_fsspec_https_session()
-    with filesystem.open(granule.url, "rb") as handle, h5py.File(handle, "r") as h5:
-        if FREQ_A not in h5:
-            raise RuntimeError(f"{FREQ_A} is not in the file; keys={list(h5.keys())}")
-        group = h5[FREQ_A]
-        if "HHHH" not in group or "HVHV" not in group:
-            raise RuntimeError(
-                f"HHHH and HVHV are required; frequencyA keys={sorted(group.keys())}"
+    t0 = time.perf_counter()
+    handle: ByteCountFile | None = None
+    try:
+        filesystem = session_factory()
+        handle = open_granule_file(filesystem, granule.url)
+        with h5py.File(handle, "r") as h5:
+            if FREQ_A not in h5:
+                raise RuntimeError(f"{FREQ_A} is not in the file; keys={list(h5.keys())}")
+            group = h5[FREQ_A]
+            if "HHHH" not in group or "HVHV" not in group:
+                raise RuntimeError(
+                    f"HHHH and HVHV are required; frequencyA keys={sorted(group.keys())}"
+                )
+            projection = group["projection"][()]
+            src_crs = _crs_from_projection(projection)
+            x_all = np.asarray(group["xCoordinates"][()]).reshape(-1)
+            y_all = np.asarray(group["yCoordinates"][()]).reshape(-1)
+            left, bottom, right, top = transform_bounds(
+                "EPSG:4326", src_crs, bbox[0], bbox[1], bbox[2], bbox[3], densify_pts=21
             )
-        projection = group["projection"][()]
-        src_crs = _crs_from_projection(projection)
-        x_all = np.asarray(group["xCoordinates"][()]).reshape(-1)
-        y_all = np.asarray(group["yCoordinates"][()]).reshape(-1)
-        left, bottom, right, top = transform_bounds(
-            "EPSG:4326", src_crs, bbox[0], bbox[1], bbox[2], bbox[3], densify_pts=21
+            x_slice = _monotonic_window(x_all, min(left, right), max(left, right))
+            y_slice = _monotonic_window(y_all, min(bottom, top), max(bottom, top))
+            if x_slice is None or y_slice is None:
+                raise RuntimeError("granule grid does not intersect the AOI")
+            spacing_x = _axis_spacing_m(x_all)
+            spacing_y = _axis_spacing_m(y_all)
+            stride_x = analysis_stride(spacing_x, grid.cell_m)
+            stride_y = analysis_stride(spacing_y, grid.cell_m)
+            y_idx = slice(y_slice.start, y_slice.stop, stride_y)
+            x_idx = slice(x_slice.start, x_slice.stop, stride_x)
+            print(
+                f"  stride {stride_y} by {stride_x} source pixels "
+                f"({spacing_y:.1f} m by {spacing_x:.1f} m; "
+                f"analysis cell {grid.cell_m:g} m)",
+                flush=True,
+            )
+            hh_raw = _read_layer(group, "HHHH", y_idx, x_idx, handle, t0)
+            hh, units = _clean_stored(hh_raw, group["HHHH"].attrs)
+            del hh_raw
+            hv_raw = _read_layer(group, "HVHV", y_idx, x_idx, handle, t0)
+            hv, hv_units = _clean_stored(hv_raw, group["HVHV"].attrs)
+            del hv_raw
+            looks = (
+                _read_layer(group, "numberOfLooks", y_idx, x_idx, handle, t0)
+                if "numberOfLooks" in group
+                else None
+            )
+            mask = _read_layer(group, "mask", y_idx, x_idx, handle, t0) if "mask" in group else None
+            exception = (
+                _read_layer(group, "inputDataExceptionMask", y_idx, x_idx, handle, t0)
+                if "inputDataExceptionMask" in group
+                else None
+            )
+            invalid, validity_note = invalid_gcov_pixels(hh.shape, looks, mask, exception)
+            del looks, mask, exception
+            hh[invalid] = np.nan
+            hv[invalid] = np.nan
+            del invalid
+            x_win = x_all[x_idx]
+            y_win = y_all[y_idx]
+        hh_grid = resample_power_mean(hh, x_win, y_win, src_crs, grid)
+        hv_grid = resample_power_mean(hv, x_win, y_win, src_crs, grid)
+        seconds = time.perf_counter() - t0
+        print(
+            f"  {granule.scene_name}: {handle.bytes_read} bytes in {seconds:.1f}s",
+            flush=True,
         )
-        x_slice = _monotonic_window(x_all, min(left, right), max(left, right))
-        y_slice = _monotonic_window(y_all, min(bottom, top), max(bottom, top))
-        if x_slice is None or y_slice is None:
-            raise RuntimeError("granule grid does not intersect the AOI")
-        hh_raw = np.asarray(group["HHHH"][y_slice, x_slice])
-        hh, units = _clean_stored(hh_raw, group["HHHH"].attrs)
-        del hh_raw
-        hv_raw = np.asarray(group["HVHV"][y_slice, x_slice])
-        hv, hv_units = _clean_stored(hv_raw, group["HVHV"].attrs)
-        del hv_raw
-        looks = (
-            np.asarray(group["numberOfLooks"][y_slice, x_slice])
-            if "numberOfLooks" in group
-            else None
+        return GranuleRead(
+            hh=hh_grid,
+            hv=hv_grid,
+            units=(
+                f"HHHH {units}; HVHV {hv_units}; crs {src_crs}; {validity_note}; "
+                f"read stride {stride_y} by {stride_x} source pixels "
+                f"(spacing {spacing_y:.1f} m by {spacing_x:.1f} m; "
+                f"analysis cell {grid.cell_m:g} m)"
+            ),
+            bytes_read=handle.bytes_read,
+            seconds=seconds,
+            stride_row=stride_y,
+            stride_col=stride_x,
+            spacing_y_m=spacing_y,
+            spacing_x_m=spacing_x,
         )
-        mask = np.asarray(group["mask"][y_slice, x_slice]) if "mask" in group else None
-        exception = (
-            np.asarray(group["inputDataExceptionMask"][y_slice, x_slice])
-            if "inputDataExceptionMask" in group
-            else None
+    except Exception:
+        nbytes = 0 if handle is None else handle.bytes_read
+        elapsed = time.perf_counter() - t0
+        print(f"  {granule.scene_name}: {nbytes} bytes in {elapsed:.1f}s", flush=True)
+        raise
+    finally:
+        if handle is not None:
+            handle.close()
+
+
+def read_granule_power(
+    granule: GranuleRef,
+    bbox: tuple[float, float, float, float],
+    grid: AnalysisGrid,
+    *,
+    session_factory=None,
+    sleeper=None,
+    attempts: int = GRANULE_ATTEMPTS,
+) -> GranuleRead:
+    """Read one granule. A new filesystem each attempt, then two retries.
+
+    A granule that still fails raises. The caller records it as missing.
+    ``session_factory`` and ``sleeper`` exist so tests can pass a fake
+    filesystem and skip the backoff sleep. They are not flood thresholds.
+    """
+    factory = new_granule_filesystem if session_factory is None else session_factory
+    pause = time.sleep if sleeper is None else sleeper
+    last: BaseException | None = None
+    for attempt in range(attempts):
+        try:
+            return _read_granule_once(granule, bbox, grid, factory)
+        except Exception as exc:
+            last = exc
+            if attempt >= attempts - 1:
+                break
+            delay = GRANULE_BACKOFF_S[min(attempt, len(GRANULE_BACKOFF_S) - 1)]
+            print(
+                f"  retry {attempt + 1} in {delay:.0f}s after {safe_error(exc)}",
+                flush=True,
+            )
+            pause(delay)
+    assert last is not None
+    raise last
+
+
+def run_bounded_process(argv: list[str], timeout_s: float) -> int | None:
+    """Run argv. Return the exit code, or None if it had to be killed.
+
+    The child is its own process group so a stalled reader and its HTTP
+    client die together. None means the granule is missing.
+    """
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    proc = subprocess.Popen(argv, start_new_session=True, env=env)
+    try:
+        return proc.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=10)
+        return None
+
+
+def read_granule_bounded(
+    granule: GranuleRef,
+    bbox: tuple[float, float, float, float],
+    *,
+    limit_s: float = GRANULE_LIMIT_S,
+) -> GranuleRead | str:
+    """Subprocess read. A stall becomes an error string, not a hung parent."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="mojana-granule-") as tmp:
+        tmp_path = Path(tmp)
+        out = tmp_path / "power.npz"
+        meta_path = tmp_path / "meta.json"
+        job = tmp_path / "job.json"
+        job.write_text(
+            json.dumps(
+                {
+                    "granule": {
+                        "scene_name": granule.scene_name,
+                        "date": granule.date,
+                        "track": granule.track,
+                        "frame": granule.frame,
+                        "direction": granule.direction,
+                        "pole": granule.pole,
+                        "primary_pol": granule.primary_pol,
+                        "url": granule.url,
+                        "provisional": granule.provisional,
+                        "crid": granule.crid,
+                    },
+                    "bbox": list(bbox),
+                    "out": str(out),
+                    "meta": str(meta_path),
+                }
+            ),
+            encoding="utf-8",
         )
-        invalid, validity_note = invalid_gcov_pixels(hh.shape, looks, mask, exception)
-        del looks, mask, exception
-        hh[invalid] = np.nan
-        hv[invalid] = np.nan
-        del invalid
-        x_win = x_all[x_slice]
-        y_win = y_all[y_slice]
-    hh_grid = resample_power_mean(hh, x_win, y_win, src_crs, grid)
-    hv_grid = resample_power_mean(hv, x_win, y_win, src_crs, grid)
-    return (
-        hh_grid,
-        hv_grid,
-        f"HHHH {units}; HVHV {hv_units}; crs {src_crs}; {validity_note}",
+        code = run_bounded_process(
+            [sys.executable, "-m", "gee_math.flood_polarimetric_math", "--worker-job", str(job)],
+            limit_s,
+        )
+        if code is None:
+            return f"exceeded {limit_s:.0f}s with no finished read; missing"
+        if not meta_path.is_file():
+            return f"reader exited {code} without a result; missing"
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not payload.get("ok"):
+            return str(payload.get("error") or "missing")
+        if code != 0 or not out.is_file():
+            return str(payload.get("error") or f"reader exited {code}; missing")
+        with np.load(out) as data:
+            hh = np.array(data["hh"])
+            hv = np.array(data["hv"])
+        return GranuleRead(
+            hh=hh,
+            hv=hv,
+            units=str(payload["units"]),
+            bytes_read=int(payload["bytes"]),
+            seconds=float(payload["seconds"]),
+            stride_row=int(payload["stride_row"]),
+            stride_col=int(payload["stride_col"]),
+            spacing_y_m=float(payload["spacing_y_m"]),
+            spacing_x_m=float(payload["spacing_x_m"]),
+        )
+
+
+def worker_entry(job_path: Path) -> int:
+    """Child process: one granule, then exit. The parent enforces the time limit."""
+    job = json.loads(job_path.read_text(encoding="utf-8"))
+    fields = job["granule"]
+    granule = GranuleRef(
+        scene_name=str(fields["scene_name"]),
+        date=str(fields["date"]),
+        track=int(fields["track"]),
+        frame=int(fields["frame"]),
+        direction=str(fields["direction"]),
+        pole=str(fields["pole"]),
+        primary_pol=str(fields["primary_pol"]),
+        url=str(fields["url"]),
+        provisional=bool(fields["provisional"]),
+        crid=str(fields["crid"]),
     )
+    bbox = tuple(float(value) for value in job["bbox"])
+    meta_path = Path(job["meta"])
+    try:
+        result = read_granule_power(granule, bbox, build_grid(bbox))
+        np.savez(job["out"], hh=result.hh, hv=result.hv)
+        payload = {
+            "ok": True,
+            "units": result.units,
+            "bytes": result.bytes_read,
+            "seconds": result.seconds,
+            "stride_row": result.stride_row,
+            "stride_col": result.stride_col,
+            "spacing_y_m": result.spacing_y_m,
+            "spacing_x_m": result.spacing_x_m,
+        }
+        code = 0
+    except Exception as exc:
+        payload = {"ok": False, "error": safe_error(exc)}
+        code = 1
+    meta_path.write_text(json.dumps(payload), encoding="utf-8")
+    return code
 
 
 def _npy_bands(raw: bytes) -> dict[str, np.ndarray]:
@@ -1776,9 +2149,12 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--end", default="2026-11-14")
     parser.add_argument("--cache-dir", default="local_cache/mojana")
     parser.add_argument("--report", default="reports/mojana.md")
+    parser.add_argument("--worker-job", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     load_env()
+    if args.worker_job:
+        return worker_entry(Path(args.worker_job))
     root = repo_root()
     config_path = Path(args.config)
     if not config_path.is_absolute():
@@ -1895,21 +2271,38 @@ def run(argv: list[str] | None = None) -> int:
     cubes_by_date: dict[str, list[tuple[str, np.ndarray, np.ndarray]]] = defaultdict(list)
     units: list[tuple[str, str]] = []
     failures: list[tuple[str, str]] = []
+    stride_lines: list[str] = []
     for granule in stack.granules:
         print(f"reading {granule.scene_name}", flush=True)
-        try:
-            hh, hv, unit_text = read_granule_power(granule, bbox, grid)
-        except Exception as exc:
-            failures.append((granule.scene_name, safe_error(exc)))
-            print(f"  missing: {safe_error(exc)}", flush=True)
+        outcome = read_granule_bounded(granule, bbox)
+        if isinstance(outcome, str):
+            failures.append((granule.scene_name, outcome))
+            print(f"  missing: {outcome}", flush=True)
             continue
-        finite = int(np.count_nonzero(np.isfinite(hh)))
+        if outcome.hh.shape != (grid.height, grid.width):
+            failures.append(
+                (
+                    granule.scene_name,
+                    f"grid shape {outcome.hh.shape} != {(grid.height, grid.width)}; missing",
+                )
+            )
+            print(f"  missing: grid shape {outcome.hh.shape}", flush=True)
+            continue
+        finite = int(np.count_nonzero(np.isfinite(outcome.hh)))
+        stride_lines.append(
+            f"{granule.scene_name}: stride {outcome.stride_row} by {outcome.stride_col} "
+            f"source pixels ({outcome.spacing_y_m:.1f} m by {outcome.spacing_x_m:.1f} m)"
+        )
         if finite == 0:
             failures.append((granule.scene_name, "no finite HH pixels after resample"))
+            print("  missing: no finite HH pixels after resample", flush=True)
             continue
-        units.append((granule.scene_name, unit_text))
-        cubes_by_date[granule.date].append((granule.scene_name, hh, hv))
-        print(f"  finite HH pixels {finite}", flush=True)
+        units.append((granule.scene_name, outcome.units))
+        cubes_by_date[granule.date].append((granule.scene_name, outcome.hh, outcome.hv))
+        print(
+            f"  {outcome.bytes_read} bytes in {outcome.seconds:.1f}s; finite HH pixels {finite}",
+            flush=True,
+        )
 
     dates: list[DateCube] = []
     for date in sorted(cubes_by_date):
@@ -1922,11 +2315,37 @@ def run(argv: list[str] | None = None) -> int:
                 hv_linear=mosaic_linear([hv for _name, _hh, hv in items]),
             )
         )
+    notes = list(base_context["notes"])
+    if stride_lines:
+        notes.append(
+            "GCOV first pass is a strided read at the analysis grid, "
+            "not the full native window. " + " ".join(stride_lines)
+        )
+    else:
+        notes.append("GCOV stride was not measured (no granule opened far enough).")
+    block = few_dates_block(len(dates))
+    if block is not None:
+        context = ReportContext(
+            **{
+                **base_context,
+                "granules": tuple(granules),
+                "stack": stack,
+                "search_count": len(granules),
+                "hand_source": hand_source,
+                "gcov_units": tuple(units),
+                "read_failures": tuple(failures),
+                "notes": tuple(notes),
+                "blocked": block,
+            }
+        )
+        emit(context, None)
+        print(block, file=sys.stderr)
+        return 1
+
     analysis = classify_stack(dates, hand, thresholds, grid.pixel_area_m2)
 
     chirps: dict[str, float | None] = {}
     s1_by_date: dict[str, tuple[np.ndarray, np.ndarray, int] | None] = {}
-    notes = list(base_context["notes"])
     selected_dates = sorted({granule.date for granule in stack.granules})
     for earlier, later in zip(selected_dates, selected_dates[1:], strict=False):
         span_days = (

@@ -5,13 +5,18 @@ arrays and from thresholds loaded through yaml.safe_load. They never enter
 the cache or the report of a real run.
 """
 
+import io
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
+import pytest
 import rasterio
 import yaml
 
 from gee_math.flood_polarimetric_math import (
+    FSSPEC_BLOCK_SIZE,
     AnalysisGrid,
     DateCube,
     DateStats,
@@ -20,18 +25,22 @@ from gee_math.flood_polarimetric_math import (
     ReportContext,
     StackChoice,
     absolute_water_counts,
+    analysis_stride,
     change_class_counts,
     choose_baseline,
     classify_stack,
     compare_s1,
     db_to_power,
+    few_dates_block,
     invalid_gcov_pixels,
     load_flood_thresholds,
     mosaic_linear,
     parse_scene_name,
     power_to_db,
+    read_granule_power,
     render_report,
     resample_power_mean,
+    run_bounded_process,
     safe_error,
     select_stack,
     water_raster,
@@ -574,6 +583,119 @@ def test_report_contains_ids_denominators_and_null_class2():
     assert "uncalibrated" in text
     assert "P05023" in text
     assert "not a map of the May 2024 breach" in text
+
+
+class _FakeFS:
+    """In-memory filesystem. No sockets."""
+
+    def __init__(self, failures: int, error: BaseException) -> None:
+        self.failures = failures
+        self.error = error
+        self.opens = 0
+        self.kwargs: list[dict] = []
+
+    def open(self, url, mode="rb", **kwargs):
+        self.opens += 1
+        self.kwargs.append(kwargs)
+        if self.opens <= self.failures:
+            raise self.error
+        return io.BytesIO(b"opened")
+
+
+def _granule() -> GranuleRef:
+    return GranuleRef(
+        "NISAR_TEST",
+        "2026-06-17",
+        47,
+        5,
+        "A",
+        "DHDH",
+        "DH",
+        "https://example.test/granule.h5",
+        True,
+        "P05023",
+    )
+
+
+def _tiny_grid() -> AnalysisGrid:
+    return AnalysisGrid("EPSG:32618", (90.0, 0.0, 0.0, 0.0, -90.0, 0.0), 2, 2, 90.0)
+
+
+def test_granule_reader_retries_timeouts_on_a_fake_filesystem():
+    """Two sock_read timeouts, then a third open. A dead session is not reused.
+
+    The fake filesystem never touches the network. The sleeper records the
+    backoff instead of waiting.
+    """
+
+    class _TimeoutThenOpen(_FakeFS):
+        def open(self, url, mode="rb", **kwargs):
+            self.opens += 1
+            self.kwargs.append(kwargs)
+            if self.opens < 3:
+                raise TimeoutError("sock_read")
+            raise RuntimeError("opened")
+
+    sessions = {"n": 0}
+    sleeps: list[float] = []
+    filesystem = _TimeoutThenOpen(failures=2, error=TimeoutError("sock_read"))
+
+    def factory():
+        sessions["n"] += 1
+        return filesystem
+
+    with pytest.raises(RuntimeError, match="opened"):
+        read_granule_power(
+            _granule(),
+            (-75.4, 7.9, -74.2, 9.2),
+            _tiny_grid(),
+            session_factory=factory,
+            sleeper=sleeps.append,
+        )
+    assert sessions["n"] == 3
+    assert filesystem.opens == 3
+    assert sleeps == [2.0, 4.0]
+    assert all(item["cache_type"] == "blockcache" for item in filesystem.kwargs)
+    assert all(item["block_size"] == FSSPEC_BLOCK_SIZE for item in filesystem.kwargs)
+
+    always = _FakeFS(failures=9, error=TimeoutError("sock_read"))
+    sessions["n"] = 0
+    sleeps.clear()
+
+    def always_factory():
+        sessions["n"] += 1
+        return always
+
+    with pytest.raises(TimeoutError, match="sock_read"):
+        read_granule_power(
+            _granule(),
+            (-75.4, 7.9, -74.2, 9.2),
+            _tiny_grid(),
+            session_factory=always_factory,
+            sleeper=sleeps.append,
+        )
+    assert sessions["n"] == 3
+    assert always.opens == 3
+    assert sleeps == [2.0, 4.0]
+
+
+def test_stalled_granule_subprocess_is_killed():
+    started = time.perf_counter()
+    code = run_bounded_process([sys.executable, "-c", "import time; time.sleep(30)"], 0.4)
+    assert code is None
+    assert time.perf_counter() - started < 5
+
+
+def test_analysis_stride_targets_the_90m_cell():
+    assert analysis_stride(10.0) == 9
+    assert analysis_stride(20.0) == 5
+    assert analysis_stride(90.0) == 1
+
+
+def test_three_or_fewer_dates_block_classification():
+    assert few_dates_block(0).startswith("BLOCKED:")
+    assert few_dates_block(3).startswith("BLOCKED:")
+    assert few_dates_block(4) is None
 
 
 def test_blocked_report_does_not_invent_hectares():
