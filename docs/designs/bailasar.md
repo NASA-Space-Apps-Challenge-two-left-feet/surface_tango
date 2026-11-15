@@ -54,7 +54,7 @@ This doc keeps that architecture. It corrects every place where it rested on dat
 1. **NISAR record window.** The public L-band archive covers acquisitions from **Jun 17 2026** onward. Validated L2 GCOV/GUNW were released Nov 6 2026, and earlier products may be *provisional*. Every granule records its version, and the UI labels provisional data.
 2. **Build priority and headline.** The build priority is (1) Aburrá landslides, (2) the Aug 10 2026 quake, (3) La Mojana flood. **The 30-second video headlines the quake**, because it is the largest event inside the NISAR record and can be validated against published damage. Biomass is dropped from scope (TODO).
 3. **Aburrá.** NISAR GUNW for Jun–Nov 2026 shows **currently** moving slopes. The Granizal (Bello) debris flow of **Jun 24 2025** predates NISAR and serves only as historical context and validation. If the velocity field doesn't beat the noise floor, the UI says so.
-4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó) at a depth of **116 km** (preferred origin, event us6000tjl2). A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking: the frozen formula in Hazard 2 (built-up-pixel DPM × WorldPop × hospital distance; footprints only classify pixels). Murindó/Romeral and GOFF surface rupture move to TODO.
+4. **Earthquake.** USGS gives M7.4 near San José del Palmar (Chocó) at a depth of **116 km** (preferred origin, event us6000tjl2; the value the pipeline uses). The SGC manual bulletin reports 105 km; an earlier 96 km figure had no source and was removed. A quake that deep has **no surface rupture**. The physics is a coherence-loss damage proxy map (pre-event pair vs co-event pair) over the affected cities (Pereira, Armenia, Manizales first). First-aid ranking: the frozen formula in Hazard 2 (built-up-pixel DPM × WorldPop × hospital distance; footprints only classify pixels). Murindó/Romeral and GOFF surface rupture move to TODO.
 5. **Flood.** Over Colombia, L-band is **dual-pol HH/HV**, so the flood physics is HH change detection against a dry baseline plus HAND gating:
    - darker HH means open water;
    - brighter HH with a stable HV/HH ratio means flooded vegetation.
@@ -692,7 +692,7 @@ Premise table (unverified=3):
 |---|---|---|---|
 | NISAR public window | acquisitions from Jun 17 2026 | docs/designs/bailasar.md:54 (ASF notice, web) | verified |
 | validated L2 release | Nov 6 2026 | docs/designs/bailasar.md:54 (Earthdata alert, web) | verified |
-| quake depth | 116 km | USGS us6000tjl2 preferred origin (116.13 km; docs/kb/event-2026-08-10-earthquake.md) | verified (primary) |
+| quake depth | 116 km | USGS us6000tjl2 preferred origin (116.13 km; docs/kb/event-2026-08-10-earthquake.md), used by the pipeline. SGC manual bulletin: 105 km (docs/kb/event-2026-08-10-earthquake-sgc.md). 96 km was unsourced and removed. | verified (primary) |
 | dual-pol over Colombia | HH/HV baseline | docs/designs/bailasar.md:58 (NASA polarimetry page) | verified (plan-level) |
 | GUNW posting / iono layer | 20/80 m, iono not applied | docs/designs/bailasar.md:195 (ASF GUNW docs, web) | verified |
 | no S-band over Colombia | absence of evidence | docs/designs/bailasar.md:62 | unverified |
