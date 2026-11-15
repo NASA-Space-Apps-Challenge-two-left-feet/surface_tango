@@ -14,6 +14,14 @@ Commit this file, filled in, **before** anyone views co-event (C-pair) coherence
 
 If the ground truth or polygons are missing at hour 4: write "scorecard uninformative" here and unblock C viewing.
 
+## Differences from blob `8d91f1d`
+
+Every change to `config/preregistered.yaml` after blob `8d91f1df0d53c394f22e65a7b114579f8fc9f0e7` (deviation 1), with its reason.
+
+| Change | Reason |
+|---|---|
+| Added `landslide.noise_floor: {min_pairs: 2, require_sign_agreement: true}` | The landslide honesty test (design doc, Hazard 1) needs these keys for `noise_floor_verdict` (#72). Both values are the design doc's rule ("the sign agrees across two independent pairs"). Landslide only: no quake or flood parameter changes, and none depends on C-pair coherence. |
+
 ## Deviations
 
 | # | When (Bogotá) | What happened | Who saw it | Pre-registration state at the time | Consequence |

@@ -22,4 +22,8 @@ flood:
   hand_max_m: 18
   no_baseline_relative_gap: 0.20
   sensitivity: {db_step: 1.0, hand_m: [12, 18, 24]}
+landslide:
+  # Honesty test (design doc, Hazard 1): keep a velocity only where |rate| > stable-pixel
+  # residual RMS in every pair AND the sign agrees across two independent pairs.
+  noise_floor: {min_pairs: 2, require_sign_agreement: true}
 labels: {uncalibrated: [open_water_abs_hh_db, class1_delta_hh_db_max, class2_delta_hh_db_min, class2_delta_hv_hh_db_abs_max, hand_max_m]}
