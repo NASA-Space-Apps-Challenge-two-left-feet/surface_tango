@@ -1177,14 +1177,13 @@ def write_hand_variable(
 
 
 def append_merit_hand_band(aoi_input: str) -> Path:
-    """Add only hand_m to an existing La Mojana cube.
+    """Add only hand_m to an existing AOI cube.
 
     The sample grid is read from the cube. Other bands, COGs, tiles and
-    provenance.json are left untouched.
+    provenance.json are left untouched. A cube that already carries hand_m
+    is skipped.
     """
     _canonical, aoi_short, _bbox = resolve_aoi(aoi_input)
-    if aoi_short != "mojana":
-        raise ValueError("hand_m is only added to the La Mojana cube")
     out_dir = LOCAL_CACHE_DIR / aoi_short
     zarr_path = out_dir / f"{aoi_short}_sar_cube.zarr"
     manifest_path = out_dir / "manifest.json"
@@ -1195,7 +1194,8 @@ def append_merit_hand_band(aoi_input: str) -> Path:
 
     with xr.open_zarr(zarr_path, chunks=None, mask_and_scale=False) as dataset:
         if HAND_BAND_NAME in dataset.data_vars:
-            raise ValueError("hand_m is already in the cube; refusing to rewrite bands")
+            print(f"{HAND_BAND_NAME} already in {zarr_path}; skipping")
+            return manifest_path
         grid = grid_from_dataset(dataset)
         y_vals = np.asarray(dataset.y.values)
         x_vals = np.asarray(dataset.x.values)
