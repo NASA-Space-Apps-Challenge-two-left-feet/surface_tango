@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """New worktree for a short-lived branch, from the latest origin/main (trunk).
 
-The shared local_cache/ and .env are linked from the main checkout.
+The shared local_cache/ and .env are linked from the main checkout. Windows
+uses a directory junction and a file hardlink when symlinks need privileges.
     python3 scripts/new_worktree.py feat/quake-dpm  ->  ../surface_tango-worktrees/feat-quake-dpm
 Standard library only, so it runs before `uv sync`.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -26,6 +28,24 @@ def main_checkout() -> Path:
     """The main checkout is the first worktree git lists, also from inside another worktree."""
     first = git("worktree", "list", "--porcelain").stdout.splitlines()[0]
     return Path(first.removeprefix("worktree "))
+
+
+def link_shared(source: Path, link: Path) -> None:
+    """Link shared cache and credentials without Windows symlink privileges."""
+    try:
+        link.symlink_to(source, target_is_directory=source.is_dir())
+    except OSError as error:
+        if os.name != "nt" or getattr(error, "winerror", None) != 1314:
+            raise
+        if source.is_dir():
+            subprocess.run(
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(source)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            os.link(source, link)
 
 
 def main(argv: list[str]) -> int:
@@ -55,7 +75,7 @@ def main(argv: list[str]) -> int:
         source = main_dir / name
         link = target / name
         if source.exists() and not link.exists():
-            link.symlink_to(source)
+            link_shared(source, link)
     print(f"worktree ready: {target} (from {base}); local_cache and .env linked")
     return 0
 
