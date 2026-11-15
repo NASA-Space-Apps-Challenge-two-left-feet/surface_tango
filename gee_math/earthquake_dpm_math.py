@@ -17,6 +17,7 @@ Pure functions (no IO, no network), unit-tested in tests/test_earthquake_dpm.py:
                        units with < min_built_up_pixels_per_unit excluded+counted
     run_dpm_pass       one DPM pass; the identical code path runs the co-event
                        pass (ref=R, cmp=C) and the control pass (ref=K, cmp=R)
+    adjusted_excess    E_C − E_K from two pass excesses; NaN stays NaN
 
 The layover/shadow mask required by the design does not exist in the NISAR GUNW
 product (verified against JPL D-102272 Rev E p.44 and the real granules: the GUNW
@@ -324,6 +325,19 @@ def run_dpm_pass(
         "excluded_rows": excluded_rows,
         "summary": summary,
     }
+
+
+def adjusted_excess(excess_c: float, excess_k: float) -> float:
+    """Control-adjusted built-up excess, E_C − E_K.
+
+    Each input is one pass excess from run_dpm_pass: median Z over valid
+    built-up pixels minus median Z over valid non-built pixels. A non-finite
+    input stays NaN. This never imputes a zero and it does not decide whether
+    a contrast is damage.
+    """
+    if not math.isfinite(excess_c) or not math.isfinite(excess_k):
+        return float("nan")
+    return float(excess_c) - float(excess_k)
 
 
 # ---------------------------------------------------------------------------
