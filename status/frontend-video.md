@@ -7,6 +7,19 @@ _Last update: 2026-11-15 (UTC−5)_
 - Done: Panel 3 now requests `/api/nisar-panel/<aoi>` and renders only an AOI-owned cached L-band product: La Mojana's `water_extent_2026-06-17.tif` (GCOV open water), Aburrá's `aburra_los_disp_mm.tif` (GUNW kinematics), or Eje Cafetero's track-11 co-event coherence raster (DPM display). The response records its cache-relative evidence artifacts and granule provenance; Eje also records the distinct track-47 DPM evidence window without rendering track-11 pixels in its place.
 - Done: La Picacha, Chocó epicenter and Valle del Cauca return **Not cached** for panel 3 because no AOI-owned L-band display artifact is staged. Sentinel-2 and Sentinel-1 remain the first two context panels.
 
+### Full project-AOI cache inventory
+
+| AOI | Cache entry observed | Analysis-ready L-band artifact | Evidence / DPM window | Sentinel tiles | Panel 3 |
+|---|---|---|---|---|---|
+| La Mojana / Caregato | cube, COGs, masks | `water_extent_2026-06-17.tif` (GCOV open water) | `flood_evidence.json` | `tiles/manifest.json` | cached |
+| Aburrá Valley | cube, COGs, GUNW pair/stack files | `cogs/aburra_los_disp_mm.tif` (GUNW kinematics) | `landslide_evidence.json` | `tiles/manifest.json` | cached |
+| Eje Cafetero | cube, COGs | `cogs/eje_cafetero_coherence_coseismic.tif` (track 11 display) | `quake_evidence_track11.json`, `quake_evidence_track47.json` | `tiles/manifest.json` | cached |
+| La Picacha | no AOI cache directory | — | — | — | not cached |
+| Chocó epicenter | `dpm_run.log`, `dpm_units_track11.parquet` only | — | no `quake_evidence_track11.json` | — | not cached |
+| Valle del Cauca | `dpm_units_track11.parquet` only | — | no `quake_evidence_track11.json` | — | not cached |
+
+The Chocó and Valle tables are partial cache remnants, not panel products: they have no AOI manifest, display raster, evidence envelope, or staged Sentinel context. They therefore must not be used as a fallback for another AOI.
+
 ## feat/web-offline-pitch (#37, #39/#43 prep)
 
 - Done: The page opens on **La Mojana** (the ratified headline). `?chapter=live` keeps mission control. Chapter numbers come from `/api/pitch-facts`. That endpoint uses `video/report_facts.py` to parse `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. `static/story-evidence.json` now holds `{placeholders}` only, and each summary carries its report sources (`data-fact-sources`). If a report line changes shape, the chapter shows **Error** instead of an old number.
