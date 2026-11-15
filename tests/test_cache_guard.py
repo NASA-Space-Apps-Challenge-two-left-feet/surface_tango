@@ -134,17 +134,7 @@ def test_registered_tools_return_offline_envelopes(monkeypatch, tmp_path):
     async def check():
         for server, name, arguments in (
             (asf, "search_nisar_granules", {"bbox": [], "start_date": "", "end_date": ""}),
-            (
-                gee,
-                "analyze_earthquake_dpm",
-                {
-                    "coh_pre_gcs": "",
-                    "coh_coseismic_gcs": "",
-                    "goff_range_gcs": "",
-                    "goff_azimuth_gcs": "",
-                    "bbox": [],
-                },
-            ),
+            (gee, "analyze_earthquake_dpm", {"aoi": "eje_cafetero", "track": 11}),
         ):
             async with Client(server) as client:
                 tools = await client.list_tools()
