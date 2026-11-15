@@ -386,7 +386,9 @@ The team reviews AI-assisted code and documentation. The initial generated basel
 
 ## License
 
-License: to be decided by the team (TODO).
+Proposed Apache-2.0 for team-owned code; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Data and cache assets retain their own terms; see [DATA_LICENSES.md](DATA_LICENSES.md).
+Pending team decision.
 
 ## Team — two left feet
 

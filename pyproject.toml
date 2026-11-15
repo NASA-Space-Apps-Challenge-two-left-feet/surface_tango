@@ -3,6 +3,7 @@ name = "bailasar"
 version = "0.1.0"
 description = "NISAR L-band multi-agent observatory for cascading disasters in Colombia (NASA Space Apps 2026)"
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 # Versions are pinned by uv.lock (issue #2: `uv lock` + hour-0 checklist).
 dependencies = [
