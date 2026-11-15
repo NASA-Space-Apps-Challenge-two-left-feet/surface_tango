@@ -23,8 +23,23 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home back in the chair — this file was refreshed by opencode GLM-5.3 (acting orchestrator, session 2) at 2026-11-15 03:29 UTC as the resume handback
-Last activity: session 2 merges (all squash, branches kept): #82 6d8ae27 mermaid semicolon fix, #83 6ef1594 public-readiness audit + session addendum (READY, 0 blockers), #84 133e974 audit row in the status table, #89 0b76a29 animated architecture + lakehouse SVG generators (`make diagrams`). Last main tip seen by opencode: a007af1 (#85, Jack's config loader). Team reactivated: Jack has #86/#87 ready, Esteban drafts #88/#90; both grok lanes recovered and commit again.
+Status: claude-home is the orchestrator again (resumed 2026-11-15 ~03:40 UTC from the opencode session-2 handback). Snapshot refreshed 2026-11-15 03:55 UTC.
+Last activity: #87 merged by claude-home after review (search_nisar_granules budget 1.2 s, measured n=10); #86 sent back with changes requested (pairs list breaks the #85 loader path `quake.pairs.coevent_C`; needs a line in validation/README.md "Differences from blob 8d91f1d"). Jack merged #91 himself (landslide noise_floor keys, with the differences table); prereg blob is now `2434302`.
+
+#### Agents (2026-11-15 03:52 UTC)
+| Agent | Lane / issue | State |
+|---|---|---|
+| grok | Aburrá InSAR #33 (`feat/data-aburra-insar`) | finished; fa8dcfc, 25 commits ahead of its remote, 8 behind main; not pushed; awaits claude-home review (slope fix 9aa36a7, noise floor 9.105 mm provisional) |
+| grok2 | La Mojana flood #34 (`feat/data-mojana-flood`) | finished; 74007f5, 29 ahead, 5 behind main; interactive session still open (pid 27364); awaits review |
+| opencode | public-readiness audit #46 | done (#83); its TUI session is still open in the audit worktree |
+| Antigravity A/B | cache builder #30 (#78), Sentinel tiles #30 (#65) | done and merged; #65 still needs the deep review (Gemini Flash rule) |
+
+#### Team (unmerged work, 2026-11-15 03:52 UTC)
+- **Jack4Codes:** #86 (changes requested). #85, #87, #91 merged.
+- **Maru816:** `codex/issue-18-scoring` (scoring.py + 250-line tests, #18), `codex/issue-24-ground-truth` (reports/ground_truth*.md + an Armenia audit script, #24), `codex/repo-lint-cleanup`. No PRs yet, 13 behind main, and each carries a repo-wide formatting commit (4e02807) touching ~30 files including other lanes' gee_math files: ask Maru to drop it and open one PR per issue.
+- **EstebanOchoaedos:** drafts #72/#73 (flood/landslide via the shared loader + fixture harness; rebased today, still overlap the two grok lanes), #88 submission text, #90 Granizal gloss, #93 README fixes; branch `docs/kb-quake-depth-usgs` (depth 116 km from the USGS preferred origin) has no PR: it would resolve the open 96 vs 116 km question in event-2026-08-10-earthquake-v2.md.
+- **alicealanapineda-byte:** nothing pushed for #20, #21, #36 (SSE, cache_guard, bulletin, LangGraph): the agents/MCP lane is the largest gap.
+- **SaritaRpo:** nothing pushed; her storyboard and run sheet landed through Esteban (#68, #69), the offline rehearsal through #71.
 
 Progress: [░░░░░░░░░░] 0%
 
