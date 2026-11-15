@@ -35,5 +35,12 @@ _Last update: 2026-11-15 (UTC−5)_ · branch `feat/config-power-check-headline`
 - Done: filled `validation/README.md` power-check and headline rows from the merged ground truth (#24) and La Mojana result (#34).
   - **Power check: uninformative.** No verified barrio damage labels (`reports/ground_truth.md`), so 0 evaluable units; positives/prevalence/k undefined. Documented null, not a failure. Applied the 02-02 fallback ("scorecard uninformative"), which unblocks C viewing.
   - **Headline: La Mojana flood** — open-water extent ~2,799–6,726 ha on 2026-06-17 *(measured, PROVISIONAL, uncalibrated)* from `reports/mojana.md`. Quake uninformative; Aburrá has no report on `main` yet.
-- Left to #26: freeze `config/preregistered.yaml` (`status: frozen` + hash), listing the blob differences (landslide noise_floor #72, quake pairs #26). The hash/commit rows here are set at that freeze.
 - Decision recorded for the orchestrator to ratify at review (it sets the video story).
+
+## Pre-registration freeze (#26, Jack4Codes)
+
+_Last update: 2026-11-15 (UTC−5)_ · branch `feat/config-freeze-prereg`
+
+- Done: froze `config/preregistered.yaml` — `status: frozen`, and filled `ground_truth_source` with the uninformative record (name/date/url pointing at `reports/ground_truth.md`), because the loader refuses a frozen config with null values and the ground truth is uninformative (#24/#25).
+- Frozen hash recorded in `validation/README.md`: `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438` (`config.py` `preregistered_hash` and `git hash-object` agree; `require_frozen()` passes). Blob differences from `8d91f1d` listed: noise_floor (#72), pairs (#86), freeze+ground_truth (#26).
+- Cross-lane (quake test, LEONOB2014): updated `tests/test_earthquake_dpm.py::test_preregistered_thresholds_load_frozen_values` from `status == "draft"` / `is_frozen False` to `frozen` / `True`, the direct consequence of the freeze. 275 offline tests pass.
