@@ -649,7 +649,14 @@ def layer_data_bbox(tile_dir: Path) -> list[float] | None:
     """
     if not tile_dir.is_dir():
         return None
-    pngs = [path for path in tile_dir.rglob("*.png") if path.parent.parent.name.isdigit()]
+    pngs = [
+        path
+        for path in tile_dir.rglob("*.png")
+        if path.parent.parent.name.isdigit()
+        and path.parent.name.isdigit()
+        and path.stem.isdigit()
+        and not path.name.startswith("._")
+    ]
     if not pngs:
         return None
     finest = max(int(path.parent.parent.name) for path in pngs)

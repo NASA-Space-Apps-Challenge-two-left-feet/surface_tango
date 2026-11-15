@@ -82,6 +82,21 @@ def test_disjoint_layers_have_no_frame():
     )
 
 
+def test_appledouble_png_is_not_indexed_as_a_tile(tmp_path: Path):
+    """A macOS sidecar named like a tile must not break the curtain frame."""
+    from scripts.prestage_tiles import rgba_to_png
+
+    rgba = np.zeros((1, 1, 4), dtype=np.uint8)
+    rgba[0, 0, 3] = 255
+    dest = tmp_path / "9" / "150" / "250.png"
+    dest.parent.mkdir(parents=True)
+    dest.write_bytes(rgba_to_png(rgba))
+    (dest.parent / "._250.png").write_bytes(b"not a png")
+    bbox = layer_data_bbox(tmp_path)
+    assert bbox is not None
+    assert len(bbox) == 4
+
+
 def test_named_areas_stay_not_cached_without_a_manifest():
     footprints = {
         "optical": [0.0, 0.0, 1.0, 1.0],

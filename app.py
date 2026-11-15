@@ -401,7 +401,9 @@ def _single_cog(folder: Path, band: str) -> Path | None:
     """The one COG for ``band`` under an AOI. Two matches is not a guess."""
     if not folder.is_dir():
         return None
-    matches = sorted(folder.glob(f"*_{band}.tif"))
+    matches = sorted(
+        path for path in folder.glob(f"*_{band}.tif") if not path.name.startswith("._")
+    )
     if len(matches) != 1:
         return None
     return matches[0]
