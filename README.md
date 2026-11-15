@@ -61,7 +61,7 @@ Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover
 
 ## Status
 
-**Progress (2026-11-15, D = 2026-11-15 23:59 COT).** Phases 1–3 complete and on `main`: the frozen pre-registration, the three hazard pipelines (Aburrá null, La Mojana open-water headline, quake damage proxy with C/K unsealed), the MCP evidence tools, and the bilingual LangGraph bulletin all run. Phase 4 (integration) nearly done. Phase 5 (record the video, finalize the README, secret scan, go public, submit) is the remaining owner-gated critical path. The offline suite is green; the repository is private until the team goes public before the deadline.
+**Progress (2026-11-15, D = 2026-11-15 23:59 COT).** Phases 1–3 complete and on `main`: the frozen pre-registration, the three hazard pipelines (Aburrá null, La Mojana open-water headline, quake damage proxy with C/K unsealed), the MCP evidence tools, and the bilingual LangGraph bulletin all run. Phase 4 (integration) done: the hazard graph ran end to end into a live bilingual bulletin. Phase 5 (record the video, finalize the README, secret scan, go public, submit) is the remaining owner-gated critical path. The offline suite is green; the repository is private until the team goes public before the deadline.
 
 States: **live** · **cached** · **not cached** · **planned** · **dropped**. No completed integration is claimed without evidence.
 
@@ -70,12 +70,12 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | NISAR discovery gate (search script and saved catalog) | live | #23, #52 | [Gate report](reports/gate.md) |
 | Real-data cache builder — COGs + Zarr v3 + provenance manifest (3 AOIs) | cached | #30, #78 | [Builder brief](briefs/feat/data-cache-builder.md) |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
-| Quake damage proxy (tracks 11 and 47; C/K **unsealed** after the freeze, #130; track 11 is post-event control only) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md) |
+| Quake damage proxy (tracks 11 and 47; C/K **unsealed** after the freeze, #130; track 11 is post-event control only) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md), [E_C − E_K interpretation](reports/quake_dpm_interpretation.md) |
 | Release staging and cache download | live; team draft pre-release `cache-2026-11-15` (3 AOIs, 122,697,992 bytes; C-pair coherence and `quake/` withheld); public `make fetch-cache` after the release is published | #42, #67 | [issue #22 instructions](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/22) |
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
-| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE); hazard tools are evidence-envelope adapters over `local_cache/<aoi>/<hazard>_evidence.json` (counts + denominators + sources; C/K statistics served only after the pre-registration freeze, now frozen #130; `not cached` until the data lane serializes the flood/quake artifacts — landslide serves the #109 verdict) | #20, #103, #122, #127 | [schema note](docs/kb/mcp-evidence-artifact-schema.md) |
+| MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE); hazard tools are evidence-envelope adapters over `local_cache/<aoi>/<hazard>_evidence.json` (counts + denominators + sources; C/K statistics served (the pre-registration is frozen, #130). Note: the serialized quake evidence artifacts still carry the pre-#131 control pair (see issue #141); the frozen-K numbers are in the interpretation report) | #20, #103, #122, #127 | [schema note](docs/kb/mcp-evidence-artifact-schema.md) |
 | Bulletin placeholder and verified-event contract | live; the graph renders ES/EN from tool evidence; quake depth 116 km (USGS estimate) displayed | #21, #103, #132 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields.md) |
-| LangGraph hazard graph + ES/EN bilingual bulletin | live: ingestion → hazard agents → checked bilingual synthesis over the evidence tools; placeholder contract (agents emit no numbers); plan validation before tool effects | #36, #151, #153 | `agents/orchestrator.py` |
+| LangGraph hazard graph + ES/EN bilingual bulletin | live: ingestion → hazard agents → checked bilingual synthesis over the evidence tools; placeholder contract (agents emit no numbers); plan validation before tool effects; measured nulls (gate results) render inside the bulletin | #36, #151, #153, #162 | [Live-run demo](reports/bulletin_demo.md) |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
 | Pre-registration and power check | **frozen** 2026-11-15 (#130), control pairs K re-chosen by the design date rule and re-frozen (#131, deviation 2; blob `36a90fa…`; track 11 K is a labelled post-event control); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102, #131 | [validation/README.md](validation/README.md) |
 | First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
@@ -84,7 +84,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |
 | La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
-| Mission-control UI, curtain slider and story map | cached (offline, opens on La Mojana; numbers parsed from the reports via `/api/pitch-facts`; quake C/K sealed) | #22, #37 | [frontend status](status/frontend-video.md) |
+| Mission-control UI, curtain slider and story map | cached (offline, opens on La Mojana; numbers parsed from the reports via `/api/pitch-facts`). Known-stale: the quake panel still shows the pre-freeze "C/K sealed" message (frontend fix pending) | #22, #37 | [frontend status](status/frontend-video.md) |
 | Submission video (30 s) | silent draft cut from `video/assemble.py`; voice-over pending; **headline ratified: La Mojana flood** | #39, #43, #102 | [storyboard](video/storyboard.md), [video README](video/README.md) |
 | Biomass agent · GOFF rupture · split-spectrum ionosphere · S-band fusion · `/math-lab` | dropped | #41, #55, #56 | — |
 
@@ -103,13 +103,13 @@ flowchart LR
         M1["mcp-nisar-asf :8001 (planned)<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
         M2["mcp-gee-fusion :8002 (planned)<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
     end
-    GUARD["cache_guard (mcp_servers/cache_guard.py) (planned)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
+    GUARD["cache_guard (mcp_servers/cache_guard.py)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
     subgraph GRAPH["LangGraph · agents/"]
-        IN["nisar_ingestion (planned)"]
-        L["landslide_agent (planned)"]
-        Q["earthquake_agent (planned)"]
-        F["flood_agent (planned)"]
-        S["cross_hazard_synthesis (planned)<br/>ES/EN bulletin · {placeholders}<br/>SI-Assisted badge"]
+        IN["nisar_ingestion"]
+        L["landslide_agent"]
+        Q["earthquake_agent"]
+        F["flood_agent"]
+        S["cross_hazard_synthesis<br/>ES/EN bulletin · {placeholders}<br/>SI-Assisted badge"]
     end
     subgraph CACHE["local_cache/&lt;aoi&gt;/ · never in git"]
         ZARR[("cogs/*.tif · Zarr v3 cube<br/>manifest.json: per-band granule IDs,<br/>status, finite ratios")]
@@ -171,7 +171,7 @@ flowchart TB
     GUARD["mcp_servers/cache_guard.py (planned)<br/>per-tool budget · provenance on fallback"] -.-> AGENTS
     CACHE -.-> GUARD
     TILES -.-> GUARD
-    AGENTS["LangGraph hazard agents (#33 landslide · #31 quake · #34 flood) (planned)<br/>tool calls only — agents never produce numbers"] -.-> SYNTH["cross_hazard_synthesis (#11) (planned)<br/>ES/EN bulletin · {placeholders} from tool outputs<br/>+ validation/event_facts.json · SI-Assisted badge"]
+    AGENTS["LangGraph hazard agents (#33 landslide · #31 quake · #34 flood)<br/>tool calls only — agents never produce numbers"] -.-> SYNTH["cross_hazard_synthesis (#11)<br/>ES/EN bulletin · {placeholders} from tool outputs<br/>+ validation/event_facts.json · SI-Assisted badge"]
     SYNTH -.-> UI["app.py mission control + story map (not cached)<br/>panel states never blank"]
     UI -.-> VIDEO["video/ 30-second submission (planned) · every number sourced"]
     OUT["dropped from scope: biomass agent · GOFF rupture ·<br/>split-spectrum ionosphere · S-band fusion · /math-lab"]:::dropped -.-> AGENTS
@@ -195,16 +195,16 @@ How a run flows through the graph and the cache_guard's three outcomes (sequence
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ING as nisar_ingestion (planned)
-    participant LS as landslide_agent (planned)
-    participant EQ as earthquake_agent (planned)
-    participant FL as flood_agent (planned)
-    participant GUARD as cache_guard (planned)
-    participant ASF as mcp-nisar-asf (SSE 8001) (planned)
-    participant GEE as mcp-gee-fusion (SSE 8002) (planned)
-    participant SYN as cross_hazard_synthesis (planned)
+    participant ING as nisar_ingestion
+    participant LS as landslide_agent
+    participant EQ as earthquake_agent
+    participant FL as flood_agent
+    participant GUARD as cache_guard
+    participant ASF as mcp-nisar-asf (SSE 8001)
+    participant GEE as mcp-gee-fusion (SSE 8002)
+    participant SYN as cross_hazard_synthesis
 
-    Note over ING,SYN: planned — not wired on main yet (see Status table)
+    Note over ING,SYN: built on main — live run demonstrated in reports/bulletin_demo.md
     ING->>ING: read gate catalog + event facts (no LLM numbers)
     par three hazards in parallel
         ING->>LS: Aburrá pairs · FABDEM slope · noise-floor check
