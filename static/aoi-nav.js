@@ -116,17 +116,16 @@
     const a = aoisById.get(id);
     if (!a) return;
     window.__bailasarAoi = { id: id, hazard: a.hazard };
-    const crossHazard = a.hazard !== currentHazard;
     currentAoiId = id;
     // Frame the DATA footprint (where NISAR actually covers), not the oversized
     // AOI box — falls back to the config bbox when no footprint is known.
     const target = Array.isArray(a.footprint_bbox) ? a.footprint_bbox : a.bbox;
-    if (crossHazard && typeof openStoryChapter === "function") {
-      // let fitChapter frame the AOI (not the whole hazard) under the curtain,
-      // avoiding a double camera move; then one smooth fitBounds settles it.
+    if (typeof openStoryChapter === "function") {
+      // The selected AOI owns all three panel requests. In particular panel 3
+      // may only use its own cached L-band artifact; a missing one stays empty.
       window.__aoiFocusBbox = target;
       if (typeof playFeetTransition === "function") playFeetTransition(a.hazard);
-      try { openStoryChapter(a.hazard); } catch (_) {}
+      try { openStoryChapter(a.hazard, a.id); } catch (_) {}
       const sel = $("story-chapter");
       if (sel) sel.value = a.hazard;
       setTimeout(() => fitAoi(target), 120);
