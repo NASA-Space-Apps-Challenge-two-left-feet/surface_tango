@@ -1,9 +1,29 @@
 # FROZEN pre-registration (design doc: Hazard 2/3, D13). Commit before viewing any C-pair coherence;
 # validation/README.md records `git hash-object config/preregistered.yaml`. Never edit after freeze.
-# Values below are the approved plan values; pair IDs are filled from the hour-2 gate (issue #3).
+# Values below are the approved plan values; pair IDs are filled from the hour-2 gate (issue #26).
 status: draft          # draft -> frozen (set once, by the Quake lane, with the hash recorded)
 quake:
-  pairs: {reference_R: null, coevent_C: null, control_K: null}   # GUNW granule IDs, same track, 12-day
+  # One R/C/K GUNW triplet per track over the Eje Cafetero (hour-2 gate #23 -> quake_triplets).
+  # R, C and K share a track; C spans the 2026-08-10 event, R precedes C, K precedes R.
+  # Design D13 asks for a 12-day baseline; the gate found C at 24 days (Aug 1/Aug 4 acquisitions
+  # missing), so the closest available is used and the mismatch is recorded per triplet.
+  pairs:
+    - track: 11
+      geometry: descending
+      frame: 86
+      reference_R: NISAR_L2_PR_GUNW_025_011_D_086_026_4000_SH_20260708T232913_20260708T232947_20260720T232912_20260720T232946_P05023_N_F_J_001
+      coevent_C: NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001
+      control_K: NISAR_L2_PR_GUNW_024_011_D_086_025_4000_SH_20260626T232913_20260626T232948_20260708T232913_20260708T232947_P05023_N_F_J_001
+      baseline_days: {R: 12, C: 24, K: 12}
+      baseline_mismatch: true
+    - track: 47
+      geometry: ascending
+      frame: 4
+      reference_R: NISAR_L2_PR_GUNW_025_047_A_004_026_4000_SH_20260711T103831_20260711T103906_20260723T103830_20260723T103905_P05023_N_F_J_001
+      coevent_C: NISAR_L2_PR_GUNW_026_047_A_004_028_4000_SH_20260723T103830_20260723T103905_20260816T103829_20260816T103904_P05023_N_F_J_001
+      control_K: NISAR_L2_PR_GUNW_024_047_A_004_025_4000_SH_20260629T103831_20260629T103907_20260711T103831_20260711T103906_P05023_N_F_J_001
+      baseline_days: {R: 12, C: 24, K: 12}
+      baseline_mismatch: true
   built_up_min_footprint_fraction: 0.50
   non_built_max_footprint_fraction: 0.10
   min_built_up_pixels_per_unit: 20
