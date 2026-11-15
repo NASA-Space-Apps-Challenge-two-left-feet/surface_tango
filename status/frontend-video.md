@@ -2,6 +2,13 @@
 
 ## feat/regional-cube-explorer
 
+- Atlas redesign: georeferenced map, date selection, catalog search, opacity,
+  scientific legends and source-pixel inspection. Source arrays retain native grids;
+  only display images are reprojected. Builds publish complete stores atomically.
+- UI direction follows NASA Worldview's layer/time exploration and Pangeo's
+  labeled climate-array ecosystem. No climate-model datasets are claimed or added.
+- Browser interaction review remains pending; API/native-pixel checks run locally.
+
 - Added `make cube` with an explicit socket-permission/port diagnostic and
   `make cube-check` to verify every packaged layer without starting a server.
 - Full local evaluation is recorded in `reports/regional-cube-local.json`;

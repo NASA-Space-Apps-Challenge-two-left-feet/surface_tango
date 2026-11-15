@@ -7,6 +7,8 @@ No network requests, resampling, overwrite, or modification of science caches.
 import argparse
 import json
 import os
+import shutil
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,12 +28,27 @@ def regions():
 
 
 def build(cache: Path, aoi: str) -> dict:
+    """Publish only complete stores; failed builds cannot poison the served catalog."""
+    target = cache / "regional-cubes" / f"{aoi}.zarr"
+    if target.exists():
+        raise FileExistsError(f"Refusing to overwrite {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=f".{aoi}-", dir=target.parent))
+    try:
+        result = _build(cache, aoi, temporary / "cube.zarr")
+        if result.get("layers"):
+            (temporary / "cube.zarr").rename(target)
+        return result
+    finally:
+        shutil.rmtree(temporary)
+
+
+def _build(cache: Path, aoi: str, target: Path) -> dict:
     # Names come from existing manifests; detailed AOIs without a manifest remain missing.
     source = cache / aoi
     manifest_path = source / "manifest.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
     rasters = sorted(source.glob("*.tif")) + sorted((source / "cogs").glob("*.tif"))
-    target = cache / "regional-cubes" / f"{aoi}.zarr"
     if target.exists():
         raise FileExistsError(f"Refusing to overwrite {target}")
     if not rasters:

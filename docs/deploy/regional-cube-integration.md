@@ -30,7 +30,10 @@ NPZ stacks, vector features and Sentinel PNG tiles are not yet cube variables.
 ## Repository and application fit
 
 - `/cube` is an additional FastAPI page; `/api/cube` provides its catalog and
-  `/api/cube/{aoi}/{layer}/preview.png` serves decimated native-grid previews.
+  `/api/cube/{aoi}/{layer}/preview.png` serves Web Mercator display previews.
+  `/api/cube/{aoi}/{layer}/sample?lon=…&lat=…` reads a nearest native pixel.
+  Atlas supplies map navigation, searchable observations, date controls, legends,
+  opacity and shareable region/layer URLs using the staged MapLibre assets.
 - `Dockerfile` already copies `app.py`, `scripts/` and `static/`; dependencies
   already include Xarray, Rasterio and Zarr. No new service or public port is needed.
 - `docker-compose.yml` mounts `./local_cache:/app/local_cache` into the web service.
@@ -74,7 +77,7 @@ session, and access to the local Docker daemon was denied. No cloud changes ran.
 This is a native-grid raster collection in Zarr groups. It supports browsing
 observations and provenance. It does not yet implement aligned temporal arrays,
 spatial subsetting, an analytical query service, map pyramids, cloud object-store
-access, or full multi-dataset cube semantics. Native-grid grayscale previews are
+access, or full multi-dataset cube semantics. Scientific-color map previews are
 for inspection; they are not calibrated hazard maps. Unit metadata is incomplete
 where the original sources did not serialize units. Production approval requires
 browser review, VM memory/load measurements and a verified deployment rollback.
