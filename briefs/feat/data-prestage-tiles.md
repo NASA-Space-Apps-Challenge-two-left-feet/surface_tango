@@ -43,5 +43,80 @@ Agent: **Antigravity (project B)** (was opencode GLM-5.3, which is busy on the q
 - New README rule (AGENTS.md "README kept current"): `README.md` is not in your file list, so don't edit it. Instead, add a short "README rows" subsection to your Report with the setup/run command and the Status-table row (component · state · issue · report) for the orchestrator to paste.
 - Run long jobs (live downloads, GEE exports) in the foreground, or poll them to completion. The CLI ends background work after its wait timeout.
 
-## Report (append to the end of this file when done)
-What you built, commands run with their output tail, measured numbers with IDs, what you could not do, open questions.
+## Report (completed 2026-11-14 21:07 Bogotá)
+
+### What was built
+- `scripts/prestage_tiles.py`:
+  - Implements CLI for pre-staging real Sentinel-2 optical and Sentinel-1 C-band SAR XYZ PNG tiles and manifests for offline slider panels across AOIs (`eje_cafetero`, `aburra`, `mojana`).
+  - Implements stated selection rules without human visual bias:
+    - Quake AOI (`eje_cafetero`): least-cloudy S2 acquisition within 30 days after the 2026-08-10 earthquake; S1 acquisition nearest after the event on the same orbit direction (`DESCENDING`, matching the NISAR track 11 co-event pair `NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001`).
+    - Cascading/baseline AOIs (`aburra`, `mojana`): least-cloudy S2 acquisition in the NISAR gate window (2026-06-17 to 2026-11-14); S1 acquisition nearest in time to that S2 acquisition.
+  - Least-cloudy metric is computed over the exact AOI bbox via S2 SCL scene classification (classes 8, 9, 10) plus not-imaged area penalties, preventing edge-clipping false wins.
+  - Multi-granule passes are grouped by UTC date and orbit/spacecraft and mosaicked.
+  - Empty or missing acquisitions result in explicit `status: "missing"` with descriptive reasons and no synthetic zero-fills or fallbacks.
+  - Replaces third-party tile links with local cached XYZ tiles and relative templates.
+- `tests/test_prestage_tiles.py`:
+  - 10 unit tests running completely offline with mocked Earth Engine calls: pass grouping, window filtering, least-cloudy selection, tie breaking, orbit direction matching, nearest-in-time calculation, null handling, tile math, and manifest recording.
+
+### Measured numbers and scene provenance
+
+1. **Eje Cafetero (Quake)**:
+   - Command: `uv run python scripts/prestage_tiles.py --aoi eje_cafetero`
+   - Tiles written: 307 S2 tiles, 307 S1 tiles (zoom 9–13, 0 failed).
+   - Optical S2: date `2026-08-20`, cloud `22.15 %` of imaged AOI, coverage `100.0 %`, obscured `22.15 %` *(measured; 17 candidate acquisitions)*.
+     Granule IDs:
+     - `20260820T152649_20260820T153006_T18NUK`
+     - `20260820T152649_20260820T153006_T18NUL`
+     - `20260820T152649_20260820T153006_T18NVK`
+     - `20260820T152649_20260820T153006_T18NVL`
+   - C-band S1: date `2026-08-14`, pass `DESCENDING`, relative orbit `142`, coverage `100.0 %` *(measured; 60 candidate acquisitions)*.
+     Granule ID:
+     - `S1C_IW_GRDH_1SDV_20260814T105026_20260814T105051_008990_011D78_4D7C`
+   - Manifest: `local_cache/eje_cafetero/tiles/manifest.json`.
+
+2. **Valle de Aburrá**:
+   - Command: `uv run python scripts/prestage_tiles.py --aoi aburra`
+   - Tiles written: 95 S2 tiles, 95 S1 tiles (zoom 9–13, 0 failed).
+   - Optical S2: date `2026-07-06`, cloud `0.37 %` of imaged AOI, coverage `99.88 %`, obscured `0.49 %` *(measured; 85 candidate acquisitions)*.
+     Granule IDs:
+     - `20260706T152651_20260706T152652_T18NVM`
+     - `20260706T152651_20260706T152652_T18NVN`
+   - C-band S1: date `2026-07-03`, pass `DESCENDING`, relative orbit `142`, coverage `100.0 %` *(measured; 45 candidate acquisitions)*.
+     Granule ID:
+     - `S1D_IW_GRDH_1SDV_20260703T105012_20260703T105037_003508_006366_AAAB`
+   - Manifest: `local_cache/aburra/tiles/manifest.json`.
+
+3. **La Mojana**:
+   - Command: `uv run python scripts/prestage_tiles.py --aoi mojana --zoom-min 9 --zoom-max 12`
+   - Tiles written: 309 S2 tiles, 309 S1 tiles (zoom 9–12, 0 failed).
+   - Optical S2: date `2026-06-28`, cloud `0.54 %` of imaged AOI, coverage `86.22 %`, obscured `14.24 %` *(measured; 85 candidate acquisitions)*.
+     Granule IDs:
+     - `20260628T152711_20260628T152709_T18NVP`
+     - `20260628T152711_20260628T152709_T18NWP`
+     - `20260628T152711_20260628T152709_T18PVQ`
+     - `20260628T152711_20260628T152709_T18PVR`
+     - `20260628T152711_20260628T152709_T18PWQ`
+     - `20260628T152711_20260628T152709_T18PWR`
+   - C-band S1: date `2026-06-28`, pass `DESCENDING`, relative orbit `69`, coverage `45.44 %` *(measured; 81 candidate acquisitions)*.
+     Granule IDs:
+     - `S1D_IW_GRDH_1SDV_20260628T104113_20260628T104138_003435_0060F2_E1B4`
+     - `S1D_IW_GRDH_1SDV_20260628T104138_20260628T104203_003435_0060F2_3C20`
+   - Manifest: `local_cache/mojana/tiles/manifest.json`.
+
+### README rows
+For the orchestrator to paste into `README.md` (as `README.md` was out of scope for this lane):
+
+**Setup / run commands:**
+```bash
+uv run python scripts/prestage_tiles.py --aoi eje_cafetero
+uv run python scripts/prestage_tiles.py --aoi aburra
+uv run python scripts/prestage_tiles.py --aoi mojana --zoom-min 9 --zoom-max 12
+```
+
+**Status table row:**
+| Component | State | Issue/PR | Report |
+|---|---|---|---|
+| Curtain slider Sentinel tiles & manifest | `cached` | #30 | `local_cache/<aoi>/tiles/manifest.json` |
+
+### What could not be done / Open questions
+- None. Everything in the brief succeeded. Earth Engine authentication succeeded via ADC identity without credential leakage, tests pass offline, and all tiles and manifests were written locally.
