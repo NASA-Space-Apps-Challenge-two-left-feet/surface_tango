@@ -309,3 +309,22 @@ def test_calibration_is_deterministic_for_a_seed():
     a = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=50, seed=3)
     b = slide.calibrate_keep_rule(los, down, rate, rms, dates, draws=50, seed=3)
     assert a == b
+
+
+def test_noise_floor_rule_matches_the_preregistration():
+    block = {"noise_floor": {"min_pairs": 2, "require_sign_agreement": True}}
+    assert "read and matched" in slide.check_noise_floor_rule(block)
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        None,
+        {},
+        {"noise_floor": {"min_pairs": 3, "require_sign_agreement": True}},
+        {"noise_floor": {"min_pairs": 2, "require_sign_agreement": False}},
+    ],
+)
+def test_noise_floor_rule_rejects_other_preregistrations(block):
+    with pytest.raises(ValueError):
+        slide.check_noise_floor_rule(block)
