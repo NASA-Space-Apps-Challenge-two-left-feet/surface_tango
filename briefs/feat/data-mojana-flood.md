@@ -33,5 +33,33 @@
 - Commit locally with Conventional Commits (`git commit -F <file>`), one logical change per commit, body ends with `Co-Authored-By: <your agent name>` and `Refs: #<issue>`. Run `make ci` before each commit and fix failures (never `--no-verify`).
 - **Do not** push, merge, switch branches, reset, stash, open PRs, write to GCS, or run paid LLM calls. The orchestrator reviews the full diff and does those.
 
+## Update 2026-11-14 21:20 Bogotá (orchestrator): the live run hung, fix the reader first
+**What happened:**
+- Your live run read granule 1 (Jun 17), which failed with a transient ASF 502. It then hung for about 85 min on granule 2 (Jun 29), with almost no CPU and half-closed sockets. The orchestrator stopped it.
+- The branch was rebased onto `origin/main`. Your commit `feat(flood): add La Mojana dual-pol class functions` is kept.
+- ASF serves these files fine now: a 1 MB read takes 2.2–3.8 s *(measured, 3 of 11 granules)*.
+
+**Why:**
+- Each track 47 frame 5 GCOV is about 7.1–7.3 GB *(measured, 3 of 11)*, and the La Mojana AOI covers almost the whole frame.
+- `read_granule_power` streams 5 layers (HHHH, HVHV, numberOfLooks, mask, inputDataExceptionMask) through one long-lived `earthaccess` fsspec session. That session has no read timeout and no retries.
+
+**Do this before re-running:**
+1. A new fsspec session per granule, with `aiohttp.ClientTimeout(sock_connect=30, sock_read=120)` and 2 retries with backoff. A granule that still fails is recorded as `missing`.
+2. A hard limit per granule (about 20 min): run each granule read in a subprocess, so a stall can't block the run.
+3. Open files with `cache_type="blockcache"` and `block_size` of about 32 MB. Do the first pass at the analysis grid with strided reads instead of full 20 m windows. Record the stride in the report.
+4. Print per-granule progress: bytes read and seconds.
+5. If 3 or fewer dates are usable, write `BLOCKED` instead of classifying.
+6. Add a unit test for the timeout and retry path, with a fake filesystem object (no network).
+
+**Then:**
+1. `make sync`, `make ci`, commit (Refs: #34).
+2. Re-run the classification **in the foreground** (not as a background job) so its output stays visible.
+3. Rewrite `reports/mojana.md`:
+   - remove the Blocked section;
+   - hectares per class, with denominators;
+   - the reference date, the granule IDs and the sensitivity ranges;
+   - a "README rows" subsection.
+4. Commit, then append your Report section below.
+
 ## Report (append to the end of this file when done)
 What you built, commands run with their output tail, measured numbers with IDs, what you could not do, open questions.
