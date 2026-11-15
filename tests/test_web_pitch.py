@@ -106,3 +106,18 @@ def test_flood_mask_png_renders_measured_water_pixels():
         artifact = json.loads((ROOT / "local_cache/mojana/flood_evidence.json").read_text())
         expected = next(e for e in artifact["dates"] if e["date"] == "2026-06-17")
         assert int(np.count_nonzero(water)) == expected["n_water"]
+
+
+@pytest.mark.cache
+def test_landslide_verdict_serves_the_calibrated_null():
+    from fastapi.testclient import TestClient
+
+    from app import app
+
+    with TestClient(app) as client:
+        verdict = client.get("/api/landslide-verdict").json()
+    assert verdict["outcome"] == "no_motion"
+    assert verdict["noise_floor_mm"] == pytest.approx(9.105, abs=0.01)
+    assert verdict["n_pairs"] == 17
+    assert all(stack["exceeds_null"] is False for stack in verdict["calibration"])
+    assert "landslide" in verdict["command"]

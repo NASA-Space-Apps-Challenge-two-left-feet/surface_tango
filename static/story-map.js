@@ -22,6 +22,28 @@ const pendingResults = {
 const resultStates = { live: "Live", cached: "Cached", gate: "Gate result" };
 let storyRequest;
 
+// --- Aburrá verdict card (the calibrated null as a first-class result) ---
+async function loadLandslideVerdictCard() {
+  const card = document.getElementById("verdict-card");
+  if (!card || card.dataset.loaded === "true") return;
+  try {
+    const response = await fetch("/api/landslide-verdict", { cache: "no-store" });
+    if (!response.ok) throw new Error("verdict unavailable");
+    const verdict = await response.json();
+    card.dataset.loaded = "true";
+    card.hidden = false;
+    const floor = verdict.noise_floor_mm?.toLocaleString("en", { maximumFractionDigits: 1 }) ?? "—";
+    card.innerHTML = `
+      <p class="verdict-stamp">VERDICT · NO MOTION</p>
+      <p class="verdict-number">${floor} mm</p>
+      <p class="verdict-text">${verdict.text}</p>
+      <p class="verdict-provenance">Calibrated null · ${verdict.n_pairs} GUNW pairs · ${verdict.calibration.map(s => `${s.stack.split(" ")[0]} ${s.exceeds_null ? "exceeds" : "below"} null`).join(" · ")}</p>
+      <p class="verdict-source">evidence artifact · ${verdict.command ?? ""}</p>`;
+  } catch {
+    card.hidden = true;
+  }
+}
+
 // --- Measured La Mojana open-water timeline (flood chapter only) ---
 const floodTimeline = document.getElementById("flood-timeline");
 const floodTimelineState = { series: null, selected: "" };
@@ -100,6 +122,11 @@ function hideFloodTimeline() {
   floodTimeline.hidden = true;
   const readout = document.getElementById("flood-readout");
   if (readout) readout.hidden = true;
+}
+
+function hideVerdictCard() {
+  const card = document.getElementById("verdict-card");
+  if (card) card.hidden = true;
 }
 
 function setCurtainLabels(chapter) {
@@ -257,6 +284,7 @@ function openLiveView() {
   chapterSelect.value = "";
   storyResult.hidden = true;
   hideFloodTimeline();
+  hideVerdictCard();
   physicsInspector.style.display = "";
   maps.forEach(map => map.resize());
   setCurtainLabels("");
@@ -283,6 +311,7 @@ async function openStoryChapter(chapter) {
   resetStoryPanels(labels, "Not cached", "Awaiting chapter tiles");
   showStoryResult("Not cached", pendingResults[chapter]);
   if (chapter !== "flood") hideFloodTimeline();
+  if (chapter !== "landslide") hideVerdictCard();
 
   try {
     const aoi = chapterAreas[chapter];
@@ -353,6 +382,9 @@ async function openStoryChapter(chapter) {
     drawMeasuredOverlays(chapter, { ...(hasStagedEvidence ? cachedResult : {}), open_water: water }, evidence);
     if (chapter === "flood" && !request.signal.aborted) {
       await loadFloodTimeline();
+    }
+    if (chapter === "landslide" && !request.signal.aborted) {
+      await loadLandslideVerdictCard();
     }
   } catch {
     if (request.signal.aborted) return;

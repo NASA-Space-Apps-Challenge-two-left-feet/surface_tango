@@ -274,6 +274,41 @@ def flood_mask_bounds(date: str = Query(...)):
     return {"date": date, "bounds": [west, south, east, north]}
 
 
+LANDSLIDE_EVIDENCE = CACHE_ROOT / "aburra" / "landslide_evidence.json"
+
+
+@app.get("/api/landslide-verdict")
+def landslide_verdict():
+    """The Aburrá calibrated verdict, from the serialized evidence artifact."""
+    try:
+        artifact = json.loads(LANDSLIDE_EVIDENCE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise HTTPException(404, "Landslide evidence artifact unavailable") from error
+    verdict = artifact.get("noise_floor_verdict")
+    if not isinstance(verdict, dict) or "outcome" not in verdict:
+        raise HTTPException(500, "Landslide artifact malformed")
+    provenance = artifact.get("provenance", {})
+    return {
+        "outcome": verdict.get("outcome"),
+        "text": verdict.get("text"),
+        "noise_floor_mm": verdict.get("noise_floor_mm"),
+        "n_pairs": verdict.get("n_pairs"),
+        "test": verdict.get("test"),
+        "calibration": [
+            {
+                "stack": entry.get("stack"),
+                "n_pairs": entry.get("n_pairs"),
+                "eligible_pixels": entry.get("eligible_pixels"),
+                "exceeds_null": entry.get("exceeds_null"),
+            }
+            for entry in verdict.get("calibration", [])
+            if isinstance(entry, dict)
+        ],
+        "granule_ids": provenance.get("granule_ids", [])[:1] + ["…"],
+        "command": provenance.get("command"),
+    }
+
+
 @app.get("/api/cache-bands/{aoi}")
 def cache_bands(aoi: str):
     """Band states from the AOI manifest. Withheld co-event bands map to `not cached`."""
