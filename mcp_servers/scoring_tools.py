@@ -30,7 +30,14 @@ for _candidate in (_REPO_ROOT, _REPO_ROOT / "src"):
 from validation import scoring  # noqa: E402
 
 _TRIPLET_KEYS = ("reference_R", "coevent_C", "control_K")
-_TRIPLET_EXTRAS = ("track", "geometry", "frame", "baseline_days", "baseline_mismatch")
+_TRIPLET_EXTRAS = (
+    "track",
+    "geometry",
+    "frame",
+    "control_K_timing",  # pre_event | post_event: a post-event K caps the claim (#131)
+    "baseline_days",
+    "baseline_mismatch",
+)
 
 
 def _section(config: Mapping[str, Any], name: str) -> Mapping[str, Any]:

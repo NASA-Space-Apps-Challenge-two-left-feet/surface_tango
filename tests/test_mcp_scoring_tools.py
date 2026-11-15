@@ -56,6 +56,14 @@ def test_pair_set_list_schema_normalises_and_keeps_extras():
     assert "track" in out[1] and "baseline_days" not in out[1]
 
 
+def test_pair_set_keeps_control_timing_label():
+    pairs = [
+        {"reference_R": "R", "coevent_C": "C", "control_K": "K", "control_K_timing": "post_event"}
+    ]
+    out = scoring_tools.earthquake_pair_set({"quake": {"pairs": pairs}})
+    assert out[0]["control_K_timing"] == "post_event"
+
+
 def test_pair_set_accepts_single_triplet_mapping():
     triplet = {"reference_R": "R", "coevent_C": "C", "control_K": "K"}
     out = scoring_tools.earthquake_pair_set({"quake": {"pairs": triplet}})
