@@ -1,6 +1,6 @@
 # Video draft cut
 
-`video/assemble.py` renders a **silent** 30-second draft (1920×1080, 30 fps, H.264 with a silent AAC track) of the locked La Mojana storyboard. Voice-over is recorded later (#43). Every voice-over slot shows a `VO placeholder` tag.
+`video/assemble.py` renders a **silent** 30-second draft (1920×1080, 30 fps, H.264 with a silent AAC track) of the locked La Mojana storyboard. The English voice-over is AI-generated (no human voice; challenge requirement) and muxed in #44. Every voice-over slot shows a `VO placeholder` tag.
 
 ## Run
 
