@@ -11,7 +11,6 @@ const storyPanels = [
   { id: "nisar", map: mapNisar, sourceId: "nisar-active-raster" },
 ];
 const comparisonLabels = ["Sentinel-2 optical", "Sentinel-1 C-band", "NISAR L-band"];
-const quakeLabels = ["Sentinel-2 post-event optical", "NISAR pre-event coherence", "NISAR co-event coherence loss"];
 const chapterAreas = { landslide: "aburra", earthquake: "eje_cafetero", flood: "mojana" };
 
 // Chapter-transition curtain: the two-left-feet caminata plays between chapters
@@ -171,11 +170,11 @@ function hideVerdictCard() {
 }
 
 function setCurtainLabels(chapter) {
-  const labels = chapter === "earthquake" ? quakeLabels : comparisonLabels;
+  const labels = comparisonLabels;
   storyPanels.forEach(({ id }, index) => {
     document.getElementById(`${id}-label`).textContent = labels[index];
   });
-  const short = chapter === "earthquake" ? ["Optical", "Pre-event", "Co-event"] : ["Optical", "C-band", "L-band"];
+  const short = ["Optical", "C-band", "L-band"];
   document.getElementById("handle-label-1").textContent = `◀ ${short[0]} | ${short[1]} ▶`;
   document.getElementById("handle-label-2").textContent = `◀ ${short[1]} | ${short[2]} ▶`;
   return labels;
@@ -225,6 +224,20 @@ function resetStoryPanels(labels, state, detail) {
     setTileLayer(map, sourceId, null);
     panelStatus(id, state, `${labels[index]} · ${detail}`);
   });
+}
+
+function renderPrimaryNisarPanel(panel, aoi) {
+  const { map, sourceId } = storyPanels[2];
+  if (panel?.state === "cached" && usableTile(panel)) {
+    const options = panel.bounds ? { bounds: panel.bounds } : {};
+    setTileLayer(map, sourceId, panel.tile_url, options);
+    panelStatus("nisar", "Cached", panel.detail || panel.label || "NISAR L-band",
+      (panel.granule_ids ?? []).join(", "));
+    return true;
+  }
+  setTileLayer(map, sourceId, null);
+  panelStatus("nisar", "Not cached", `NISAR L-band · ${aoi}`);
+  return false;
 }
 
 function isMapPoint(point) {
@@ -300,13 +313,8 @@ async function readStoryInput(path, signal) {
   return value;
 }
 
-function cachedChapterPanels(chapter, references, los) {
-  const panels = [references.s2, references.s1, los];
-  if (chapter === "earthquake") {
-    // The middle panel changes to NISAR pre-event coherence in this layout.
-    panels[1] = null;
-  }
-  return panels;
+function cachedChapterPanels(references) {
+  return [references.s2, references.s1, null];
 }
 
 function fitChapter(bounds) {
@@ -342,7 +350,7 @@ function openLiveView() {
   inspectHazardDomain(selectedDomain);
 }
 
-async function openStoryChapter(chapter) {
+async function openStoryChapter(chapter, selectedAoi = chapterAreas[chapter]) {
   if (!chapter) {
     openLiveView();
     return;
@@ -364,14 +372,13 @@ async function openStoryChapter(chapter) {
   if (chapter !== "landslide") hideVerdictCard();
 
   try {
-    const aoi = chapterAreas[chapter];
-    const [published, staged, sentinel, landslide, reportFacts, bands] = await Promise.allSettled([
+    const aoi = selectedAoi;
+    const [published, staged, sentinel, reportFacts, lband] = await Promise.allSettled([
       readStoryInput("/static/story-evidence.json", request.signal),
       readStoryInput("/api/story-results", request.signal),
       aoi ? readStoryInput(`/api/sentinel-tiles/${aoi}`, request.signal) : {},
-      chapter === "landslide" ? readStoryInput("/api/local-tiles/landslide", request.signal) : null,
       readStoryInput("/api/pitch-facts", request.signal),
-      aoi ? readStoryInput(`/api/cache-bands/${aoi}`, request.signal) : {},
+      aoi ? readStoryInput(`/api/nisar-panel/${aoi}`, request.signal) : {},
     ]);
     if (request.signal.aborted) return;
 
@@ -397,16 +404,10 @@ async function openStoryChapter(chapter) {
     const references = sentinel.value ?? {};
     const water = cachedResult?.open_water;
     fitChapter(result?.bounds ?? water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
-    const cached = cachedChapterPanels(chapter, references, landslide.value);
+    const cached = cachedChapterPanels(references);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
-      if (chapter === "earthquake" && index === 2) {
-        // The freeze unsealed C/K; the panel states what the cache actually holds.
-        const status = bands.value?.bands?.coherence_C?.status ?? "withheld";
-        if (status === "cached") {
-          panelStatus(id, "Cached", `Co-event coherence · unsealed after the pre-registration freeze · manifest: cached`);
-        } else {
-          panelStatus(id, "Not cached", `Co-event coherence C/K · manifest: ${status}`);
-        }
+      if (index === 2) {
+        renderPrimaryNisarPanel(lband.value, aoi);
         return;
       }
       const approved = hasStagedEvidence ? cachedResult.panels?.[index] : null;
@@ -417,15 +418,7 @@ async function openStoryChapter(chapter) {
         const coverage = Number.isFinite(panel.coverage_pct) ? `${panel.coverage_pct}% of AOI imaged` : "";
         const detail = [labels[index], panel.date, coverage].filter(Boolean).join(" · ");
         panelStatus(id, resultStates[panel.state], detail, (panel.scene_ids ?? panel.granule_ids ?? []).join(", "));
-      } else if (chapter === "earthquake" && index === 1) {
-        const image = cachedResult?.pre_event_coherence;
-        if (image?.url?.startsWith("data:image/png;base64,") && typeof image.granule === "string"
-            && Array.isArray(image.corners) && image.corners.length === 4 && image.corners.every(isMapPoint)) {
-          setTileLayer(map, sourceId, image.url, { type: "image", url: image.url, coordinates: image.corners });
-          panelStatus(id, "Cached", [labels[index], image.dates?.join(" to ")].filter(Boolean).join(" · "), image.granule);
-        }
-      } else if ((index < 2 && cached[index] !== null && sentinel.status === "rejected")
-          || (chapter === "landslide" && index === 2 && landslide.status === "rejected")) {
+      } else if (index < 2 && cached[index] !== null && sentinel.status === "rejected") {
         panelStatus(id, "Error", `${labels[index]} unavailable`);
       }
     });

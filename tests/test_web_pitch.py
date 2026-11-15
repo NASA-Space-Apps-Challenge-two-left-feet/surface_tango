@@ -121,3 +121,72 @@ def test_landslide_verdict_serves_the_calibrated_null():
     assert verdict["n_pairs"] == 17
     assert all(stack["exceeds_null"] is False for stack in verdict["calibration"])
     assert "landslide" in verdict["command"]
+
+
+@pytest.mark.cache
+def test_primary_lband_panels_are_owned_by_their_cached_evidence_artifacts():
+    """Panel 3 must not borrow a sentinel tile or another AOI's L-band raster."""
+    from fastapi.testclient import TestClient
+
+    from app import app
+
+    expected = {
+        "mojana": {
+            "label": "GCOV open water",
+            "artifacts": {"mojana/flood_evidence.json", "mojana/water_extent_2026-06-17.tif"},
+            "granule": "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001",
+        },
+        "aburra": {
+            "label": "GUNW landslide kinematics",
+            "artifacts": {"aburra/landslide_evidence.json", "aburra/cogs/aburra_los_disp_mm.tif"},
+        },
+        "eje_cafetero": {
+            "label": "GUNW DPM window",
+            "artifacts": {
+                "eje_cafetero/quake_evidence_track11.json",
+                "eje_cafetero/quake_evidence_track47.json",
+                "eje_cafetero/cogs/eje_cafetero_coherence_coseismic.tif",
+            },
+        },
+    }
+    with TestClient(app) as client:
+        for aoi, checks in expected.items():
+            response = client.get(f"/api/nisar-panel/{aoi}")
+            assert response.status_code == 200
+            panel = response.json()
+            assert panel["state"] == "cached"
+            assert panel["aoi"] == aoi
+            assert panel["label"] == checks["label"]
+            assert set(panel["evidence_artifacts"]) == checks["artifacts"]
+            assert all(artifact.startswith(f"{aoi}/") for artifact in panel["evidence_artifacts"])
+            if "granule" in checks:
+                assert panel["granule_ids"] == [checks["granule"]]
+            if aoi == "eje_cafetero":
+                assert panel["tracks"] == [11, 47]
+            tile = panel["tile_url"].format(z=9, x=150, y=250)
+            tile_response = client.get(tile)
+            assert tile_response.status_code == 200
+            assert tile_response.headers["content-type"] == "image/png"
+
+
+@pytest.mark.cache
+def test_primary_lband_panel_is_not_cached_without_an_aoi_owned_artifact():
+    from fastapi.testclient import TestClient
+
+    from app import app
+
+    with TestClient(app) as client:
+        for aoi in ("la_picacha", "choco_epicenter", "valle_del_cauca"):
+            response = client.get(f"/api/nisar-panel/{aoi}")
+            assert response.status_code == 200
+            assert response.json() == {"state": "not cached", "aoi": aoi}
+            assert client.get(f"/api/nisar-panel/{aoi}/9/150/250.png").status_code == 404
+
+
+def test_story_map_keeps_sentinel_context_and_lband_provisional_primary_panel():
+    story_map = (ROOT / "static/story-map.js").read_text(encoding="utf-8")
+    page = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    assert "readStoryInput(`/api/sentinel-tiles/${aoi}`" in story_map
+    assert "readStoryInput(`/api/nisar-panel/${aoi}`" in story_map
+    assert "renderPrimaryNisarPanel(lband.value, aoi)" in story_map
+    assert 'id="nisar-label">NISAR L-band</span> · <strong>PROVISIONAL</strong>' in page

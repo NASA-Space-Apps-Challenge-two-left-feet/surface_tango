@@ -2,6 +2,11 @@
 
 _Last update: 2026-11-15 (UTC−5)_
 
+## feat/nisar-lband-primary
+
+- Done: Panel 3 now requests `/api/nisar-panel/<aoi>` and renders only an AOI-owned cached L-band product: La Mojana's `water_extent_2026-06-17.tif` (GCOV open water), Aburrá's `aburra_los_disp_mm.tif` (GUNW kinematics), or Eje Cafetero's track-11 co-event coherence raster (DPM display). The response records its cache-relative evidence artifacts and granule provenance; Eje also records the distinct track-47 DPM evidence window without rendering track-11 pixels in its place.
+- Done: La Picacha, Chocó epicenter and Valle del Cauca return **Not cached** for panel 3 because no AOI-owned L-band display artifact is staged. Sentinel-2 and Sentinel-1 remain the first two context panels.
+
 ## feat/web-offline-pitch (#37, #39/#43 prep)
 
 - Done: The page opens on **La Mojana** (the ratified headline). `?chapter=live` keeps mission control. Chapter numbers come from `/api/pitch-facts`. That endpoint uses `video/report_facts.py` to parse `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. `static/story-evidence.json` now holds `{placeholders}` only, and each summary carries its report sources (`data-fact-sources`). If a report line changes shape, the chapter shows **Error** instead of an old number.

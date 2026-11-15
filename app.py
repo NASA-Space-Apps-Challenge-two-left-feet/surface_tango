@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.transform import from_bounds
-from rasterio.warp import reproject
+from rasterio.warp import Resampling, reproject
 
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
@@ -55,6 +55,14 @@ ASSET_PATHS = {
 }
 HAZARD_DOMAINS = {"landslide", "flood", "earthquake"}
 LANDSLIDE_BAND = "los_disp_mm"
+NISAR_AOIS = {
+    "mojana",
+    "aburra",
+    "eje_cafetero",
+    "la_picacha",
+    "choco_epicenter",
+    "valle_del_cauca",
+}
 
 
 @app.get("/assets/{name}")
@@ -264,8 +272,7 @@ def aois():
     data-footprint bbox so the navigator frames the data, not an empty AOI box."""
     out: dict[str, list] = {"flood": [], "landslide": [], "earthquake": []}
     for item in AOI_REGISTRY:
-        manifest = CACHE_ROOT / item["id"] / "tiles" / "manifest.json"
-        state = "cached" if manifest.is_file() else "not cached"
+        state = nisar_panel(item["id"]).get("state", "not cached")
         entry = {**item, "state": state}
         if state == "cached":
             entry.update(aoi_coverage_footprint(item["id"], item["hazard"]))
@@ -501,6 +508,270 @@ def landslide_verdict():
         "granule_ids": provenance.get("granule_ids", [])[:1] + ["…"],
         "command": provenance.get("command"),
     }
+
+
+@dataclass(frozen=True)
+class NisarPanel:
+    """One AOI-owned L-band display product and its serialized evidence."""
+
+    aoi: str
+    label: str
+    raster: Path
+    style: str
+    bounds: list[float]
+    granule_ids: list[str]
+    evidence_artifacts: list[str]
+    detail: str
+    tracks: list[int] | None = None
+
+
+def _load_cached_evidence(path: Path, schema: str) -> dict | None:
+    """Return a well-formed, cache-local evidence artifact, never a fallback."""
+    try:
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(artifact, dict) or artifact.get("schema") != schema:
+        return None
+    provenance = artifact.get("provenance")
+    if not isinstance(provenance, dict):
+        return None
+    granules = provenance.get("granule_ids")
+    if not isinstance(granules, list) or not all(
+        isinstance(item, str) and item for item in granules
+    ):
+        return None
+    return artifact
+
+
+def _cached_band(manifest: dict, name: str) -> str | None:
+    band = manifest.get("bands", {}).get(name)
+    if not isinstance(band, dict) or band.get("status") != "cached":
+        return None
+    source = band.get("source_id")
+    if not isinstance(source, str) or not source.strip() or source == "missing":
+        return None
+    return source.strip()
+
+
+def _granule_id(source: str) -> str:
+    """Drop a human provenance qualifier while retaining the immutable granule ID."""
+    return source.split(" (", 1)[0]
+
+
+def _panel_bounds(path: Path) -> list[float] | None:
+    try:
+        with rasterio.open(path) as source:
+            west, south, east, north = rasterio.warp.transform_bounds(
+                source.crs, "EPSG:4326", *source.bounds, densify_pts=21
+            )
+    except rasterio.errors.RasterioError:
+        return None
+    values = [west, south, east, north]
+    if not all(np.isfinite(values)) or west >= east or south >= north:
+        return None
+    return values
+
+
+def _artifact_name(path: Path) -> str:
+    """A stable cache-relative name for display provenance, never a host path."""
+    return str(path.relative_to(CACHE_ROOT))
+
+
+def find_nisar_panel(aoi: str) -> NisarPanel | None:
+    """Find only the analysis product owned by *aoi*.
+
+    This deliberately does not look in any other AOI directory: lack of a local
+    product is a ``not cached`` panel state rather than a visual substitute.
+    """
+    if aoi not in NISAR_AOIS:
+        return None
+    root = CACHE_ROOT / aoi
+    manifest_path = root / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if manifest.get("aoi") != aoi:
+        return None
+
+    if aoi == "mojana":
+        evidence_path = root / "flood_evidence.json"
+        evidence = _load_cached_evidence(evidence_path, "flood/1")
+        water = evidence.get("water_extent") if evidence else None
+        if not isinstance(water, dict):
+            return None
+        date = water.get("reference_date")
+        granules = water.get("source_ids")
+        raster = root / f"water_extent_{date}.tif"
+        if (
+            not isinstance(date, str)
+            or not isinstance(granules, list)
+            or not all(isinstance(item, str) and item for item in granules)
+            or not raster.is_file()
+        ):
+            return None
+        bounds = _panel_bounds(raster)
+        if bounds is None:
+            return None
+        return NisarPanel(
+            aoi=aoi,
+            label="GCOV open water",
+            raster=raster,
+            style="water",
+            bounds=bounds,
+            granule_ids=granules,
+            evidence_artifacts=[_artifact_name(evidence_path), _artifact_name(raster)],
+            detail=f"GCOV open-water mask · {date}",
+        )
+
+    if aoi == "aburra":
+        evidence_path = root / "landslide_evidence.json"
+        evidence = _load_cached_evidence(evidence_path, "landslide/1")
+        source = _cached_band(manifest, LANDSLIDE_BAND)
+        raster = root / "cogs" / "aburra_los_disp_mm.tif"
+        granules = evidence.get("provenance", {}).get("granule_ids", []) if evidence else []
+        granule = _granule_id(source) if source else None
+        if granule is None or granule not in granules or not raster.is_file():
+            return None
+        bounds = _panel_bounds(raster)
+        if bounds is None:
+            return None
+        return NisarPanel(
+            aoi=aoi,
+            label="GUNW landslide kinematics",
+            raster=raster,
+            style="los",
+            bounds=bounds,
+            granule_ids=[granule],
+            evidence_artifacts=[_artifact_name(evidence_path), _artifact_name(raster)],
+            detail="GUNW LOS kinematics · ionosphere screen applied",
+        )
+
+    if aoi == "eje_cafetero":
+        evidence_paths = [
+            root / "quake_evidence_track11.json",
+            root / "quake_evidence_track47.json",
+        ]
+        evidence = [_load_cached_evidence(path, "quake/1") for path in evidence_paths]
+        source = _cached_band(manifest, "coherence_coseismic")
+        raster = root / "cogs" / "eje_cafetero_coherence_coseismic.tif"
+        if source is None or not raster.is_file() or any(item is None for item in evidence):
+            return None
+        track11 = evidence[0]
+        coevent = track11.get("pairs", {}).get("C", {})
+        if coevent.get("granule_id") != source:
+            return None
+        # Track 47 has an evidence window but no display raster. It remains an
+        # explicit artifact in provenance; do not render track 11 in its place.
+        granules = [source]
+        bounds = _panel_bounds(raster)
+        if bounds is None:
+            return None
+        return NisarPanel(
+            aoi=aoi,
+            label="GUNW DPM window",
+            raster=raster,
+            style="coherence",
+            bounds=bounds,
+            granule_ids=granules,
+            evidence_artifacts=[_artifact_name(path) for path in evidence_paths]
+            + [_artifact_name(raster)],
+            detail="Co-event GUNW coherence · DPM windows tracks 11 and 47",
+            tracks=[11, 47],
+        )
+
+    return None
+
+
+def nisar_panel(aoi: str) -> dict:
+    """Serialize one local L-band panel or its intentional ``not cached`` state."""
+    if aoi not in NISAR_AOIS:
+        raise HTTPException(404, "Unknown NISAR analysis area")
+    panel = find_nisar_panel(aoi)
+    if panel is None:
+        return {"state": "not cached", "aoi": aoi}
+    return {
+        "state": "cached",
+        "source": "cache",
+        "aoi": panel.aoi,
+        "label": panel.label,
+        "detail": panel.detail,
+        "granule_ids": panel.granule_ids,
+        "evidence_artifacts": panel.evidence_artifacts,
+        "tracks": panel.tracks,
+        "bounds": panel.bounds,
+        "tile_url": f"/api/nisar-panel/{aoi}/{{z}}/{{x}}/{{y}}.png",
+    }
+
+
+@app.get("/api/nisar-panel/{aoi}")
+def nisar_panel_status(aoi: str):
+    """Cached L-band primary product and provenance for the selected AOI."""
+    return nisar_panel(aoi)
+
+
+def _panel_rgba(style: str, values: np.ndarray) -> np.ndarray:
+    """Color cached data while leaving unavailable pixels transparent."""
+    rgba = np.zeros((4, *values.shape), dtype=np.uint8)
+    valid = np.isfinite(values)
+    if style == "water":
+        water = valid & (values == 1)
+        rgba[:, water] = np.array([53, 196, 181, 200], dtype=np.uint8)[:, None]
+        return rgba
+    if not valid.any():
+        return rgba
+    signal = values[valid]
+    if style == "los":
+        scale = float(np.percentile(np.abs(signal), 95)) or 1.0
+        norm = np.clip(signal / (2 * scale) + 0.5, 0.0, 1.0)
+        red, green, blue = _los_diverging_rgb(norm)
+    else:  # coherence is an observed 0..1 ratio, never an imputed value.
+        norm = np.clip(signal, 0.0, 1.0)
+        red = (35 + norm * 220).astype(np.uint8)
+        green = (30 + norm * 185).astype(np.uint8)
+        blue = (75 + norm * 145).astype(np.uint8)
+    rgba[0, valid] = red
+    rgba[1, valid] = green
+    rgba[2, valid] = blue
+    rgba[3, valid] = 255
+    return rgba
+
+
+@app.get("/api/nisar-panel/{aoi}/{z}/{x}/{y}.png")
+def serve_nisar_panel_tile(aoi: str, z: int, x: int, y: int):
+    """Render only the selected AOI's cached L-band raster as an XYZ PNG."""
+    if not valid_xyz(z, x, y):
+        raise HTTPException(404, "Invalid XYZ tile")
+    panel = find_nisar_panel(aoi)
+    if panel is None:
+        raise HTTPException(404, "NISAR analysis product not cached")
+    half_world = np.pi * 6378137
+    span = 2 * half_world / 2**z
+    left, top = -half_world + x * span, half_world - y * span
+    transform = from_bounds(left, top - span, left + span, top, 256, 256)
+    try:
+        with rasterio.open(panel.raster) as source:
+            source_values = source.read(1, masked=True).astype(np.float32).filled(np.nan)
+            values = np.full((256, 256), np.nan, dtype=np.float32)
+            reproject(
+                source_values,
+                values,
+                src_transform=source.transform,
+                src_crs=source.crs,
+                src_nodata=np.nan,
+                dst_transform=transform,
+                dst_crs="EPSG:3857",
+                dst_nodata=np.nan,
+                resampling=Resampling.nearest,
+            )
+    except rasterio.errors.RasterioError as error:
+        raise HTTPException(500, "Cached NISAR raster unreadable") from error
+    rgba = _panel_rgba(panel.style, values)
+    with MemoryFile() as png:
+        with png.open(driver="PNG", width=256, height=256, count=4, dtype="uint8") as image:
+            image.write(rgba)
+        return Response(png.read(), media_type="image/png")
 
 
 @app.get("/api/cache-bands/{aoi}")

@@ -573,46 +573,16 @@
         ? JSON.stringify(report.key_quantitative_metrics, null, 2) : "No metrics loaded.";
       renderPhysicsDiagram(domain);
 
-      const rasterId = "nisar-active-raster";
-      setTileLayer(mapNisar, rasterId, null);
-      let gateStatement;
+      const aoi = { landslide: "aburra", flood: "mojana", earthquake: "eje_cafetero" }[domain];
       try {
-        const gate = await fetch(`/api/panel-gate/${domain}`);
-        if (!gate.ok) throw new Error("Gate lookup failed");
-        if (gate.status !== 204) gateStatement = (await gate.json()).statement;
+        const response = await fetch(`/api/nisar-panel/${aoi}`);
+        if (!response.ok) throw new Error("Cache lookup failed");
+        const panel = await response.json();
+        if (inspection !== currentInspection) return;
+        renderPrimaryNisarPanel(panel, aoi);
       } catch {
         if (inspection === currentInspection) {
-          panelStatus("nisar", "Error", "Could not read the gate result. Select the hazard to retry.");
-        }
-        return;
-      }
-      if (inspection !== currentInspection) return;
-      if (gateStatement) {
-        panelStatus("nisar", "Gate result", gateStatement);
-        return;
-      }
-      const liveTile = report?.gee_xyz_tile_url;
-      if (liveTile && !liveTile.includes("/api/local-tiles/")) {
-        setTileLayer(mapNisar, rasterId, liveTile);
-        panelStatus("nisar", "Live", "NISAR tile source");
-      } else {
-        panelStatus("nisar", "Not cached", "Checking the local NISAR cube…");
-        try {
-          const response = await fetch(`/api/local-tiles/${domain}`);
-          if (!response.ok) throw new Error("Cache lookup failed");
-          const cache = await response.json();
-          if (inspection !== currentInspection) return;
-          if (cache.state === "cached") {
-            setTileLayer(mapNisar, rasterId, cache.tile_url);
-            panelStatus("nisar", "Cached", "NISAR LOS displacement", cache.granule_ids.join(", "));
-          } else {
-            panelStatus("nisar", "Not cached", domain === "landslide"
-              ? "Aburra LOS tiles unavailable. Launch scan to try live data."
-              : "Approved comparison tiles unavailable.");
-          }
-        } catch {
-          if (inspection !== currentInspection) return;
-          panelStatus("nisar", "Error", "Could not read the local cache. Select the hazard to retry.");
+          panelStatus("nisar", "Error", "Could not read the local NISAR cache. Select the hazard to retry.");
         }
       }
       if (report?.hotspot_coordinates) {
