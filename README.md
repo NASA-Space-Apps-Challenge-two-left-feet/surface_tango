@@ -274,7 +274,7 @@ overlay an existing cache; files absent from the release are preserved. Failed
 installs attempt rollback and retain any unrestored originals in the backup path
 reported with recovery instructions. Application readers do not use this lock.
 
-**Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>; end-to-end offline operation is pending, and the current Compose configuration expects local credential mount paths and invokes the cache warmer when its manifest is absent.
+**Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>. It requires a staged La Mojana cache and skips cloud prewarming. End-to-end Docker operation still needs a rehearsal on a host with Docker; the current Compose file retains credential mount paths.
 
 ### Offline web app and video draft (no Docker)
 
@@ -285,7 +285,7 @@ OFFLINE_DEMO_MODE=1 uv run uvicorn app:app --port 8000   # http://localhost:8000
 uv run python video/assemble.py                          # silent 30 s draft -> video/draft_cut.mp4
 ```
 
-The page opens on the La Mojana chapter; `?chapter=live` shows mission control, `?split=a,b` sets the curtain positions (percent). Every on-screen number comes from `/api/pitch-facts`, which parses `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. The Docker image does not yet copy those files, so under `make pitch` the chapters show **Error** until the Dockerfile is updated. The video needs `ffmpeg`; see [video/README.md](video/README.md).
+The page opens on the La Mojana chapter; `?chapter=live` shows mission control, `?split=a,b` sets the curtain positions (percent). Every on-screen number comes from `/api/pitch-facts`, which parses `reports/mojana.md`, `reports/aburra.md` and `validation/README.md`. The Docker image includes those files, the runtime config, and the gate catalog. The video needs `ffmpeg`; see [video/README.md](video/README.md).
 
 ### Live mode (credentials required)
 

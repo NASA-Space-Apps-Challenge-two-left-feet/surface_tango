@@ -1,0 +1,11 @@
+.git/
+.venv/
+.env
+.env.*
+secrets/
+local_cache/
+video/raw/
+video/*.mp4
+video/*.mov
+__pycache__/
+*.pyc

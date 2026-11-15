@@ -23,35 +23,13 @@ ENV GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR" \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/app"
+    PYTHONPATH="/app:/app/src"
 
 WORKDIR /app
 
 # 3. Install Python dependencies into isolated /app/.venv
-COPY pyproject.toml ./
-RUN uv venv /app/.venv && \
-    . /app/.venv/bin/activate && \
-    uv pip install \
-    fastapi[standard] \
-    uvicorn[standard] \
-    langgraph \
-    langchain \
-    langchain-anthropic \
-    langchain-community \
-    langchain-mcp-adapters \
-    fastmcp \
-    earthengine-api \
-    earthaccess \
-    asf_search \
-    rioxarray \
-    xarray \
-    zarr \
-    rasterio \
-    numpy \
-    pillow \
-    google-cloud-storage \
-    pydantic \
-    httpx
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -61,6 +39,12 @@ COPY mcp_servers/ ./mcp_servers/
 COPY agents/ ./agents/
 COPY scripts/ ./scripts/
 COPY static/ ./static/
+COPY src/ ./src/
+COPY config/ ./config/
+COPY validation/ ./validation/
+COPY reports/ ./reports/
+COPY video/ ./video/
+COPY nisar_colombia_granules_2026.json ./
 COPY app.py ./
 
 # Create persistent cache & credential mount directories
