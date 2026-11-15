@@ -265,6 +265,13 @@ make pitch
 
 Without make (including Windows): `uv run python scripts/fetch_cache.py --repo <owner/repository> --tag <published-release-tag>`.
 
+Cache fetch and direct assembly hold `.local_cache.lock` beside the destination to
+exclude other writers. If an interrupted fetch leaves a lock, first confirm that
+no fetch is running, then rerun the script with `--break-lock`. Use `--force` to
+overlay an existing cache; files absent from the release are preserved. Failed
+installs attempt rollback and retain any unrestored originals in the backup path
+reported with recovery instructions. Application readers do not use this lock.
+
 **Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>; end-to-end offline operation is pending, and the current Compose configuration expects local credential mount paths and invokes the cache warmer when its manifest is absent.
 
 ### Live mode (credentials required)

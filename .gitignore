@@ -11,6 +11,7 @@ secrets/
 # Data never enters git
 local_cache
 .local_cache-*
+.local_cache.lock
 *.zarr/
 *.tif
 *.h5

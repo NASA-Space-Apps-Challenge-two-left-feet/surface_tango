@@ -13,8 +13,10 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import tarfile
 import tempfile
+from contextlib import contextmanager, nullcontext
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
@@ -321,6 +323,47 @@ def stage(cache_dir, output_dir, source_commit, max_part_bytes=MAX_ASSET_BYTES):
     return manifest
 
 
+@contextmanager
+def cache_lock(cache_dir, break_lock=False):
+    """Serialize writers only; application readers are outside this lock's scope."""
+    destination = Path(cache_dir).absolute()
+    lock = destination.parent / f".{destination.name}.lock"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if break_lock:
+        try:
+            removed = lock.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            pass
+        else:
+            lock.unlink()
+            print(f"removed lock {lock}: {removed.strip()}")
+    try:
+        descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        try:
+            owner = json.loads(lock.read_text(encoding="utf-8"))
+            pid, since = owner.get("pid", "unknown"), owner.get("since", "unknown")
+        except (OSError, ValueError, AttributeError):
+            pid, since = "unknown", "unknown"
+        raise ValueError(
+            f"another fetch holds {lock} (pid {pid}, since {since}); "
+            "if no fetch is running, rerun with --break-lock"
+        ) from None
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(
+                {
+                    "pid": os.getpid(),
+                    "hostname": socket.gethostname(),
+                    "since": datetime.now(UTC).isoformat(),
+                },
+                stream,
+            )
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
 def preflight_destination(cache_dir, force=False):
     """Reject ineligible destinations before downloading or assembling assets."""
     destination = Path(cache_dir).absolute()
@@ -345,14 +388,14 @@ def install_staged(staging, destination):
         ensure_directory(target.parent)
         if target.exists():
             save(target)
-        target.mkdir()
         directories.append(target)
+        target.mkdir()
 
     def save(target):
         stored = backup / target.relative_to(destination)
         stored.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(target, stored)
         saved.append((target, stored))
+        os.replace(target, stored)
 
     try:
         ensure_directory(destination)
@@ -366,22 +409,62 @@ def install_staged(staging, destination):
                     if target.is_dir():
                         raise ValueError(f"cannot overlay directory with file: {target}")
                     save(target)
+                # Journal identity before moving: replace may succeed then interrupt.
+                placed.append((target, source.stat()))
                 os.replace(source, target)
-                placed.append(target)
-    except BaseException:
-        for target in reversed(placed):
-            target.unlink()
+    except BaseException as error:
+        failures = []
+        for target, identity in reversed(placed):
+            try:
+                # A journaled move may not have happened. Never unlink its original.
+                if target.exists() and os.path.samestat(target.stat(), identity):
+                    target.unlink()
+            except BaseException as recovery_error:
+                failures.append(f"remove {target}: {recovery_error}")
         for target in reversed(directories):
-            target.rmdir()
+            try:
+                if target.exists():
+                    target.rmdir()
+            except BaseException as recovery_error:
+                failures.append(f"remove directory {target}: {recovery_error}")
+        unrestored = []
         for target, stored in reversed(saved):
-            os.replace(stored, target)
-        # Keep backups available if rollback itself raises.
-        shutil.rmtree(backup)
+            try:
+                if stored.exists():
+                    os.replace(stored, target)
+                elif not target.exists():
+                    raise OSError("original missing from both destination and backup")
+            except BaseException as recovery_error:
+                failures.append(f"restore {target}: {recovery_error}")
+            try:
+                # Reconcile an interrupt immediately after a successful restore too.
+                if stored.exists() or not target.exists():
+                    unrestored.append((target, stored))
+            except BaseException as recovery_error:
+                failures.append(f"check restoration of {target}: {recovery_error}")
+                unrestored.append((target, stored))
+        if not unrestored:
+            try:
+                shutil.rmtree(backup)
+            except BaseException as recovery_error:
+                failures.append(f"remove backup {backup}: {recovery_error}")
+        if failures:
+            recovery = "; ".join(f"move {stored} back to {target}" for target, stored in unrestored)
+            raise OSError(
+                f"{error}; rollback incomplete: {'; '.join(failures)}; backup: {backup}"
+                + (f"; recovery: close files in use, then {recovery}" if unrestored else "")
+            ) from error
         raise
     shutil.rmtree(backup)
 
 
-def assemble(manifest, parts_dir, cache_dir, force=False):
+def assemble(manifest, parts_dir, cache_dir, force=False, *, _lock_held=False, break_lock=False):
+    """Hold the writer lock through validation, installation and rollback."""
+    with nullcontext() if _lock_held else cache_lock(cache_dir, break_lock):
+        _assemble(manifest, parts_dir, cache_dir, force)
+
+
+def _assemble(manifest, parts_dir, cache_dir, force=False):
     """Validate bytes before extraction; force overlays files, preserving unlisted files."""
     require_valid(verify_parts(manifest, parts_dir))
     destination = preflight_destination(cache_dir, force)
@@ -465,6 +548,7 @@ def main(argv=None):
         if command == "assemble":
             sub.add_argument("--cache-dir", type=Path, default=Path("local_cache"))
             sub.add_argument("--force", action="store_true")
+            sub.add_argument("--break-lock", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.command == "stage":
@@ -473,7 +557,9 @@ def main(argv=None):
             manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
             require_valid(verify_parts(manifest, args.parts_dir))
             if args.command == "assemble":
-                assemble(manifest, args.parts_dir, args.cache_dir, args.force)
+                assemble(
+                    manifest, args.parts_dir, args.cache_dir, args.force, break_lock=args.break_lock
+                )
         print(f"cache {args.command}: verified")
     except (OSError, ValueError, TypeError, KeyError, EOFError, tarfile.TarError) as error:
         parser.exit(1, f"not cached: {error}\n")

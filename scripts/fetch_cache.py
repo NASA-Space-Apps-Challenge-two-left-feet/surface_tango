@@ -18,6 +18,8 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -27,6 +29,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from cache_release import (  # noqa: E402
     assemble,
+    cache_lock,
     preflight_destination,
     require_valid,
     verify_manifest,
@@ -50,14 +53,29 @@ def download(base: str, name: str, dest_dir: Path, max_bytes: int) -> Path:
     for attempt in range(1, RETRIES + 1):
         try:
             with urllib.request.urlopen(f"{base}/{name}", timeout=120) as response:
-                with dest.open("wb") as output:
+                try:
+                    output = dest.open("wb")
+                except OSError as error:
+                    raise not_cached(f"local write failed for {name}: {error}") from None
+                try:
                     received = 0
                     while chunk := response.read(min(CHUNK_BYTES, max_bytes - received + 1)):
                         received += len(chunk)
                         if received > max_bytes:
                             raise ValueError(f"release asset exceeds size limit: {name}")
-                        output.write(chunk)
+                        try:
+                            output.write(chunk)
+                        except OSError as error:
+                            raise not_cached(f"local write failed for {name}: {error}") from None
+                finally:
+                    try:
+                        output.close()
+                    except OSError as error:
+                        raise not_cached(f"local write failed for {name}: {error}") from None
             return dest
+        except SystemExit:
+            dest.unlink(missing_ok=True)
+            raise
         except ValueError as error:
             dest.unlink(missing_ok=True)
             raise not_cached(str(error)) from None
@@ -73,10 +91,16 @@ def download(base: str, name: str, dest_dir: Path, max_bytes: int) -> Path:
             wait = 2**attempt
             if isinstance(error, urllib.error.HTTPError):
                 try:
-                    retry_after = float(error.headers.get("Retry-After", ""))
+                    value = error.headers.get("Retry-After", "")
+                    try:
+                        retry_after = float(value)
+                    except ValueError:
+                        retry_after = (
+                            parsedate_to_datetime(value) - datetime.now(UTC)
+                        ).total_seconds()
                     if math.isfinite(retry_after) and retry_after >= 0:
                         wait = retry_after
-                except (ValueError, TypeError, AttributeError):
+                except (ValueError, TypeError, AttributeError, OverflowError):
                     pass
             time.sleep(min(wait, MAX_RETRY_WAIT))
     raise AssertionError("unreachable")
@@ -87,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", default=os.environ.get("BAILASAR_REPO", ""))
     parser.add_argument("--tag", default=os.environ.get("BAILASAR_RELEASE_TAG", ""))
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--break-lock", action="store_true")
     args = parser.parse_args(argv)
 
     if not REPO_RE.match(args.repo):
@@ -94,9 +119,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.tag:
         raise not_cached("--tag or BAILASAR_RELEASE_TAG is required")
     try:
-        destination = preflight_destination(ROOT / "local_cache", args.force)
+        with cache_lock(ROOT / "local_cache", args.break_lock):
+            return fetch(args)
     except (OSError, ValueError) as error:
         raise not_cached(str(error)) from None
+
+
+def fetch(args) -> int:
+    """Fetch while main holds the destination's exclusive writer lock."""
+    destination = preflight_destination(ROOT / "local_cache", args.force)
     # Encode the tag as a single URL segment, including tags that contain slashes.
     base = f"https://github.com/{args.repo}/releases/download/{quote(args.tag, safe='')}"
 
@@ -115,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
             download(base, part["name"], parts_dir, part["size_bytes"])
         try:
             require_valid(verify_parts(manifest, parts_dir))
-            assemble(manifest, parts_dir, destination, args.force)
+            assemble(manifest, parts_dir, destination, args.force, _lock_held=True)
         except (OSError, ValueError, KeyError) as error:
             raise not_cached(str(error)) from None
     print("cache fetch: verified and assembled")
