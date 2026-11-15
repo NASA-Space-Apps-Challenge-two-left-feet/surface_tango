@@ -7,8 +7,12 @@ aois:   # bboxes [W, S, E, N] in EPSG:4326 — set by the Data lane at the hour-
 mcp:
   transport: sse
   ports: {nisar_asf: 8001, gee_fusion: 8002}
-breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool at the hour-2 gate (D6); default until measured
+breaker_budgets_s:   # p95 + 0.5 s from 10 timed calls per tool (D6); default until a tool is measured
   default: 1.8
+  # search_nisar_granules: measured n=10 (reports/tool_latency.md), warm p95 0.693 s -> 1.19 s.
+  # Cold start is ~4.2 s (first call); a 1.2 s breaker trips once on a cold connection then serves
+  # cached tiles. Staging and analyze_* tools stay on `default` until they can be timed on real data.
+  search_nisar_granules: 1.2
 features:            # hide unfinished work behind flags instead of long-lived branches
   mathlab_corrections: false
   story_chapter_4_synthesis: false
