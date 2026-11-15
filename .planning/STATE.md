@@ -23,29 +23,30 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home orchestrating. Snapshot refreshed 2026-11-15 ~05:00 UTC.
-Last activity (since 03:55 UTC, all squash-merged into main):
-- #95 LangSmith tracing; #96, #97 Maru's scoring functions and ground-truth research (cherry-picked without her repo-wide formatting commit).
-- #98 La Mojana lane: open water per date measured; change classes degenerate.
-- #102 Jack's power check: **scorecard uninformative**. Headline **La Mojana flood**, ratified by LEONOB2014.
-- #88, #90, #93 Esteban's drafts (submission text, Granizal gloss, README fixes with a mermaid parse check; offline tests 180).
-- #103 Alice's #100/#101, brought from her `develop` branch without the develop-workflow commit, plus the fix for the gee-fusion import crash (209 tests).
-- Draft pre-release `cache-2026-11-15` for the team: 3 AOIs, C-pair coherence and `quake/` withheld.
+Status: claude-home orchestrating (goal mode while the owner is away). Snapshot refreshed 2026-11-15 ~05:25 UTC.
+Since ~05:00 UTC, all squash-merged into main:
+- **Sarita:** #105 mission control loads the staged tiles.
+- **Fixes:** #106 flood timeout on Windows. #108 Esteban's type annotations.
+- **Esteban:** #107 his fixture harness core; #72/#73 closed as superseded (reasons on the PRs).
+- **#109 Aburrá lane:** the orchestrator calibrated the keep-rule against a sign-flip null. Verdict: **no motion detected above 9.105 mm (17 pairs)**; kept fraction below the null mean on both tracks.
+- **#111 quake DPM v2** (opencode): both tracks, sealed C/K statistics, pyarrow, pluggable units; track 11 reproduces #64 exactly.
+- **#110 Jack's MCP scoring wrappers.**
+- #65 deep-reviewed (correct; window constant should move to config).
 
-#### Agents (2026-11-15 ~05:00 UTC)
-| Agent | Lane / issue | State |
-|---|---|---|
-| grok | Aburrá InSAR #33 | **Waiting for the owner to resume it.** Review found the keep-rule passes noise (~25 % kept, signs ~50/50). The calibration fix is in its brief (bea4f0a, local). Not pushed. |
-| grok2 | La Mojana #34 | Done, merged (#98). Its interactive session is still open (pid 27364). |
-| opencode | Quake DPM v2 #31 (`feat/quake-dpm-v2`) | Running. 56faa44 adds pyarrow; DPM module and tests in progress. |
-| Antigravity A/B | cache #78, tiles #65 | Done. #65's deep review is still owed. |
+#### Headline results now on main (all PROVISIONAL)
+- **La Mojana (headline, #102):** open water per date measured (e.g. 2026-06-17: 4,486.59 ha, 5,539 of 197,758 valid px). Sentinel-1 missed 3,351 of 4,946 NISAR open-water px on 2026-07-11. Change classes degenerate (reference date had 1 valid px).
+- **Aburrá:** calibrated null, no motion above 9.105 mm.
+- **Quake:** scorecard uninformative (no barrio labels); damage proxy cached for tracks 11 and 47, statistics sealed.
 
-#### Team (2026-11-15 ~05:00 UTC)
-- **Jack4Codes:** #102 merged. #86 still has changes requested (pairs shape vs the loader; hash differences line). Freeze #26 next.
-- **Maru816:** #96 and #97 merged. `codex/repo-lint-cleanup` not taken (it would collide with the agent lanes). #32 becomes a documented null.
-- **EstebanOchoaedos:** #88, #90, #93 merged. #72/#73 conflict with #98 and the pending Aburrá lane, so they get reconciled after Aburrá. `docs/kb-quake-depth-usgs` has no PR.
-- **alicealanapineda-byte:** #20/#21 now on main via #103. Asked (on #100) to target main, not `develop`. Next suggested: rewire `analyze_flood_inundation` to the La Mojana outputs.
-- **SaritaRpo:** pulling the cache to verify #22, then #37. Storyboard lock #39 can follow the ratified headline.
+#### Open work, in order
+1. Jack: fix #86 (pairs shape vs loader; hash line), then **freeze #26**. That unseals C/K and unblocks the quake numbers.
+2. Alice: rewire `analyze_flood_inundation` (and `analyze_earthquake_dpm`, whose import target doesn't exist) to the merged modules.
+3. Sarita: #37 slider and story map on La Mojana; lock storyboard #39 to the ratified headline.
+4. Esteban: port the flood harness test to main's API on the `mojana` fixture (#38); open a PR for `docs/kb-quake-depth-usgs`.
+5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), re-stage the team release, fix the diagram layouts (scripts/diagrams/*.py), and port Esteban's landslide config keys onto the merged module.
+
+#### Agents
+grok, grok2 and opencode are idle (their lanes are merged). Antigravity is idle.
 
 Progress: [░░░░░░░░░░] 0%
 
