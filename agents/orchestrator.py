@@ -180,7 +180,7 @@ async def create_compiled_multi_hazard_graph(
         requests = state.get("ingestion_requests", plan["ingestion_requests"] if plan else [])
         domain_requests = state.get("tool_requests", plan["tool_requests"] if plan else {})
         try:
-            validate_requests(requests, domain_requests)
+            validate_requests(requests, domain_requests, state)
         except BulletinContractError:
             return {"staged_nisar_assets": {"state": "error", "error": "invalid tool requests"}}
         if not requests:

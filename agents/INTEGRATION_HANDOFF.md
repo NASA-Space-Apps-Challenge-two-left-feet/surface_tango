@@ -12,10 +12,11 @@ the merged bulletin contract, and cached templates are checked again when
 served. GeoJSON remains deterministic tool output; the prose model cannot
 generate geometry or measurements.
 
-The agent contract suite passed **48/48** cases with
+The agent contract suite passed **49/49** cases with
 `python -m pytest -q tests/test_agents` using the project's locked Python 3.12
 environment. These tests cover plan validation, state transitions, caching,
-placeholder checks and offline behavior. They do not establish live tool
+placeholder checks, offline behavior and full-plan prevalidation before any
+tool effect. They do not establish live tool
 connectivity or scientific results.
 
 ## Acceptance still needs owner inputs
