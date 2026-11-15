@@ -42,3 +42,28 @@ Write `BLOCKED: <reason>` at the end of this file and stop (e.g. a count field y
 
 ## Report (append when done)
 What you built, the three write commands and their output tails (counts only — never a C/K statistic), the tool-serves-it check results, and anything you could not map.
+
+### Done — opencode GLM-5.3, 2026-11-15 (~07:10 UTC)
+
+**Built** (touched only `scripts/write_hazard_evidence.py`, `tests/test_hazard_evidence_writer.py`, this file):
+- `flood_artifact(aoi="mojana")`: `baseline` passthrough; `water_extent` for the ratified display date 2026-06-17; `open_water_flood` / `subcanopy_double_bounce_flood` as area objects with `reference_date` (the dry baseline, 2026-10-27) and `target_date`; pixel area from the manifest when it states one (it does not) else the constant 90 m GCOV posting 8100 m² *(measured, reports/mojana.md, #102)*, the source recorded in provenance; `uncalibrated` from the frozen prereg `labels.uncalibrated`; `sensitivity_range: null` ("sweep not serialized"); `total_inundated` omitted (degenerate classes — the builder reports it unavailable); `dates` passthrough.
+- `quake_artifact(aoi="eje_cafetero", track=...)`: `counts` from `summary_C` (`n_px_valid`→`valid_pixels`, `n_px_total`→`window_pixels`, `n_units_total/evaluated/excluded`→`units_total/evaluated/excluded`); `pairs` and `units` passthrough; scorecard `{uninformative, "no barrio labels (reports/ground_truth.md, #24)"}`; provenance carries the C/R/K granule IDs, run UTC, the run's prereg status/sha1 and `baseline_mismatch` (top-level in the zarr provenance, both tracks — confirmed this session).
+- `BUILDERS`/`OUT_NAME` registered; `main()` gains `--hazard {flood,quake}` and `--track`; per-hazard output lines print counts only.
+
+**Write commands and output (full lines; no C/K statistic values):**
+- `uv run python scripts/write_hazard_evidence.py --hazard flood` → `wrote local_cache/mojana/flood_evidence.json (display=2026-06-17 water 5539/197758 px, baseline accepted=True)`
+- `uv run python scripts/write_hazard_evidence.py --hazard quake --track 11` → `wrote local_cache/eje_cafetero/quake_evidence_track11.json (valid 316399/10353357 px, units 32/28/4, statistics included (pre-registration frozen))`
+- `uv run python scripts/write_hazard_evidence.py --hazard quake --track 47` → `wrote local_cache/eje_cafetero/quake_evidence_track47.json (valid 316398/10353357 px, units 32/28/4, statistics included (pre-registration frozen))`
+
+**Tool-serves-it check** (in-memory `fastmcp.Client(mcp)`, offline, from the lane worktree):
+- `analyze_flood_inundation`: `live`; water `5539/197758 px`, `4486.59 ha` *(measured; equals the ratified headline, denominators above)*.
+- `analyze_earthquake_dpm` track 11: `live`; `valid 316399/10353357 px`, units `32/28/4`; `coherence_statistics` present.
+- track 47: `live`; `316398/10353357 px`, units `32/28/4`; statistics present (316398 = the disclosed 1-px Pereira diff, #111).
+
+**Phase change vs this brief — documented, not a deviation:** the brief's Verify expectations (`coherence_statistics: null`, under `unavailable`, empty acceptance grep) were written while the pre-registration was draft. The freeze landed as **#130** after the brief. Both the writer and the serving tool gate on the current `config/preregistered.yaml` status (same source), so the real artifacts now include `coherence_statistics` (`coevent_C` / `control_K`, the run's draft status disclosed in provenance and a note), and `rg -c 'summary_C|summary_K_control|excess' quake_evidence_track*.json` returns 2 matches per artifact (key names; the raw `summary_*` keys are not copied — the contents are relabeled `coevent_C`/`control_K`). Post-freeze this is the intended unsealing (validation/README.md, #130). The sealed-while-draft guard is kept and unit-tested: with a draft prereg the writer writes no C/K value to disk anywhere.
+
+**Tests:** 11 in `tests/test_hazard_evidence_writer.py` (3 landslide, 4 flood, 4 quake), known-answer with synthetic structured inputs in `tmp_path` (`CACHE`/`PREREG` monkeypatched; ALLOWLIST `tests/test_*.py` hand-written arrays). The quake draft case asserts no sealed marker (`excess_e`, `mu`, `summary_C`) anywhere in the serialized artifact; the flood and quake cases round-trip through `build_flood_envelope` / `build_quake_envelope` so writer/builder key drift fails CI. Full suite `make ci`: **309 passed, 7 deselected** *(measured)*.
+
+**Not mapped / blocked:** nothing — every count field the brief lists was located; the brief's `baseline_mismatch` note was verified top-level in the zarr provenance.
+
+**Commits:** `02ecc4b` feat(mcp) + this report; branch `feat/data-flood-quake-evidence`, ready for orchestrator review. No push, no PR (per this brief).
