@@ -72,6 +72,6 @@ GitHub handles and lanes from [AGENTS.md](../AGENTS.md#project-map):
 ## Links
 
 - Repository: [Surface Tango / surface_tango](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango). Public accessibility remains to be confirmed before submission.
-- Live deployment: docker-compose container stack on Google Cloud (Compute Engine, `us-central1-a`); public demo URL <http://136.119.19.137:8000> (live).
+- Live deployment: docker-compose container stack on Google Cloud (Compute Engine, `us-central1-a`); public demo at <https://surface-tango-827987874406.us-central1.run.app/>. It stays reachable through the judging period, until 2027-01-31; the VM starts on the first visit (about a minute) ([hosting runbook](deploy/gcp-evaluation.md)).
 - Video: `{link: public submission video pending}`.
 - Project page: `{link: Space Apps project page pending}`.

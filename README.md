@@ -288,6 +288,8 @@ reported with recovery instructions. Application readers do not use this lock.
 
 **Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>. It requires a staged La Mojana cache and skips cloud prewarming. End-to-end Docker operation still needs a rehearsal on a host with Docker; the current Compose file retains credential mount paths.
 
+**Hosted for judging:** the pitch-mode stack runs on a Google Cloud VM until 2027-01-31 under a 949,000 COP (≈ USD 300) budget. In Compose, only the web app's `:8000` is published on all interfaces; the MCP servers bind to `127.0.0.1:8001` / `127.0.0.1:8002`, and container logs are capped at 10 MB × 3. Runbook, sizing *(measured)* and cost *(estimate)*: [docs/deploy/gcp-evaluation.md](docs/deploy/gcp-evaluation.md).
+
 ### Offline web app and video draft (no Docker)
 
 With a cache in `local_cache/` (or `BAILASAR_CACHE_DIR` pointing at one):
