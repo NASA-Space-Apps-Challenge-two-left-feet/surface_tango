@@ -18,6 +18,7 @@ from gee_math.earthquake_dpm_math import (
     GATE_CATALOG_PATH,
     PREREG_PATH,
     _summary_line,
+    adjusted_excess,
     classify_coverage,
     delta_gamma,
     dpm_from_z,
@@ -249,6 +250,38 @@ def test_run_dpm_pass_hand_computed_end_to_end():
     assert stats[1]["median_z"] == pytest.approx((11 * SQ3 + 25 / SQ3) / 2, rel=1e-12)
     assert stats[2]["n_px"] == 2
     assert stats[2]["median_z"] == pytest.approx((25 / SQ3 + 49 / SQ3) / 2, rel=1e-12)
+
+
+def test_adjusted_excess_hand_computed_two_pass():
+    # Same 8-pixel geometry as test_run_dpm_pass_hand_computed_end_to_end.
+    # C pass excess is 28/sqrt(3) (derived there).
+    # K pass uses Δγ = γ_K − γ_R =
+    #   [0.3, 0.2, 0.1, 0.0, 0.3, 0.1, 0.4, 0.1]
+    # so γ_K = γ_R + that delta. Non-built deltas [0.1, 0.0, 0.1, 0.1]:
+    #   μ = 0.075, σ = sqrt(3)/40, median Z non-built = 1/sqrt(3).
+    # Built-up Z sorted = [5, 9, 9, 13]/sqrt(3), median = 9/sqrt(3).
+    # E_K = 8/sqrt(3). E_C − E_K = 20/sqrt(3).
+    coverage = np.array([0.80, 0.85, 0.05, 0.08, 0.50, 0.00, 0.90, 0.06])
+    gamma_r = np.array([0.9, 0.9, 0.7, 0.7, 0.6, 0.6, 0.8, 0.7])
+    gamma_c = np.array([0.4, 0.5, 0.6, 0.65, 0.2, 0.5, 0.1, 0.6])
+    delta_k = np.array([0.3, 0.2, 0.1, 0.0, 0.3, 0.1, 0.4, 0.1])
+    gamma_k = gamma_r + delta_k
+    mask = np.full(8, 11, dtype=np.uint32)
+    units = np.array([1, 1, 1, 1, 2, 2, 2, 2])
+    thr = {
+        "built_up_min_footprint_fraction": 0.50,
+        "non_built_max_footprint_fraction": 0.10,
+        "min_built_up_pixels_per_unit": 2,
+    }
+    coevent = run_dpm_pass(gamma_r, gamma_c, coverage, None, None, mask, units, thr, label="C")
+    control = run_dpm_pass(gamma_k, gamma_r, coverage, None, None, mask, units, thr, label="K")
+    e_c = coevent["summary"]["excess_e"]
+    e_k = control["summary"]["excess_e"]
+    assert e_c == pytest.approx(28 / SQ3, rel=1e-12)
+    assert e_k == pytest.approx(8 / SQ3, rel=1e-12)
+    assert adjusted_excess(e_c, e_k) == pytest.approx(20 / SQ3, rel=1e-12)
+    assert math.isnan(adjusted_excess(float("nan"), e_k))
+    assert math.isnan(adjusted_excess(e_c, float("nan")))
 
 
 def test_run_dpm_pass_excluded_units_with_frozen_threshold():
