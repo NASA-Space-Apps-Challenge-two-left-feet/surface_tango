@@ -1,30 +1,29 @@
 {
+  "flood": {
+    "state": "gate",
+    "headline": true,
+    "summary": "PROVISIONAL, measured {flood.date}. NISAR mapped {flood.open_water_ha} of absolute open water ({flood.water_pixels}). Threshold sensitivity: {flood.sensitivity_ha}. Separate comparison on {flood.s1_comparison_date}: {flood.s1_comparison} ({flood.s1_scenes} Sentinel-1 scenes, uncalibrated cut). The thresholds are uncalibrated and the dry reference does not support change classes. The staged Sentinel scenes provide context and were acquired on different dates.",
+    "source": "reports/mojana.md · Open-water fraction by date, Sensitivity, Sentinel-1 comparison",
+    "facts": ["flood.open_water_ha", "flood.water_pixels", "flood.sensitivity_ha", "flood.s1_comparison"]
+  },
   "landslide": {
     "state": "gate",
-    "summary": "PROVISIONAL, measured. No motion detected above the 9.105 mm noise floor across 17 valid pairs. Neither track exceeded the sign-flip null. The cached LOS layer shows displacement context.",
-    "source": "reports/aburra.md · Verdict and Pairs",
-    "command": "uv run python -m gee_math.landslide_insar_math --calibrate-from-cache"
+    "summary": "PROVISIONAL, measured. No motion detected above the {landslide.noise_floor_mm} noise floor across {landslide.pairs} pairs. Neither track exceeded the sign-flip null. The cached LOS layer shows displacement context only.",
+    "source": "reports/aburra.md · Verdict",
+    "facts": ["landslide.noise_floor_mm"]
   },
   "earthquake": {
     "state": "gate",
-    "summary": "The quake scorecard is uninformative. No verified barrio damage labels were available, so no ranking or precision score was produced. Co-event coherence remains withheld pending the freeze.",
+    "summary": "The quake scorecard is uninformative: {earthquake.evaluable_units} with verified barrio damage labels, so no ranking or precision score was produced. The damage-proxy coherence passes C and K stay sealed until the pre-registration freeze.",
     "source": "validation/README.md · Power check and headline",
+    "facts": ["earthquake.evaluable_units"],
     "co_event_withheld": true,
     "ranking_available": false
-  },
-  "flood": {
-    "state": "gate",
-    "summary": "PROVISIONAL, measured 2026-06-17. NISAR mapped 4,487 ha of absolute open water (5,539 of 197,758 valid pixels). Threshold sensitivity: 2,799–6,726 ha. The thresholds are uncalibrated and the dry reference does not support change classes. The staged Sentinel scenes provide context and were acquired on different dates. Coverage varies by sensor.",
-    "source": "reports/mojana.md · Absolute open water and sensitivity",
-    "granule": "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001",
-    "command": "uv run python -m gee_math.flood_polarimetric_math",
-    "date": "2026-06-17",
-    "water_pixels": 5539,
-    "valid_pixels": 197758
   },
   "synthesis": {
     "state": "gate",
     "summary": "La Mojana has a measured open-water extent. Aburrá shows no motion above its noise floor, and the quake scorecard is uninformative. These outcomes provide no measured cross-hazard links to display.",
-    "source": "reports/mojana.md · reports/aburra.md · validation/README.md"
+    "source": "reports/mojana.md · reports/aburra.md · validation/README.md",
+    "facts": []
   }
 }

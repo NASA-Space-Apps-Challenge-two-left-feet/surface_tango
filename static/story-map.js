@@ -33,7 +33,7 @@ function setCurtainLabels(chapter) {
   return labels;
 }
 
-function showStoryResult(state, summary, source = "", provenance = "") {
+function showStoryResult(state, summary, source = "", provenance = "", factSources = []) {
   storyResult.hidden = false;
   document.getElementById("story-state").textContent = state;
   document.getElementById("story-summary").textContent = summary;
@@ -41,7 +41,35 @@ function showStoryResult(state, summary, source = "", provenance = "") {
   citation.textContent = source;
   citation.title = provenance;
   citation.hidden = !source;
+  // Each on-screen number keeps the report section it was parsed from.
+  citation.dataset.factSources = factSources.join(" ");
   storyRetry.hidden = state !== "Error";
+}
+
+// Numbers come only from /api/pitch-facts, which parses the merged reports.
+// This only substitutes display text; it never computes a value.
+function renderFacts(template, facts) {
+  return template.replace(/\{([a-z_]+(?:\.[a-z0-9_]+)+)\}/g, (placeholder, path) => {
+    const node = path.split(".").reduce((value, key) => value?.[key], facts);
+    if (node === undefined || node === null) throw new Error(`Missing fact ${placeholder}`);
+    return typeof node === "object" ? node.text : String(node);
+  });
+}
+
+function withFacts(chapter, evidence, facts) {
+  if (!evidence) return evidence;
+  const summary = renderFacts(evidence.summary, facts);
+  const factSources = (evidence.facts ?? []).map(path =>
+    path.split(".").reduce((value, key) => value?.[key], facts)?.source).filter(Boolean);
+  const chapterFacts = facts[chapter] ?? {};
+  return {
+    ...evidence,
+    summary,
+    factSources,
+    granule: chapterFacts.granule ?? evidence.granule,
+    date: chapterFacts.date ?? evidence.date,
+    command: chapterFacts.command ?? evidence.command,
+  };
 }
 
 function resetStoryPanels(labels, state, detail) {
@@ -176,22 +204,32 @@ async function openStoryChapter(chapter) {
 
   try {
     const aoi = chapterAreas[chapter];
-    const [published, staged, sentinel, landslide] = await Promise.allSettled([
+    const [published, staged, sentinel, landslide, reportFacts, bands] = await Promise.allSettled([
       readStoryInput("/static/story-evidence.json", request.signal),
       readStoryInput("/api/story-results", request.signal),
       aoi ? readStoryInput(`/api/sentinel-tiles/${aoi}`, request.signal) : {},
       chapter === "landslide" ? readStoryInput("/api/local-tiles/landslide", request.signal) : null,
+      readStoryInput("/api/pitch-facts", request.signal),
+      aoi ? readStoryInput(`/api/cache-bands/${aoi}`, request.signal) : {},
     ]);
     if (request.signal.aborted) return;
 
-    const evidence = published.value?.[chapter];
+    let evidence;
+    let factsFailed = reportFacts.status === "rejected";
+    try {
+      evidence = factsFailed ? undefined : withFacts(chapter, published.value?.[chapter], reportFacts.value);
+    } catch {
+      factsFailed = true;
+    }
     const cachedResult = staged.value?.[chapter];
     const hasStagedEvidence = hasStoryEvidence(cachedResult);
     const result = chapter === "earthquake" && evidence?.ranking_available !== true
       ? evidence : hasStagedEvidence ? cachedResult : evidence;
     if (hasStoryEvidence(result)) {
       const provenance = [result.granule, result.command].filter(Boolean).join(" · ");
-      showStoryResult(resultStates[result.state], result.summary, result.source, provenance);
+      showStoryResult(resultStates[result.state], result.summary, result.source, provenance, result.factSources);
+    } else if (factsFailed) {
+      showStoryResult("Error", "Could not read the measured numbers from the reports.");
     } else if (staged.status === "rejected" || published.status === "rejected") {
       showStoryResult("Error", "Could not load the chapter's evidence.");
     }
@@ -200,8 +238,10 @@ async function openStoryChapter(chapter) {
     fitChapter(result?.bounds ?? water?.bounds ?? references.s2?.bounds ?? references.s1?.bounds);
     const cached = cachedChapterPanels(chapter, references, landslide.value);
     storyPanels.forEach(({ id, map, sourceId }, index) => {
-      if (chapter === "earthquake" && index === 2 && evidence?.co_event_withheld !== false) {
-        panelStatus(id, "Not cached", "Co-event coherence withheld");
+      if (chapter === "earthquake" && index === 2) {
+        // C and K stay sealed until the pre-registration freeze, whatever the cache holds.
+        const status = bands.value?.bands?.coherence_C?.status ?? "withheld";
+        panelStatus(id, "Not cached", `Co-event coherence C/K sealed · manifest: ${status}`);
         return;
       }
       const approved = hasStagedEvidence ? cachedResult.panels?.[index] : null;
@@ -209,7 +249,8 @@ async function openStoryChapter(chapter) {
       if (usableTile(panel)) {
         const options = panel.bounds ? { bounds: panel.bounds, minzoom: panel.minzoom, maxzoom: panel.maxzoom } : {};
         setTileLayer(map, sourceId, panel.tile_url, options);
-        const detail = [labels[index], panel.date].filter(Boolean).join(" · ");
+        const coverage = Number.isFinite(panel.coverage_pct) ? `${panel.coverage_pct}% of AOI imaged` : "";
+        const detail = [labels[index], panel.date, coverage].filter(Boolean).join(" · ");
         panelStatus(id, resultStates[panel.state], detail, (panel.scene_ids ?? panel.granule_ids ?? []).join(", "));
       } else if (chapter === "earthquake" && index === 1) {
         const image = cachedResult?.pre_event_coherence;
@@ -233,3 +274,11 @@ async function openStoryChapter(chapter) {
 
 chapterSelect.addEventListener("change", () => openStoryChapter(chapterSelect.value));
 storyRetry.addEventListener("click", () => openStoryChapter(chapterSelect.value));
+
+// La Mojana is the ratified headline (validation/README.md), so the page opens on it.
+// `?chapter=live` keeps mission control; `?chapter=<name>` opens another chapter.
+const requestedChapter = new URLSearchParams(location.search).get("chapter") ?? "flood";
+if ([...chapterSelect.options].some(option => option.value && option.value === requestedChapter)) {
+  chapterSelect.value = requestedChapter;
+  openStoryChapter(requestedChapter);
+}

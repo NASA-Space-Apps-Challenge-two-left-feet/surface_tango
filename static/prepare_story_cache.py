@@ -4,6 +4,7 @@ import argparse
 import base64
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -13,10 +14,16 @@ from rasterio.features import bounds, shapes
 from rasterio.io import MemoryFile
 from rasterio.warp import transform_geom
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from video.report_facts import mojana_facts  # noqa: E402
+
 
 def open_water_layer(cache_dir: Path, release_manifest: Path) -> dict | None:
-    evidence_path = Path(__file__).with_name("story-evidence.json")
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))["flood"]
+    # The expected counts are parsed from reports/mojana.md, not copied by hand.
+    evidence = mojana_facts()
     raster_path = cache_dir / "mojana" / f"water_extent_{evidence['date']}.tif"
     if not raster_path.is_file():
         return None
@@ -31,7 +38,7 @@ def open_water_layer(cache_dir: Path, release_manifest: Path) -> dict | None:
         values = raster.read(1, masked=True)
         water = (values == 1).filled(False)
         if (
-            int(water.sum()) != evidence["water_pixels"]
+            int(water.sum()) != evidence["water_pixels"]["value"]
             or int(values.count()) != evidence["valid_pixels"]
         ):
             raise ValueError(f"{raster_path} does not match the measured report")
