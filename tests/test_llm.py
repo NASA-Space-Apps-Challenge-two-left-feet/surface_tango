@@ -41,7 +41,7 @@ def test_chain_order_and_skips_missing_keys(monkeypatch):
 
 
 def test_no_keys_raises(monkeypatch):
-    with pytest.raises(RuntimeError, match="no LLM provider key"):
+    with pytest.raises(RuntimeError, match="no usable LLM provider"):
         llm_mod.build_models(CONFIG)
 
 
@@ -90,3 +90,48 @@ def test_repo_config_chain_is_well_formed():
     assert cfg["chain"], "empty chain"
     for entry in cfg["chain"]:
         assert entry["provider"] in cfg["providers"]
+
+
+# --- Vertex Gemini provider (ADC-based) ---------------------------------------
+
+VERTEX_CFG = {
+    "temperature": 0.0,
+    "providers": {
+        "vertex": {"type": "vertex", "project_env": "GCP_PROJECT_ID", "location": "us-central1"},
+        "featherless": {
+            "base_url": "https://x/v1",
+            "api_key_env": "FEATHERLESS_API_KEY",  # pragma: allowlist secret
+        },  # pragma: allowlist secret
+    },
+    "chain": [
+        {"provider": "vertex", "model": "gemini-2.5-flash"},
+        {"provider": "featherless", "model": "m"},
+    ],
+}
+
+
+def test_vertex_entry_built_with_adc(monkeypatch):
+    monkeypatch.setenv("GCP_PROJECT_ID", "proj-x")
+    for k in ("FEATHERLESS_API_KEY",):
+        monkeypatch.delenv(k, raising=False)
+    sentinel = object()
+    monkeypatch.setattr(llm_mod, "_vertex_model", lambda *a, **k: sentinel)
+    models = llm_mod.build_models(VERTEX_CFG)
+    assert models == [sentinel]  # vertex built, featherless skipped (no key)
+
+
+def test_vertex_skipped_without_project_or_lib(monkeypatch):
+    monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+    monkeypatch.setenv("FEATHERLESS_API_KEY", "k")
+    # no project -> _vertex_model returns None; featherless provides the model
+    models = llm_mod.build_models(VERTEX_CFG)
+    assert len(models) == 1  # only featherless
+
+
+def test_no_usable_provider_mentions_vertex(monkeypatch):
+    monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+    monkeypatch.delenv("FEATHERLESS_API_KEY", raising=False)
+    import pytest
+
+    with pytest.raises(RuntimeError, match="Vertex"):
+        llm_mod.build_models(VERTEX_CFG)

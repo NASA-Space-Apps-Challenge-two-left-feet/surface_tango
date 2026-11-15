@@ -35,8 +35,11 @@ llm:   # orchestrator chain, tried in order; entries without a key in .env are s
     nebius: {base_url: "https://api.tokenfactory.nebius.com/v1", api_key_env: NEBIUS_API_KEY}  # pragma: allowlist secret
     featherless: {base_url: "https://api.featherless.ai/v1", api_key_env: FEATHERLESS_API_KEY}  # pragma: allowlist secret
     openrouter: {base_url: "https://openrouter.ai/api/v1", api_key_env: OPENROUTER_API_KEY}  # pragma: allowlist secret
-  chain:   # Featherless preferred; Nebius fallback; OpenRouter last (limited credits)
-    - {provider: featherless, model: zai-org/GLM-5.3}                # primary
+    vertex: {type: vertex, project_env: GCP_PROJECT_ID, location: us-central1}  # Gemini via Vertex AI (ADC, no key); needs aiplatform.googleapis.com enabled
+  chain:   # Vertex Gemini first (hosted token gateways out of credits 2026-11-15); the rest are fallbacks when keyed
+    - {provider: vertex, model: gemini-2.5-flash}                   # primary: Gemini via Vertex (GCP budget, ADC)
+    - {provider: vertex, model: gemini-2.0-flash}                   # cheaper Gemini fallback
+    - {provider: featherless, model: zai-org/GLM-5.3}               # gateway fallbacks (need keys/credits)
     - {provider: featherless, model: moonshotai/Kimi-K3.1-Pro}       # reasoning, same provider
     - {provider: featherless, model: zai-org/GLM-5.3-Flash}          # cheap, same provider
     - {provider: nebius, model: moonshotai/Kimi-K3.1-Pro}            # second provider
