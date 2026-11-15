@@ -10,3 +10,5 @@ supersedes: null
 ---
 
 Measured on 2026-11-14: `ee.Initialize()` with no arguments picked the credentials saved by `earthengine authenticate`, which belonged to a different Google account, and the project's Earth Engine calls failed. Passing `google.auth.default(scopes=EE_SCOPES)` credentials plus `project=GCP_PROJECT_ID` fixed it (#52); every module now goes through `gee_math/ee_session.init_ee()`. To verify: cite the Earth Engine Python initialization guide for the order of credential lookup.
+
+Checked https://google-auth.readthedocs.io/en/latest/reference/google.auth.html#google.auth.default on 2026-11-15: states that environment-provided credentials precede Cloud SDK application-default credentials; does not state Earth Engine's credential lookup order, require gcloud ADC for Earth Engine, or establish the reported account mismatch. Page fetched successfully through the web tool; HTTP status was not exposed.
