@@ -21,6 +21,7 @@ from agents.run_plan import (
     validate_requests,
 )
 from agents.state import MultiHazardGraphState
+from agents.tracing import configure_tracing, run_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 SUCCESS = {"live", "cached"}
@@ -303,7 +304,9 @@ async def create_compiled_multi_hazard_graph(
 
 async def build_and_run_multi_hazard_graph(initial_state, **kwargs):
     graph, _ = await create_compiled_multi_hazard_graph(**kwargs)
-    return await graph.ainvoke(initial_state)
+    print(configure_tracing())
+    mode = "cached" if os.environ.get("OFFLINE_DEMO_MODE") == "1" else "live"
+    return await graph.ainvoke(initial_state, config=run_metadata(mode))
 
 
 if __name__ == "__main__":
