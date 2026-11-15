@@ -61,6 +61,8 @@ Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover
 
 ## Status
 
+**Progress (2026-11-15, D = 2026-11-15 23:59 COT).** Phases 1–3 complete and on `main`: the frozen pre-registration, the three hazard pipelines (Aburrá null, La Mojana open-water headline, quake damage proxy with C/K unsealed), the MCP evidence tools, and the bilingual LangGraph bulletin all run. Phase 4 (integration) nearly done. Phase 5 (record the video, finalize the README, secret scan, go public, submit) is the remaining owner-gated critical path. The offline suite is green; the repository is private until the team goes public before the deadline.
+
 States: **live** · **cached** · **not cached** · **planned** · **dropped**. No completed integration is claimed without evidence.
 
 | Component | State | Issue / PR | Report |
@@ -68,12 +70,12 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | NISAR discovery gate (search script and saved catalog) | live | #23, #52 | [Gate report](reports/gate.md) |
 | Real-data cache builder — COGs + Zarr v3 + provenance manifest (3 AOIs) | cached | #30, #78 | [Builder brief](briefs/feat/data-cache-builder.md) |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
-| Quake damage proxy (tracks 11 and 47; C/K statistics sealed until the pre-registration freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md) |
+| Quake damage proxy (tracks 11 and 47; C/K **unsealed** after the freeze, #130; track 11 is post-event control only) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md) |
 | Release staging and cache download | live; team draft pre-release `cache-2026-11-15` (3 AOIs, 122,697,992 bytes; C-pair coherence and `quake/` withheld); public `make fetch-cache` after the release is published | #42, #67 | [issue #22 instructions](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/22) |
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
 | MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE); hazard tools are evidence-envelope adapters over `local_cache/<aoi>/<hazard>_evidence.json` (counts + denominators + sources; C/K statistics served only after the pre-registration freeze, now frozen #130; `not cached` until the data lane serializes the flood/quake artifacts — landslide serves the #109 verdict) | #20, #103, #122, #127 | [schema note](docs/kb/mcp-evidence-artifact-schema.md) |
-| Bulletin placeholder and verified-event contract | live contract; rendering pending; quake depth is a displayable event fact (USGS preferred-origin estimate 116 km; SGC manual bulletin 105 km kept as evidence only) | #21, #103 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields-v2.md) |
-| LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
+| Bulletin placeholder and verified-event contract | live; the graph renders ES/EN from tool evidence; quake depth 116 km (USGS estimate) displayed | #21, #103, #132 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields.md) |
+| LangGraph hazard graph + ES/EN bilingual bulletin | live: ingestion → hazard agents → checked bilingual synthesis over the evidence tools; placeholder contract (agents emit no numbers); plan validation before tool effects | #36, #151, #153 | `agents/orchestrator.py` |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
 | Pre-registration and power check | **frozen** 2026-11-15 (#130), control pairs K re-chosen by the design date rule and re-frozen (#131, deviation 2; blob `36a90fa…`; track 11 K is a labelled post-event control); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102, #131 | [validation/README.md](validation/README.md) |
 | First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
