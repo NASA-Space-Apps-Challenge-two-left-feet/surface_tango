@@ -1,19 +1,24 @@
 # FROZEN pre-registration (design doc: Hazard 2/3, D13). Commit before viewing any C-pair coherence;
 # validation/README.md records `git hash-object config/preregistered.yaml`. Never edit after freeze.
 # Values below are the approved plan values; pair IDs are filled from the hour-2 gate (issue #26).
-status: frozen         # frozen 2026-11-15 (#26); hash recorded in validation/README.md. Never edit.
+status: frozen         # frozen 2026-11-15 (#26); re-frozen after the K fix (#131, deviation 2). Hash in validation/README.md.
 quake:
   # One R/C/K GUNW triplet per track over the Eje Cafetero (hour-2 gate #23 -> quake_triplets).
   # R, C and K share a track; C spans the 2026-08-10 event, R precedes C, K precedes R.
   # Design D13 asks for a 12-day baseline; the gate found C at 24 days (Aug 1/Aug 4 acquisitions
   # missing), so the closest available is used and the mismatch is recorded per triplet.
+  # K shares no acquisition date with R or C (design doc, Data layer; #131). Track 11 has no
+  # independent pre-event pair on frame 086, so it uses the design's post-event fallback: a
+  # labelled post-event control (residual demolition/debris/aftershock change is expected), whose
+  # outcome is reported as "radar vs baseline, post-event control only", never "radar beats baseline".
   pairs:
     - track: 11
       geometry: descending
       frame: 86
       reference_R: NISAR_L2_PR_GUNW_025_011_D_086_026_4000_SH_20260708T232913_20260708T232947_20260720T232912_20260720T232946_P05023_N_F_J_001
       coevent_C: NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001
-      control_K: NISAR_L2_PR_GUNW_024_011_D_086_025_4000_SH_20260626T232913_20260626T232948_20260708T232913_20260708T232947_P05023_N_F_J_001
+      control_K: NISAR_L2_PR_GUNW_029_011_D_086_030_4000_SH_20260825T232910_20260825T232945_20260906T232910_20260906T232945_P05023_N_F_J_001
+      control_K_timing: post_event   # 2026-08-25 -> 09-06; no independent pre-event pair (#131)
       baseline_days: {R: 12, C: 24, K: 12}
       baseline_mismatch: true
     - track: 47
@@ -21,7 +26,8 @@ quake:
       frame: 4
       reference_R: NISAR_L2_PR_GUNW_025_047_A_004_026_4000_SH_20260711T103831_20260711T103906_20260723T103830_20260723T103905_P05023_N_F_J_001
       coevent_C: NISAR_L2_PR_GUNW_026_047_A_004_028_4000_SH_20260723T103830_20260723T103905_20260816T103829_20260816T103904_P05023_N_F_J_001
-      control_K: NISAR_L2_PR_GUNW_024_047_A_004_025_4000_SH_20260629T103831_20260629T103907_20260711T103831_20260711T103906_P05023_N_F_J_001
+      control_K: NISAR_L2_PR_GUNW_023_047_A_004_024_4000_SH_20260617T103836_20260617T103907_20260629T103831_20260629T103907_P05023_N_F_J_001
+      control_K_timing: pre_event    # 2026-06-17 -> 06-29; shares no date with R or C (#131)
       baseline_days: {R: 12, C: 24, K: 12}
       baseline_mismatch: true
   built_up_min_footprint_fraction: 0.50

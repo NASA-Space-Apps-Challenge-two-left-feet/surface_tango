@@ -44,3 +44,11 @@ _Last update: 2026-11-15 (UTC−5)_ · branch `feat/config-freeze-prereg`
 - Done: froze `config/preregistered.yaml` — `status: frozen`, and filled `ground_truth_source` with the uninformative record (name/date/url pointing at `reports/ground_truth.md`), because the loader refuses a frozen config with null values and the ground truth is uninformative (#24/#25).
 - Frozen hash recorded in `validation/README.md`: `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438` (`config.py` `preregistered_hash` and `git hash-object` agree; `require_frozen()` passes). Blob differences from `8d91f1d` listed: noise_floor (#72), pairs (#86), freeze+ground_truth (#26).
 - Cross-lane (quake test, LEONOB2014): updated `tests/test_earthquake_dpm.py::test_preregistered_thresholds_load_frozen_values` from `status == "draft"` / `is_frozen False` to `frozen` / `True`, the direct consequence of the freeze. 275 offline tests pass.
+
+## Control pairs K fix (#131, Jack4Codes)
+
+_Last update: 2026-11-15 06:45 (UTC−5)_ · branch `fix/config-prereg-control-pairs`
+
+- Done: replaced `control_K` on both tracks after the freeze (deviation 2 in `validation/README.md`); needs the orchestrator's ratification. Track 47: pre-event `20260617→20260629`; track 11: post-event fallback `20260825→20260906` (no independent pre-event pair on frame 086), labelled `control_K_timing: post_event`. Re-frozen hash `36a90fa104382f9217746ef730248ed24e223346`.
+- Guard: `tests/test_config.py::test_control_pairs_share_no_date_with_r_or_c_and_are_labelled` fails on the old K (checked) and passes on the new one. `get_earthquake_pair_set` now reports `control_K_timing`. 302 offline tests pass.
+- Handoff (LEONOB2014): `gee_math/earthquake_dpm_math.py` still reads R/C/K from `nisar_colombia_granules_2026.json` → `quake_triplets` (`TODO(#86)`), which still has the old K. The DPM control pass uses the old K until it reads `cfg.prereg("quake.pairs")` or the gate catalog is updated.

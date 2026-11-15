@@ -27,7 +27,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 [![offline tests](https://img.shields.io/badge/offline%20tests-180%20passing-0F766E)](reports/tests.md)
 [![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-9333EA)](reports/gate.md)
 [![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-D97706)](validation/ALLOWLIST.md)
-[![pre-registration](https://img.shields.io/badge/pre--registration-draft%20%C2%B7%20freeze%20pending-2563EB)](validation/README.md)
+[![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%202%20deviations-2563EB)](validation/README.md#deviations)
 
 <sub>Team **two left feet** · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia · private until the submission · agency names are attribution, never endorsement or logos</sub>
 
@@ -75,7 +75,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Bulletin placeholder and verified-event contract | live contract; rendering pending; quake depth is a displayable event fact (USGS preferred-origin estimate 116 km; SGC manual bulletin 105 km kept as evidence only) | #21, #103 | [Display-field evidence](docs/kb/event-usgs-verified-display-fields-v2.md) |
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
-| Pre-registration and power check | **frozen** 2026-11-15 (#130; blob `b4f9cb8…`, differences from the pre-deviation anchor listed); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102 | [validation/README.md](validation/README.md) |
+| Pre-registration and power check | **frozen** 2026-11-15 (#130), control pairs K re-chosen by the design date rule and re-frozen (#131, deviation 2; blob `36a90fa…`; track 11 K is a labelled post-event control); power check: **scorecard uninformative** (0 verified barrio labels); C/K statistics unsealed at the freeze (deviation 1 disclosed) | #25, #26, #102, #131 | [validation/README.md](validation/README.md) |
 | First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth | researched; no complete barrio damage dataset; candidate boundaries not adopted | #24, #97 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | cached: **no motion detected above 9.105 mm (17 pairs, provisional)**; keep-rule calibrated against a sign-flip null | #33 | [reports/aburra.md](reports/aburra.md) |
@@ -339,7 +339,7 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 - **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
 - **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
 - **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).
-- **Pre-registration:** parameters live only in `config/preregistered.yaml`, frozen since 2026-11-15 (#130) with its hash recorded in [validation/README.md](validation/README.md) (blob `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438`; differences from the pre-deviation anchor are listed there). The freeze unsealed co-event (C-pair) coherence, which had remained withheld after [deviation 1](validation/README.md#deviations) until the freeze commit.
+- **Pre-registration:** parameters live only in `config/preregistered.yaml`, frozen since 2026-11-15 (#130) and re-frozen after the control-pair fix (#131, [deviation 2](validation/README.md#deviations)), with its hash recorded in [validation/README.md](validation/README.md) (blob `36a90fa104382f9217746ef730248ed24e223346`; differences from the pre-deviation anchor are listed there). The freeze unsealed co-event (C-pair) coherence, which had remained withheld after [deviation 1](validation/README.md#deviations) until the freeze commit.
 - **README + diagrams in the same PR** as the change they depict (see "Diagrams kept current in the README" in AGENTS.md).
 
 ## Data sources and citations

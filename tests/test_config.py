@@ -318,3 +318,33 @@ def _offending_files():
 def test_no_new_hardcoded_thresholds_or_aois():
     unexpected = {f: h for f, h in _offending_files().items() if f not in PENDING_WIRING}
     assert unexpected == {}, f"read these from bailasar.config instead: {unexpected}"
+
+
+# --- Quake control pairs follow the design date rule (#131) ---------------------------------
+
+_ACQ = __import__("re").compile(r"_SH_(\d{8})T\d+_\d{8}T\d+_(\d{8})T")
+
+
+def _acquisitions(granule_id):
+    match = _ACQ.search(granule_id)
+    assert match, f"cannot read acquisition dates from {granule_id}"
+    return match.group(1), match.group(2)
+
+
+def test_control_pairs_share_no_date_with_r_or_c_and_are_labelled():
+    """Design doc, Data layer: K shares no acquisition with R or C. A pre-event K ends on or
+    before R starts; a post-event K (the design's fallback) starts after the event date."""
+    import json
+
+    facts = json.loads((ROOT / "validation/event_facts.json").read_text("utf-8"))
+    event = facts["quake_2026_08_10"]["date"].replace("-", "")
+    for triplet in get_config().prereg("quake.pairs"):
+        r, c, k = (_acquisitions(triplet[key]) for key in ("reference_R", "coevent_C", "control_K"))
+        track = triplet["track"]
+        assert not set(k) & (set(r) | set(c)), f"track {track}: K shares a date with R or C"
+        timing = triplet["control_K_timing"]
+        if timing == "pre_event":
+            assert k[1] < r[0], f"track {track}: pre-event K must end before R starts"
+        else:
+            assert timing == "post_event", f"track {track}: unknown control_K_timing {timing!r}"
+            assert k[0] > event, f"track {track}: post-event K must start after the event"
