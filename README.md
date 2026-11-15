@@ -77,6 +77,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
 | Quake damage proxy (track 11; C-pass statistics withheld until the pre-registration freeze, see [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
 | First-aid ranking and scorecard | planned | #32 | pending |
+| Neighborhood ground truth (research handoff available; accepted labels and boundaries pending) | planned | #24 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | planned | — | pending |
 | La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
@@ -96,7 +97,10 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 
 ## Results
 
-See `reports/` — pending.
+Available: [ground-truth research handoff](reports/ground_truth.md) for Armenia,
+Pereira and Manizales. Candidate boundaries and public damage accounts are not an
+accepted neighborhood label dataset; unknown or unvisited units remain unknown.
+The numerical scorecard and other measured results remain pending.
 
 - Quake scorecard and population-only comparison: see `reports/` — pending.
 - Aburrá motion or documented null: see `reports/` — pending.
