@@ -34,3 +34,44 @@ Write `BLOCKED: <reason>` at the end of this file and stop.
 
 ## Report (append when done)
 What you built, the build command and output tail, the `hand_m` finite ratio, and the fixture-cut + `test_pipeline_flood` result.
+
+### Done
+
+`scripts/build_cache.py` now samples MERIT Hydro `MERIT/Hydro/v1_0_1` band `hnd` as `hand_m` for a La Mojana build, and `--only-band hand_m` appends that band onto the cube that is already on disk. The sample grid is read from the cube coordinates and `crs` attribute. Masked pixels are unmasked to the -9999 sentinel and stored as NaN. A value of 0 m is kept. `resample()` is not called.
+
+The grid read from `local_cache/mojana/mojana_sar_cube.zarr` is EPSG:4326, 512 by 512, coordinates on bbox `[-75.4, 7.9, -74.2, 9.2]`.
+
+Build command (foreground):
+
+```
+PYTHONUNBUFFERED=1 uv run python scripts/build_cache.py --aoi mojana --only-band hand_m
+```
+
+Output tail:
+
+```
+HAND grid read from cube: crs=EPSG:4326 512x512 scale_x=0.0023437500000000056 scale_y=-0.002539062499999998 translate=(-75.4, 9.2)
+hand_m finite pixels: 262144 of 262144 (ratio 1.0) *(measured)*
+manifest finite_pixel_ratio: 1.0
+appended hand_m to local_cache/mojana/mojana_sar_cube.zarr
+```
+
+Finite ratio *(measured)*: 262144 / 262144 = 1.0. A follow-up read of that array: min 0.0 m, max 716.0 m, same denominator 262144. `manifest.json` lists `hand_m` as `cached`, source `MERIT/Hydro/v1_0_1`, band `hnd`, version `v1_0_1`, grid EPSG:4326 512×512. No `hand_m` COG was written.
+
+`local_cache/mojana/provenance.json` was not modified (sha256 unchanged: `996c1e64b96b1a480b2b1e2a36dbefda3bd860cf6612f89cfdee77b3f52dea6a`). COGs and tiles were not modified. `to_zarr` mode `a` rewrote the `y` and `x` coordinate chunks; their values still match `linspace` of the bbox edges (max absolute difference 0). The same call cleared root attributes; they were restored to `aoi=mojana`, `aoi_key=3_la_mojana_caregato`, `bbox=[-75.4, 7.9, -74.2, 9.2]`, `crs=EPSG:4326`. `write_hand_variable` now writes those attributes back.
+
+Fixture cut:
+
+```
+uv run python scripts/cut_fixtures.py --aoi mojana --name flood --row 0 --col 0 --size 32 \
+  --vars gcov_hhhh_pre gcov_hvhv_pre gcov_hhhh_post gcov_hvhv_post hand_m
+```
+
+Wrote `tests/fixtures/mojana/flood.npz` and `tests/fixtures/mojana/flood.provenance.json`. Left untracked: `tests/fixtures/README.md` says a human reviews the arrays before commit.
+
+```
+uv run pytest -q tests/test_pipeline_flood.py -m cache -rs
+4 passed in 0.10s
+```
+
+`uv run pytest -q tests/test_cache_builder.py`: 15 passed.
