@@ -22,16 +22,18 @@ from typing import cast
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "docs" / "diagrams" / "architecture.svg"
 FONT = "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
-W, H = 1520, 1080
+W, H = 1520, 1025
+TOP = 110  # header band height; the body is drawn below it so nothing covers the legend
 
 # Measured. Sources: reports/gate.md (hour-2 gate 2026-11-14, 251 granules), the cache
-# manifests built 2026-11-14 (45/36/30 MB, 15/16/16 bands) and `du -sh local_cache` (quake).
+# manifests built 2026-11-14 (45/36/30 MB, 15/16/16 bands) and `du -sh local_cache/quake`
+# (584 MB, tracks 11 and 47, measured 2026-11-15 after #111).
 GATE = {"gunw": 107, "gcov": 130, "goff": 14, "crid": "P05023"}
 CACHE = [
     ("eje_cafetero", "45 MB · 15 bands · cube + COGs", True),
     ("aburra", "36 MB · 16 bands · + tiles/ S1+S2 curtains", True),
     ("mojana", "30 MB · 16 bands · dual-pol HH/HV", True),
-    ("quake", "291 MB on disk · track 11 triplets · report pending", False),
+    ("quake", "584 MB · tracks 11 + 47 · C/K stats sealed", True),
 ]
 BUCKET = "bailasar-cache-472605"
 
@@ -216,7 +218,7 @@ def build() -> str:
     )
     agents = [
         node(530, 250, 276, "landslide_agent", ["Aburrá pairs · FABDEM slope"], "graph"),
-        node(530, 330, 276, "earthquake_agent", ["Eje R/C/K triplets · track 11"], "graph"),
+        node(530, 330, 276, "earthquake_agent", ["Eje R/C/K triplets · tracks 11 + 47"], "graph"),
         node(530, 410, 276, "flood_agent", ["Mojana dual-pol HH/HV"], "graph"),
     ]
     synth = node(
@@ -248,14 +250,16 @@ def build() -> str:
         f'<rect x="{guard_x}" y="70" width="{guard_w}" height="420" rx="10" fill="#FFF7ED" '
         'stroke="#F59E0B" stroke-width="1.4"/>',
         glyph("lock", guard_x + 37, 78),
-        f'<text x="{guard_x + guard_w / 2:.0f}" y="142" font-size="12.5" font-weight="800" '
-        f'fill="#B45309" text-anchor="middle" transform="rotate(-90 {guard_x + guard_w / 2:.0f} 275)">'
+        f'<text x="{guard_x + guard_w / 2:.0f}" y="285" font-size="12.5" font-weight="800" '
+        f'fill="#B45309" text-anchor="middle" transform="rotate(-90 {guard_x + guard_w / 2:.0f} 280)">'
         "cache_guard · every tool call passes</text>",
-        halo(guard_x + guard_w / 2, 505, "mcp_servers/cache_guard.py", MUTED, 9.5),
+    ]
+    guard_labels = [
+        halo(guard_x + guard_w / 2 + 150, 560, "mcp_servers/cache_guard.py", MUTED, 9.5),
         halo(
-            guard_x + guard_w / 2,
-            520,
-            "live ≤ budget · timeout → cached + provenance · not cached → error",
+            guard_x + guard_w / 2 + 150,
+            575,
+            "live ≤ budget · timeout → cached + provenance · miss → not cached",
             "#B45309",
             9.5,
         ),
@@ -288,10 +292,9 @@ def build() -> str:
             980,
             410,
             200,
-            "SSE serving pending",
-            ["offline tests today (#28 budgets)"],
+            "SSE live · request-bound cache",
+            ["#103 · scoring wrappers #110"],
             None,
-            pending=True,
         ),
     ]
 
@@ -331,7 +334,7 @@ def build() -> str:
             800,
             250,
             "reports/",
-            ["gate.md · public-readiness.md", "aburra.md on branch (review)"],
+            ["gate · mojana · aburra · quake_dpm", "public-readiness · ground_truth"],
             "doc",
         ),
         node(
@@ -339,7 +342,7 @@ def build() -> str:
             800,
             250,
             "validation/",
-            ["event_facts.json constants", "pre-registration frozen"],
+            ["event_facts.json (verified fields)", "pre-registration · freeze pending"],
             "doc",
         ),
         node(
@@ -347,7 +350,7 @@ def build() -> str:
             800,
             250,
             "config/",
-            ["preregistered.yaml frozen", "bailasar.yaml ports · budgets"],
+            ["preregistered.yaml (draft)", "bailasar.yaml ports · budgets"],
             "doc",
         ),
         node(
@@ -355,7 +358,7 @@ def build() -> str:
             800,
             250,
             "docs/kb/ · designs/",
-            ["11 notes · binding decisions", "biomass dropped (audit #2)"],
+            ["26 notes · binding decisions", "biomass dropped (audit #2)"],
             "doc",
         ),
         node(
@@ -369,7 +372,7 @@ def build() -> str:
     ]
 
     flows = [
-        flow([(302, 100), (348, 100), (348, 28), (966, 28), (966, 100)], "fetch"),
+        flow([(302, 100), (348, 100), (348, 28), (1100, 28), (1100, 128)], "fetch"),
         flow([(302, 250), (362, 250), (362, 44), (1150, 44), (1150, 230), (1112, 230)], "fetch"),
         flow([(668, 250), (guard_x, 250)], "tool"),
         flow([(668, 330), (guard_x, 330)], "tool"),
@@ -377,9 +380,7 @@ def build() -> str:
         flow([(guard_x + guard_w, 160), (848, 160)], "tool"),
         flow([(guard_x + guard_w, 290), (848, 290)], "tool"),
         flow([(745, 495), (745, 668), (1340, 668), (1340, 584)], "cached"),
-        flow(
-            [(1192, 300), (1160, 300), (1160, 696), (260, 696), (170, 696), (170, 404)], "publish"
-        ),
+        flow([(1192, 300), (1160, 300), (1160, 696), (30, 696), (30, 370), (38, 370)], "publish"),
         flow([(1340, 640), (1340, 742)], "control"),
         flow([(530, 546), (530, 588)], "control", pending=True),
         flow([(302, 480), (362, 480), (362, 524), (386, 524)], "control"),
@@ -442,6 +443,7 @@ def build() -> str:
         *evidence,
         *flows,
         *labels,
+        *guard_labels,
     ]
 
     parts = [
@@ -468,11 +470,13 @@ def build() -> str:
         "ports from config/bailasar.yaml, the graph from agents/orchestrator.py, cache sizes "
         "measured. Grey dashed = not built yet.</text>",
         *legend,
+        f'<g transform="translate(0,{TOP})">',
         *body,
+        "</g>",
         f'<text x="24" y="{H - 14}" font-size="10" fill="{MUTED}">generated by '
         "scripts/diagrams/architecture.py · make diagrams · numbers: reports/gate.md "
         f"(251 granules = {GATE['gunw']} GUNW + {GATE['gcov']} GCOV + {GATE['goff']} GOFF · "
-        f"{GATE['crid']}) · cache manifests 2026-11-14 · du -sh local_cache</text>",
+        f"{GATE['crid']}) · cache manifests 2026-11-14 · du -sh local_cache/quake 2026-11-15</text>",
         "</svg>",
     ]
     return "\n".join(parts) + "\n"
