@@ -1,5 +1,6 @@
 # agents/orchestrator.py
 import asyncio
+import os
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -13,6 +14,7 @@ from agents.state import (
     HazardAgentReport,
     MultiHazardGraphState,
 )
+from agents.tracing import configure_tracing, run_metadata
 
 SERVER_DIR = Path(__file__).resolve().parent.parent / "mcp_servers"
 
@@ -148,7 +150,9 @@ async def build_and_run_multi_hazard_graph(initial_state: MultiHazardGraphState)
     builder.add_edge("cross_hazard_synthesis", END)
 
     graph = builder.compile()
-    return await graph.ainvoke(initial_state)
+    print(configure_tracing())
+    mode = "cached" if os.environ.get("OFFLINE_DEMO_MODE") == "1" else "live"
+    return await graph.ainvoke(initial_state, config=run_metadata(mode))
 
 
 if __name__ == "__main__":

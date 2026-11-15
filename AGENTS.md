@@ -55,6 +55,7 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
   - On a timeout it serves only real pre-staged tiles, with provenance (`source`, granule IDs, cache build time).
   - An uncached request returns an explicit "not cached" error.
 - LangGraph: `nisar_ingestion` → landslide / earthquake / flood agents → `cross_hazard_synthesis`. Biomass is a TODO.
+- **Tracing: LangSmith**, one shared project `surface-tango` (`config/bailasar.yaml` → `tracing:`). Every entry point that runs the graph calls `agents/tracing.configure_tracing()` first; graph nodes, LLM calls and MCP tool calls are then traced, tagged `live` or `cached` with the git SHA. With no `LANGSMITH_API_KEY` in `.env` the agents run untraced. Traces hold only public data; never put a secret or personal data in a prompt or tool argument. Check the key with `uv run python scripts/check_credentials.py --only langsmith`.
 - Every UI panel renders exactly one of: live · cached · not cached · gate result · error. Never blank.
 
 ## Language: Python everywhere except the browser
