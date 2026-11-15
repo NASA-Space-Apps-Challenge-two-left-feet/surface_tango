@@ -82,15 +82,21 @@ def analyze_landslide_kinematics(
     gunw_coh_gcs: str,
     gunw_conncomp_gcs: str,
     bbox: list[float],
-    rain_start_date: str = "2026-10-29",
-    rain_end_date: str = "2026-11-13",
-    temporal_baseline_days: float = 12.0,
+    rain_start_date: str,
+    rain_end_date: str,
+    temporal_baseline_days: float,
+    params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Executes Module 1 (compute_landslide_insar_kinematics):
     Removes equatorial ionospheric & stratified tropospheric phase delays, projects L-band LOS
     displacement onto the 3D bare-earth FABDEM steepest downslope vector, and couples with 15-day CHIRPS rain.
     """
+    if params is None:
+        return {
+            "status": "error",
+            "reason": "landslide params not in config/preregistered.yaml yet",
+        }
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE mathematical expression graph
@@ -103,6 +109,7 @@ def analyze_landslide_kinematics(
         rain_start_date=rain_start_date,
         rain_end_date=rain_end_date,
         temporal_baseline_days=temporal_baseline_days,
+        params=params,
     )
 
     # 2. Render Primary Hazard Tile: Downslope Velocity (mm/yr) masked to active creep (>10 mm/yr)
@@ -171,19 +178,24 @@ def analyze_landslide_kinematics(
 @mcp.tool
 @with_offline_zarr_fallback(timeout_sec=1.8)
 def analyze_flood_inundation(
-    gcov_hhhh_pre_gcs: str,
-    gcov_hvhv_pre_gcs: str,
     gcov_hhhh_post_gcs: str,
     gcov_hvhv_post_gcs: str,
     bbox: list[float],
-    s1_post_start: str = "2026-11-01",
-    s1_post_end: str = "2026-11-13",
+    post_date: str,
+    has_baseline: bool,
+    gcov_hhhh_pre_gcs: str | None = None,
+    gcov_hvhv_pre_gcs: str | None = None,
+    s1_post_start: str | None = None,
+    s1_post_end: str | None = None,
 ) -> dict[str, Any]:
     """
     Executes Module 2 (compute_flood_scattering_decomposition):
     Decomposes NISAR L2 GCOV polarimetric covariance into Specular Open-Water Flooding (Class 1)
     and Sub-Canopy Dihedral Double-Bounce Flooding (Class 2), returning flooded hectares and percentiles.
     """
+    from gee_math.flood_polarimetric_math import load_params
+
+    params = load_params("flood")
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE polarimetric decomposition graph
@@ -193,8 +205,11 @@ def analyze_flood_inundation(
         gcov_hhhh_post_gcs=gcov_hhhh_post_gcs,
         gcov_hvhv_post_gcs=gcov_hvhv_post_gcs,
         aoi=aoi,
+        post_date=post_date,
+        has_baseline=has_baseline,
         s1_post_start=s1_post_start,
         s1_post_end=s1_post_end,
+        params=params,
     )
 
     # 2. Render Categorical Flood Regime Tile (Cyan = Specular Open Water, Magenta = Sub-Canopy Double-Bounce)
@@ -205,8 +220,12 @@ def analyze_flood_inundation(
 
     # 3. Render Polarimetric Pauli/Freeman False-Color RGB Tile:
     # Red = HH Post (dB, Double-Bounce), Green = HV Post (dB, Canopy Volume), Blue = Delta HH (dB)
-    pol_rgb_map = flood_stack.select(["hh_post_db", "hv_post_db", "delta_hh_db"]).getMapId(
-        {"min": [-18, -24, -8], "max": [-2, -8, 6]}
+    pol_rgb_map = (
+        flood_stack.select(["hh_post_db", "hv_post_db", "delta_hh_db"]).getMapId(
+            {"min": [-18, -24, -8], "max": [-2, -8, 6]}
+        )
+        if has_baseline
+        else None
     )
 
     # 4. Compute exact inundated area (hectares) + radiometric percentiles in one GEE pass
@@ -227,41 +246,57 @@ def analyze_flood_inundation(
     )
     summary = _extract_zonal_stats_and_hotspot(
         metric_stack=flood_stack.select(
-            ["hh_post_db", "hv_post_db", "delta_hh_db", "double_bounce_fraction"]
+            ["hh_post_db", "hv_post_db", "flood_regime_class"]
+            + (["delta_hh_db", "delta_hv_hh_db"] if has_baseline else [])
         ),
-        primary_band="double_bounce_fraction",
+        primary_band="flood_regime_class",
         hotspot_threshold=0.60,
         aoi=aoi,
         scale=20,
     )
     area_dict = area_totals.getInfo() or {}
 
-    open_ha = round(float(area_dict.get("open_water_flood_ha", 0.0)), 2)
-    subcanopy_ha = round(float(area_dict.get("subcanopy_double_bounce_ha", 0.0)), 2)
-    total_ha = open_ha + subcanopy_ha
+    open_area = area_dict.get("open_water_flood_ha")
+    subcanopy_area = area_dict.get("subcanopy_double_bounce_ha") if has_baseline else None
+    open_ha = round(float(open_area), 2) if open_area is not None else None
+    subcanopy_ha = round(float(subcanopy_area), 2) if subcanopy_area is not None else None
 
     metrics = summary["zonal_percentiles"]
-    metrics["open_water_flood_ha"] = open_ha
     metrics["subcanopy_double_bounce_flood_ha"] = subcanopy_ha
-    metrics["total_inundated_ha"] = round(total_ha, 2)
-
-    alert = (
-        "RED"
-        if total_ha > 150.0
-        else "ORANGE"
-        if total_ha > 50.0
-        else "YELLOW"
-        if total_ha > 10.0
-        else "GREEN"
-    )
+    class2_reason = None
+    if not has_baseline:
+        class2_reason = "no acceptable dry baseline"
+        metrics["water_extent_ha"] = open_ha
+        metrics["water_extent_label"] = f"water extent on date {post_date}"
+        alert = "not computed: no acceptable dry baseline"
+    else:
+        metrics["open_water_flood_ha"] = open_ha
+        total_ha = (
+            round(open_ha + subcanopy_ha, 2)
+            if open_ha is not None and subcanopy_ha is not None
+            else None
+        )
+        metrics["total_inundated_ha"] = total_ha
+        alert = (
+            "not computed: missing inundated area"
+            if total_ha is None
+            else "RED"
+            if total_ha > 150.0
+            else "ORANGE"
+            if total_ha > 50.0
+            else "YELLOW"
+            if total_ha > 10.0
+            else "GREEN"
+        )
 
     return {
         "domain": "flood",
         "alert_level": alert,
+        "class2_reason": class2_reason,
         "key_quantitative_metrics": metrics,
         "hotspot_coordinates": summary["hotspot_coordinates"],
         "gee_xyz_tile_url": class_viz["tile_fetcher"].url_format,
-        "diagnostic_rgb_tile_url": pol_rgb_map["tile_fetcher"].url_format,
+        "diagnostic_rgb_tile_url": pol_rgb_map["tile_fetcher"].url_format if pol_rgb_map else None,
         "physical_radar_driver": (
             "High dielectric constant (epsilon_r ~ 80) causes specular mirror reflection over open water "
             "(-5.5 dB drop in L-band HH & C-band VV) while water beneath flooded riparian trees creates "
