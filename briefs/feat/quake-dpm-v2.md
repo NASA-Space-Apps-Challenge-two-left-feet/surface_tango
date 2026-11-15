@@ -101,3 +101,71 @@ Write `BLOCKED: <reason>` at the end of this file and stop. Examples: the loader
 
 ## Report (append to the end of this file when done)
 What you built, commands run with their output tail (counts only), what you could not do, open questions.
+
+### Report — 2026-11-15, opencode GLM-5.3 (counts only; no sealed statistics)
+
+**Built (steps 1–4).** All parameters go through `src/bailasar/config.load_config()`
+(`cfg.prereg("quake.…")`, `cfg.aoi_bbox("2_eje_cafetero_quake")`); prereg sha1
+`24343020812977afe49c8495fc10113cd2c95af4`, status and frozen flag ride in every
+provenance; the hardcoded AOI estimate and `git_blob_sha1` are gone. Pairs resolve
+from `quake_triplets` (`pairs_from_catalog`) with discovery kept as a fallback and a
+read-only cross-check that fails loudly with both IDs; both live runs printed
+`verified: ASF discovery returns the same triplet (measured, read-only)`. A
+`TODO(#86)` marks the `prereg quake.pairs` shape change. `pyarrow` (26.0.1,
+`uv add`) replaces the thrift byte-packer — `rg 'thrift|struct\.pack'` is empty —
+with REQUIRED columns and NaN-as-value round-trips; outputs are per-track:
+`dpm_track<N>.zarr`, `dpm_units_track<N>.parquet`. Units are pluggable:
+GEE asset (GAUL ADM2, default) or `--units-file PATH --units-id-prop NAME`
+(GeoJSON/GPKG via geopandas, duplicate IDs rejected, sha256+CRS+count in
+provenance). `_summary_line` takes `is_frozen` (from the loader) and prints
+counts plus `C/K statistics sealed until pre-registration freeze (status=draft)`
+until the freeze; the μ/σ/median/excess lines exist only on the frozen path.
+GUNW reads are bounded per granule (fresh Earthdata filesystem, 30 s connect /
+120 s read, 3 attempts, 2/4 s backoff, 32 MB block cache; a stalled granule is
+recorded `missing`), after `docs/kb/nisar-gcov-read-timeouts.md`.
+
+**Tests.** 23 DPM tests pass (sealed-summary capsys test, frozen-path counterpart,
+catalog pairs, units-file fixture with exclusion and duplicate-ID rejection,
+file-mode fetch, pyarrow round-trip). `make ci` green throughout: offline suite
+216 passed, 3 deselected (selectors arrived from main during the syncs).
+
+**Commands run (foreground; tails, counts only).**
+`uv run python -m gee_math.earthquake_dpm_math --track 47` → window 4143×2499 =
+10,353,357 px; valid 316,398; built-up 211,820; non-built 104,578; units 32/28/4
+(excluded: Belen De Umbria 10 px, La Virginia 14, Caicedonia 0, Cartago 4); K
+frame 4 matches R and C. Output: `dpm_track47.zarr` 293 MB, `dpm_units_track47.parquet`
+8.0 KB (32 rows). No granule stalled (missing_granules = []).
+`uv run python -m gee_math.earthquake_dpm_math --track 11` (rerun under the new
+code) → valid 316,399 of 10,353,357 px; units 32/28/4, same four excluded units
+with the same counts — **reproduces #64 exactly**. Output: `dpm_track11.zarr`
+291 MB, `dpm_units_track11.parquet` 8.0 KB. The 1-px valid difference between the
+tracks sits in Pereira's non-built set (24,788 vs 24,789), disclosed in the report.
+
+**Report + KB (steps 6–7).** `reports/quake_dpm.md`: commands, R/C/K IDs, the
+disclosed 24 d vs 12 d baseline mismatch, window and pixel counts with
+denominators, the full 32-unit count table, unit source, `du -sh` sizes, the
+seal line, "How #32 consumes this" (columns, `unit_id` 1..32 in source order, k
+from `cfg.prereg("quake.k_rule")`: ceil(0.10 × 28) = 3, minimum 5 applies →
+k = 5), README rows. Grep-clean of μ/σ/median/excess numbers. Two KB notes:
+`pyarrow-parquet-nan-roundtrip.md` (with the runnable command and its `True False`
+output) and `nisar-gunw-track47-frame4-grid.md` (frame 4 = frame 86 layout, both
+windows 4143×2499).
+
+**Not done / findings for other lanes.** Nothing blocked. (1) `mcp_servers/gee_fusion_mcp.py`
+imports `compute_earthquake_dpm_and_rupture`, which does not exist in the module —
+pre-existing breakage on main, mcp lane's file, untouched here. (2) The
+`PENDING_WIRING` entry for `earthquake_dpm_math.py` in `tests/test_config.py` is
+now stale (the AOI goes through the loader); config lane should drop it. (3)
+`status/quake.md` untouched (not in this brief's file list). (4) The #64 file
+`local_cache/quake/barrio_dpm.parquet` remains on disk unread (sealed); the new
+per-track names supersede it — a cache-clean pass can drop it after the freeze.
+
+**Commits (as of writing).** `c13b809` build(quake): add pyarrow for the unit
+parquet output · `c94d9df` feat(quake): complete the dpm product for both
+tracks · `e787511` feat(quake): print the gate-catalog vs discovery cross-check
+outcome · `d733242` docs(quake): report the dpm runs for tracks 11 and 47 ·
+`6b86bc0` docs(kb): add pyarrow nan round-trip and track-47 grid notes.
+
+**Open questions.** None for this branch. For #32: whether scoring wants the
+excluded units carried as rows (they are, `evaluated = 0`) or dropped before
+ranking.
