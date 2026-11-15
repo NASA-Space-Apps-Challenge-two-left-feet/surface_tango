@@ -4,7 +4,7 @@ Commit this file, filled in, **before** anyone views co-event (C-pair) coherence
 
 | Field | Value |
 |---|---|
-| `config/preregistered.yaml` hash (`git hash-object`) | _pending (recorded at freeze, #26)_ |
+| `config/preregistered.yaml` hash (`git hash-object`) | `56b29a0` (draft; the freeze records the frozen hash, #26) |
 | Commit of this file | _pending (recorded at freeze, #26)_ |
 | Ground-truth source (name, date, URL) | **Uninformative.** No complete barrio-level damage-assessment dataset was verified for Pereira, Armenia or Manizales. Public damage reports and boundary candidates were located but none adopted as labels. Source register: `reports/ground_truth.md` (#24, inspected 2026-11-14). |
 | Barrio polygons source | Candidates located (official/IGAC boundaries, `reports/ground_truth_armenia_boundaries.md`); **none adopted** — official adoption, event-date validity and unit identity unresolved (#24). |
@@ -33,6 +33,7 @@ Every change to `config/preregistered.yaml` after blob `8d91f1df0d53c394f22e65a7
 | Change | Reason |
 |---|---|
 | Added `landslide.noise_floor: {min_pairs: 2, require_sign_agreement: true}` | The landslide honesty test (design doc, Hazard 1) needs these keys for `noise_floor_verdict` (#72). Both values are the design doc's rule ("the sign agrees across two independent pairs"). Landslide only: no quake or flood parameter changes, and none depends on C-pair coherence. |
+| Filled `quake.pairs` (tracks 11 and 47) with the R/C/K GUNW IDs | The IDs come straight from the hour-2 gate (`nisar_colombia_granules_2026.json` → `quake_triplets`, #23); no threshold, weight, k-rule or informative-gate value changed (#86). Blob after this change: `56b29a0`. The pairs are identifiers, not fitted parameters; the DPM run (#111) selected the same track-11 triplet before this file recorded it. |
 
 ## Deviations
 
