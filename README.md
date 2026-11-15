@@ -62,6 +62,7 @@ Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover
 - **Dual-pol flooding is open**: 78 DHDH (HH/HV) GCOVs over La Mojana; the post-event Eje Cafetero GCOV is single-pol `SHSH`, so its cross-pol band is honestly `missing`.
 - All products are **provisional (PR/UR, CRID P05023)** — every view and the video carry PROVISIONAL. No validated products exist in the window.
 - GUNW ionosphere screens are present and **applied by our pipeline** ([docs/kb/nisar-gunw-ionosphere-screen-applied.md](docs/kb/nisar-gunw-ionosphere-screen-applied.md)); CHIRPS rain windows arrive weeks late and stay `missing` rather than synthesized ([docs/kb/chirps-daily-publication-lag.md](docs/kb/chirps-daily-publication-lag.md)).
+- **Landslide detail AOIs (Valle de Aburrá)** are selected from Medellín's POT detailed-risk prioritizations and grounded in the **SGC methodology via a local GraphRAG** (`knowledge/graphrag/`, #33): La Picacha (Comuna 16, *riesgo alto no mitigable*, **measured** bbox), Parque Popular, Carabineros, Parque Complex 2, Colegiatura, Villatina. The frontend AOI navigator frames each to its data and labels its cache state honestly ([reports/landslide_aoi_selection.md](reports/landslide_aoi_selection.md)).
 
 ## Status
 
@@ -89,7 +90,12 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | La Mojana L/C open-water comparison | cached: per-date comparison with an uncalibrated Sentinel-1 cut; no breach attribution | #160 | [reports/mojana_lvsc.md](reports/mojana_lvsc.md) |
 | La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
-| Mission-control UI, curtain slider and story map | cached (offline, opens on La Mojana; numbers parsed from the reports via `/api/pitch-facts`; quake panel state derives from the manifest since #166) | #22, #37 | [frontend status](status/frontend-video.md) |
+| Mission-control UI, curtain slider and story map | live: 3-panel Optical/C-band/L-band curtain (Pointer-Events drag — mouse+touch+pen, #202), AOI navigator (grouped, zoom-to-AOI, honest states, #204), tango-basic transition; numbers parsed from the reports via `/api/pitch-facts` | #22, #37, #202, #204 | [frontend status](status/frontend-video.md) |
+| AOI navigator (`/api/aois`) | live: AOIs grouped by hazard with bbox + measured fact + source; state computed from cache presence (`cached`/`not cached`, never faked); fitBounds zoom + keyboard + prev/next | #22, #37 | `app.py`, `static/aoi-nav.js` |
+| Landslide conceptual grounding — GraphRAG | scaffold live (#203): Microsoft GraphRAG + Azure OpenAI over the SGC methodology + Medellín POT detailed-risk studies (git-ignored index); `retrieve.ground()` evidence envelope | #33 | [knowledge/graphrag/README](knowledge/graphrag/README.md) |
+| Landslide AOI selection (Valle de Aburrá) | cached: AOIs ranked from Medellín POT prioritizations; **La Picacha** a measured operational AOI (EPSG:3116 reprojection) | #33 | [reports/landslide_aoi_selection.md](reports/landslide_aoi_selection.md) |
+| Comprehensive landslide analysts (geology · geomorphology+photogrammetry · hydrogeology) | planned: trigger analysis (rain wetting-front, groundwater, Culmann stability, SPT, loads), SGC-grounded; handoff brief ready | #33 | [brief](briefs/feat/landslide-comprehensive-agents.md) |
+| On-demand demo hosting (Cloud Run waker + idle-shutdown VM) | live: HTTPS Cloud Run wakes the 16 GB VM on first visit (~60 s, two-feet waiting page), powers off after 45 min idle; cost-capped | #200 | [docs/deploy/gcp-evaluation.md](docs/deploy/gcp-evaluation.md) |
 | Submission video (30 s) | silent draft cut from `video/assemble.py`; voice-over pending; **headline ratified: La Mojana flood** | #39, #43, #102 | [storyboard](video/storyboard.md), [video README](video/README.md) |
 | Biomass agent · GOFF rupture · split-spectrum ionosphere · S-band fusion · `/math-lab` | dropped | #41, #55, #56 | — |
 
