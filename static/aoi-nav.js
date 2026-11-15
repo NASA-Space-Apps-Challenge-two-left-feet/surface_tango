@@ -101,6 +101,9 @@
       mk("aoi-detail-fact", "Measured: " + a.fact),
       mk("aoi-detail-src", "Source: " + a.source),
     );
+    if (typeof a.coverage_pct === "number") {
+      d.append(mk("aoi-detail-cov", "NISAR L-band covers " + a.coverage_pct + "% of the AOI (framed to the data footprint)."));
+    }
     if (a.state === "not cached") {
       d.append(mk("aoi-detail-note",
         "Map framing is available; processed NISAR/Sentinel layers are not staged for this AOI yet."));
@@ -113,17 +116,20 @@
     if (!a) return;
     const crossHazard = a.hazard !== currentHazard;
     currentAoiId = id;
+    // Frame the DATA footprint (where NISAR actually covers), not the oversized
+    // AOI box — falls back to the config bbox when no footprint is known.
+    const target = Array.isArray(a.footprint_bbox) ? a.footprint_bbox : a.bbox;
     if (crossHazard && typeof openStoryChapter === "function") {
       // let fitChapter frame the AOI (not the whole hazard) under the curtain,
       // avoiding a double camera move; then one smooth fitBounds settles it.
-      window.__aoiFocusBbox = a.bbox;
+      window.__aoiFocusBbox = target;
       if (typeof playFeetTransition === "function") playFeetTransition(a.hazard);
       try { openStoryChapter(a.hazard); } catch (_) {}
       const sel = $("story-chapter");
       if (sel) sel.value = a.hazard;
-      setTimeout(() => fitAoi(a.bbox), 120);
+      setTimeout(() => fitAoi(target), 120);
     } else {
-      fitAoi(a.bbox);
+      fitAoi(target);
     }
     currentHazard = a.hazard;
     renderAoiDetail(a);

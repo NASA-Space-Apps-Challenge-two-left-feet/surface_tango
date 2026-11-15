@@ -208,16 +208,64 @@ AOI_REGISTRY = [
 ]
 
 
+# The NISAR L-band band whose coverage defines each hazard's analysis footprint.
+AOI_PRIMARY_BAND = {
+    "flood": "gcov_hhhh_post",
+    "landslide": "los_disp_mm",
+    "earthquake": "coherence_R",
+}
+_AOI_FOOTPRINT_CACHE: dict[str, dict] = {}
+
+
+def aoi_coverage_footprint(aoi_id: str, hazard: str) -> dict:
+    """Measured NISAR coverage % of the AOI and the data-footprint bbox [W,S,E,N].
+
+    coverage_pct comes from the band's finite_pixel_ratio in the manifest; the
+    footprint is the lon/lat bounding box of the valid (finite) pixels, so the
+    navigator frames the data — not an oversized empty AOI box. Returns {} when
+    no cube is staged. Cached per AOI (one cube read)."""
+    if aoi_id in _AOI_FOOTPRINT_CACHE:
+        return _AOI_FOOTPRINT_CACHE[aoi_id]
+    result: dict = {}
+    manifest_path = CACHE_ROOT / aoi_id / "manifest.json"
+    cube_glob = sorted((CACHE_ROOT / aoi_id).glob("*_sar_cube.zarr"))
+    band = AOI_PRIMARY_BAND.get(hazard)
+    if manifest_path.is_file() and cube_glob and band:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            ratio = manifest.get("bands", {}).get(band, {}).get("finite_pixel_ratio")
+            if isinstance(ratio, (int, float)):
+                result["coverage_pct"] = round(float(ratio) * 100, 1)
+            with xr.open_zarr(cube_glob[0]) as cube:
+                if band in cube and set(cube[band].dims) == {"x", "y"}:
+                    arr = cube[band].transpose("y", "x")
+                    finite = np.isfinite(arr.values)
+                    if finite.any():
+                        ys, xs = np.where(finite)
+                        xcoord = cube["x"].values
+                        ycoord = cube["y"].values
+                        w, e = float(xcoord[xs.min()]), float(xcoord[xs.max()])
+                        s, n = float(ycoord[ys.min()]), float(ycoord[ys.max()])
+                        result["footprint_bbox"] = [min(w, e), min(s, n), max(w, e), max(s, n)]
+        except Exception:
+            result = {}
+    _AOI_FOOTPRINT_CACHE[aoi_id] = result
+    return result
+
+
 @app.get("/api/aois")
 def aois():
     """AOI navigator registry grouped by hazard. State is computed from cache
-    presence: an AOI with a staged tiles manifest is `cached`, otherwise
-    `not cached` (honest — the data is not faked)."""
+    presence; cached AOIs also report measured NISAR coverage % and the
+    data-footprint bbox so the navigator frames the data, not an empty AOI box."""
     out: dict[str, list] = {"flood": [], "landslide": [], "earthquake": []}
     for item in AOI_REGISTRY:
         manifest = CACHE_ROOT / item["id"] / "tiles" / "manifest.json"
         state = "cached" if manifest.is_file() else "not cached"
-        out.setdefault(item["hazard"], []).append({**item, "state": state})
+        entry = {**item, "state": state}
+        if state == "cached":
+            entry.update(aoi_coverage_footprint(item["id"], item["hazard"]))
+        out.setdefault(item["hazard"], []).append(entry)
     return out
 
 
@@ -508,6 +556,21 @@ def valid_xyz(z: int, x: int, y: int) -> bool:
     return 0 <= z <= 24 and 0 <= x < 2**z and 0 <= y < 2**z
 
 
+# ColorBrewer RdBu diverging stops (blue → white → red) for the InSAR LOS tile.
+_LOS_STOPS = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+_LOS_R = np.array([33, 103, 247, 239, 178])
+_LOS_G = np.array([102, 169, 247, 138, 24])
+_LOS_B = np.array([172, 207, 247, 98, 43])
+
+
+def _los_diverging_rgb(norm: np.ndarray):
+    """Map a 0..1 array (0.5 = zero displacement) to an RdBu diverging RGB triple."""
+    r = np.interp(norm, _LOS_STOPS, _LOS_R).astype(np.uint8)
+    g = np.interp(norm, _LOS_STOPS, _LOS_G).astype(np.uint8)
+    b = np.interp(norm, _LOS_STOPS, _LOS_B).astype(np.uint8)
+    return r, g, b
+
+
 @app.get("/api/local-tiles/aburra/{domain}/{z}/{x}/{y}.png")
 @app.get("/api/local-tiles/{domain}/{z}/{x}/{y}.png")
 def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
@@ -537,15 +600,21 @@ def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
             dst_nodata=np.nan,
         )
 
-    # Color intensity is for display only. Preserve missing pixels in alpha.
+    # Scientific diverging colormap for LOS displacement (ColorBrewer RdBu):
+    # blue = motion away / subsidence, white = no motion, red = motion toward /
+    # uplift — the standard InSAR convention. Symmetric about zero on a robust
+    # 95th-percentile scale; missing pixels stay transparent. Display only.
     rgba = np.zeros((4, size, size), dtype=np.uint8)
     valid = np.isfinite(values)
     signal = values[valid]
-    intensity = (np.arctan(np.abs(signal)) * (2 / np.pi) * 255).astype(np.uint8)
-    rgba[0, valid] = np.where(signal > 0, intensity, 0)
-    rgba[1, valid] = 80
-    rgba[2, valid] = np.where(signal <= 0, intensity, 0)
-    rgba[3, valid] = 255
+    if signal.size:
+        scale = float(np.percentile(np.abs(signal), 95)) or 1.0
+        norm = np.clip(signal / (2 * scale) + 0.5, 0.0, 1.0)  # 0..1, 0.5 = zero
+        r, g, b = _los_diverging_rgb(norm)
+        rgba[0, valid] = r
+        rgba[1, valid] = g
+        rgba[2, valid] = b
+        rgba[3, valid] = 255
     with MemoryFile() as png:
         with png.open(driver="PNG", width=size, height=size, count=4, dtype="uint8") as image:
             image.write(rgba)
