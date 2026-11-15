@@ -13,7 +13,7 @@ Pure functions (no IO, no network), unit-tested in tests/test_earthquake_dpm.py:
     valid_pixels       finite Δγ, not vegetation/water/GUNW-invalid/layover
     standardize        μ, σ over valid NON-BUILT pixels; Z = (Δγ−μ)/σ
     dpm_from_z         DPM = max(Z, 0), clamped AFTER standardization
-    unit_stats / evaluate_units  barrio DPM_u = median Z of built-up pixels,
+    unit_stats / evaluate_units  unit DPM_u = median Z of built-up pixels,
                        units with < min_built_up_pixels_per_unit excluded+counted
     run_dpm_pass       one DPM pass; the identical code path runs the co-event
                        pass (ref=R, cmp=C) and the control pass (ref=K, cmp=R)
@@ -23,13 +23,20 @@ product (verified against JPL D-102272 Rev E p.44 and the real granules: the GUN
 `mask` is water + subswath validity, not layover/shadow). It is recorded as
 `missing` in provenance and never replaced with invented values.
 
-CLI (network + GEE): python -m gee_math.earthquake_dpm_math --track 11
-    streams only the AOI window of coherenceMagnitude at 20 m posting from the
-    GUNW HDF5 files via h5py + fsspec (Earthdata token), computes R, C, K on one
-    grid, and writes local_cache/quake/dpm_track<N>.zarr plus
-    local_cache/quake/barrio_dpm.parquet. C-pair statistics are computed and
-    stored only (validation/README.md pre-registration pending); they are never
-    interpreted by this code.
+CLI (network + GEE): python -m gee_math.earthquake_dpm_math --track 47
+    reads the R/C/K triplet from the hour-2 gate catalog
+    (nisar_colombia_granules_2026.json → quake_triplets; ASF discovery is only
+    a fallback and a cross-check), streams only the AOI window of
+    coherenceMagnitude at 20 m posting from the GUNW HDF5 files via h5py +
+    fsspec (one bounded Earthdata session per granule: fresh client, socket
+    timeouts, retries; docs/kb/nisar-gcov-read-timeouts.md), computes R, C, K on
+    one grid, and writes local_cache/quake/dpm_track<N>.zarr plus
+    local_cache/quake/dpm_units_track<N>.parquet (pyarrow). Unit polygons come
+    from a GEE asset or a local GeoJSON/GeoPackage file. Until the
+    pre-registration is frozen, C/K-pass statistics (μ, σ, medians, excess,
+    per-unit DPM) are computed and stored ONLY inside those git-ignored
+    outputs; every printed line is counts (validation/README.md deviation 1
+    must not recur).
 """
 
 from __future__ import annotations
@@ -39,7 +46,7 @@ import io
 import json
 import math
 import os
-import struct
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -47,18 +54,27 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+# src/ is not an installed package; tests/test_config.py uses the same insert.
+sys.path.insert(0, str(ROOT / "src"))
+
+from bailasar.config import load_config  # noqa: E402
+
 PREREG_PATH = ROOT / "config" / "preregistered.yaml"
-OPS_PATH = ROOT / "config" / "bailasar.yaml"
 ENV_PATH = ROOT / ".env"
 CACHE_DIR = ROOT / "local_cache" / "quake"
+GATE_CATALOG_PATH = ROOT / "nisar_colombia_granules_2026.json"
+QUAKE_AOI_NAME = "2_eje_cafetero_quake"
+# Earthdata reader limits (docs/kb/nisar-gcov-read-timeouts.md pattern, as in
+# gee_math/flood_polarimetric_math.py). Reader limits, not science thresholds.
+GRANULE_ATTEMPTS = 3
+GRANULE_BACKOFF_S = (2.0, 4.0)
+SOCK_CONNECT_S = 30
+SOCK_READ_S = 120
+FSSPEC_BLOCK_SIZE = 32 * 1024 * 1024
 
 EVENT_DATE = "2026-08-10"
-# AOI fallback (estimate) from the hour-2 gate brief while
-# config/bailasar.yaml aois.2_eje_cafetero_quake is null (estimate, not frozen).
-EJE_CAFETERO_AOI_ESTIMATE = [-75.85, 4.40, -75.40, 5.15]  # [W, S, E, N] EPSG:4326
 
 # GUNW product layout verified against NISAR_L2_PR_GUNW_026_011_D_086_028_*_001
 # (productSpecificationVersion 1.5.0) and JPL D-102272 Rev E p.44: the 20 m
@@ -82,32 +98,25 @@ UNIT_FALLBACK_LABEL = (
 )
 FOOTPRINT_FINE_SCALE_M = 5.0
 
-PREREG_QUAKE_KEYS = (
-    "built_up_min_footprint_fraction",
-    "non_built_max_footprint_fraction",
-    "min_built_up_pixels_per_unit",
-)
 
-
-def load_quake_prereg(path: Path | None = None) -> dict:
-    """Read the frozen quake thresholds with yaml.safe_load; never defaults."""
-    cfg = yaml.safe_load((path or PREREG_PATH).read_text(encoding="utf-8"))
-    quake = cfg["quake"]
-    missing = [k for k in PREREG_QUAKE_KEYS if k not in quake]
-    if missing:
-        raise KeyError(f"config/preregistered.yaml quake block is missing {missing}")
+def load_quake_prereg() -> dict:
+    """The quake thresholds through the one shared loader
+    (src/bailasar/config.py #load_config), never a second YAML reader and never
+    a default: a missing or null key raises ConfigError instead of inventing a
+    value. The preregistered hash is the loader's git-blob hash."""
+    cfg = load_config()
     return {
-        "built_up_min_footprint_fraction": float(quake["built_up_min_footprint_fraction"]),
-        "non_built_max_footprint_fraction": float(quake["non_built_max_footprint_fraction"]),
-        "min_built_up_pixels_per_unit": int(quake["min_built_up_pixels_per_unit"]),
-        "status": cfg.get("status", "?"),
+        "built_up_min_footprint_fraction": float(
+            cfg.prereg("quake.built_up_min_footprint_fraction")
+        ),
+        "non_built_max_footprint_fraction": float(
+            cfg.prereg("quake.non_built_max_footprint_fraction")
+        ),
+        "min_built_up_pixels_per_unit": int(cfg.prereg("quake.min_built_up_pixels_per_unit")),
+        "status": cfg.status,
+        "is_frozen": cfg.is_frozen,
+        "prereg_sha1": cfg.preregistered_hash,
     }
-
-
-def git_blob_sha1(path: Path) -> str:
-    """git hash-object equivalent (sha1 of the blob header + bytes)."""
-    blob = path.read_bytes()
-    return hashlib.sha1(b"blob %d\0" % len(blob) + blob).hexdigest()
 
 
 def delta_gamma(gamma_ref: np.ndarray, gamma_cmp: np.ndarray) -> np.ndarray:
@@ -286,6 +295,7 @@ def run_dpm_pass(
         "n_units_excluded": len(excluded),
         "min_built_up_pixels_per_unit": thresholds["min_built_up_pixels_per_unit"],
         "layover_shadow_mask": "missing" if layover_shadow is None else "applied",
+        "prereg_status": str(thresholds.get("status", "?")),
         "thresholds": {
             "built_up_min_footprint_fraction": thresholds["built_up_min_footprint_fraction"],
             "non_built_max_footprint_fraction": thresholds["non_built_max_footprint_fraction"],
@@ -317,378 +327,39 @@ def run_dpm_pass(
 
 
 # ---------------------------------------------------------------------------
-# Minimal parquet writer/reader (no pyarrow/fastparquet in the project deps).
-# Writes INT64, DOUBLE and UTF8 columns, all REQUIRED, single row group, one
-# PLAIN-encoded data page v1 per column, UNCOMPRESSED. Thrift compact-protocol
-# footer per parquet.thrift. Verified against pyarrow outside the repo venv
-# (see the brief report); read_parquet() is the matching reader used by tests.
+# Parquet via pyarrow (real engine since #31; the hand-written footer-packing
+# writer from the hour-2 gate is gone). Column names, kinds (int64/double/utf8)
+# and NaN semantics are unchanged; NaN medians round-trip as NaN, not null.
 # ---------------------------------------------------------------------------
-
-_T_CTYPE = {"i32": 5, "i64": 6, "binary": 8, "list": 9, "struct": 12}
-_PARQUET_PHYSTYPE = {"int64": 2, "double": 5, "utf8": 6}
-
-
-class _CompactWriter:
-    """Thrift compact protocol writer. Field ids are ABSOLUTE; deltas are
-    computed automatically, with the long-form (zigzag) fallback."""
-
-    def __init__(self) -> None:
-        self.buf = bytearray()
-        self._last = 0
-
-    def _varint(self, n: int) -> None:
-        n &= (1 << 64) - 1
-        while True:
-            b = n & 0x7F
-            n >>= 7
-            if n:
-                self.buf.append(b | 0x80)
-            else:
-                self.buf.append(b)
-                return
-
-    def _zigzag(self, n: int) -> int:
-        return (n << 1) ^ (n >> 63)
-
-    def _field(self, fid: int, ctype: int) -> None:
-        delta = fid - self._last
-        if 0 < delta <= 15:
-            self.buf.append((delta << 4) | ctype)
-        else:
-            self.buf.append(ctype)
-            self._varint(self._zigzag(fid))
-        self._last = fid
-
-    def i32(self, fid: int, value: int) -> None:
-        self._field(fid, _T_CTYPE["i32"])
-        self._varint(self._zigzag(value))
-
-    def i64(self, fid: int, value: int) -> None:
-        self._field(fid, _T_CTYPE["i64"])
-        self._varint(self._zigzag(value))
-
-    def binary_(self, fid: int, value: bytes) -> None:
-        self._field(fid, _T_CTYPE["binary"])
-        self._varint(len(value))
-        self.buf += value
-
-    def struct_(self, fid: int) -> None:
-        self._field(fid, _T_CTYPE["struct"])
-
-    def list_(self, fid: int, size: int, elem_type: str) -> None:
-        self._field(fid, _T_CTYPE["list"])
-        et = _T_CTYPE[elem_type]
-        if size < 15:
-            self.buf.append((size << 4) | et)
-        else:
-            self.buf.append(0xF0 | et)
-            self._varint(size)
-
-    def binary_item(self, value: bytes) -> None:
-        self._varint(len(value))
-        self.buf += value
-
-    def i32_item(self, value: int) -> None:
-        self._varint(self._zigzag(value))
-
-    def stop(self) -> None:
-        self.buf.append(0)
-
-    def bytes(self) -> bytes:
-        return bytes(self.buf)
-
-
-def _plain_bytes(kind: str, values: list) -> bytes:
-    if kind == "int64":
-        return np.asarray(values, dtype="<i8").tobytes()
-    if kind == "double":
-        return np.asarray(values, dtype="<f8").tobytes()
-    out = bytearray()
-    for v in values:
-        b = str(v).encode("utf-8")
-        out += struct.pack("<I", len(b)) + b
-    return bytes(out)
 
 
 def write_parquet(path: Path, columns: dict[str, tuple[str, list]]) -> None:
-    """Minimal parquet writer: one row group, all REQUIRED columns, PLAIN
-    data page v1, uncompressed, no levels (max def/rep level = 0). Field ids
-    follow parquet.thrift (SchemaElement.name=4, ColumnMetaData.
-    data_page_offset=9, ...)."""
+    """Write one row group, all columns REQUIRED (nullable=False), through
+    pyarrow.parquet. Kind names ("int64", "double", "utf8") match the previous
+    hand-written schema so callers and #32 (scoring) see identical columns."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    kinds = {"int64": pa.int64(), "double": pa.float64(), "utf8": pa.string()}
     cols = list(columns.items())
     n_rows = len(cols[0][1][1])
-    for name, (kind, values) in cols:
+    for name, (_kind, values) in cols:
         if len(values) != n_rows:
             raise ValueError(f"column {name} has {len(values)} rows, expected {n_rows}")
-        if kind not in _PARQUET_PHYSTYPE:
-            raise ValueError(f"unsupported parquet kind {kind}")
-    body = bytearray(b"PAR1")
-    chunks = []
-    for name, (kind, values) in cols:
-        data = _plain_bytes(kind, values)
-        ph = _CompactWriter()
-        ph.i32(1, 0)  # PageType.DATA_PAGE
-        ph.i32(2, len(data))  # uncompressed_page_size
-        ph.i32(3, len(data))  # compressed_page_size
-        ph.struct_(5)  # data_page_header
-        dph = _CompactWriter()
-        dph.i32(1, n_rows)  # num_values
-        dph.i32(2, 0)  # Encoding.PLAIN
-        dph.i32(3, 3)  # Encoding.RLE (definition levels; max level 0 -> none)
-        dph.i32(4, 3)  # Encoding.RLE (repetition levels; max level 0 -> none)
-        dph.stop()
-        ph.buf += dph.buf
-        ph.stop()
-        page = ph.bytes() + data
-        offset = len(body)
-        body += page
-        chunks.append((name, kind, offset, len(page)))
-    footer = _CompactWriter()
-    footer.i32(1, 1)  # FileMetaData.version
-    footer.list_(2, len(cols) + 1, "struct")  # schema: root + leaves
-    root = _CompactWriter()
-    root.binary_(4, b"schema")  # name
-    root.i32(5, len(cols))  # num_children
-    root.stop()
-    footer.buf += root.buf
-    for name, (kind, _values) in cols:
-        se = _CompactWriter()
-        se.i32(1, _PARQUET_PHYSTYPE[kind])  # Type
-        se.i32(3, 0)  # repetition REQUIRED
-        se.binary_(4, name.encode("utf-8"))
-        if kind == "utf8":
-            se.i32(6, 0)  # ConvertedType.UTF8
-        se.stop()
-        footer.buf += se.buf
-    footer.i64(3, n_rows)  # num_rows
-    footer.list_(4, 1, "struct")  # row_groups
-    rg = _CompactWriter()
-    rg.list_(1, len(cols), "struct")  # columns
-    total_size = 0
-    for name, kind, offset, size in chunks:
-        total_size += size
-        cc = _CompactWriter()
-        cc.i64(2, offset)  # file_offset
-        cc.struct_(3)  # meta_data
-        cm = _CompactWriter()
-        cm.i32(1, _PARQUET_PHYSTYPE[kind])  # type
-        cm.list_(2, 2, "i32")  # encodings: PLAIN, RLE
-        cm.i32_item(0)
-        cm.i32_item(3)
-        cm.list_(3, 1, "binary")  # path_in_schema
-        cm.binary_item(name.encode("utf-8"))
-        cm.i32(4, 0)  # codec UNCOMPRESSED
-        cm.i64(5, n_rows)  # num_values
-        cm.i64(6, size)  # total_compressed_size
-        cm.i64(7, size)  # total_uncompressed_size
-        cm.i64(9, offset)  # data_page_offset
-        cm.stop()
-        cc.buf += cm.buf
-        cc.stop()
-        rg.buf += cc.buf
-    rg.i64(2, total_size)  # total_byte_size
-    rg.i64(3, n_rows)  # num_rows
-    rg.stop()
-    footer.buf += rg.buf
-    footer.stop()
-    fm = footer.bytes()
+    fields = [pa.field(name, kinds[kind], nullable=False) for name, (kind, _) in cols]
+    arrays = [pa.array(values, type=kinds[kind]) for _, (kind, values) in cols]
+    table = pa.Table.from_arrays(arrays, schema=pa.schema(fields))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(bytes(body) + fm + struct.pack("<I", len(fm)) + b"PAR1")
-
-
-class _CompactReader:
-    def __init__(self, blob: bytes) -> None:
-        self.blob = blob
-        self.pos = 0
-
-    def _byte(self) -> int:
-        b = self.blob[self.pos]
-        self.pos += 1
-        return b
-
-    def varint(self) -> int:
-        shift = 0
-        out = 0
-        while True:
-            b = self._byte()
-            out |= (b & 0x7F) << shift
-            if not (b & 0x80):
-                return out
-            shift += 7
-
-    def unzigzag(self) -> int:
-        v = self.varint()
-        return (v >> 1) ^ -(v & 1)
-
-    def binary_r(self) -> bytes:
-        n = self.varint()
-        out = self.blob[self.pos : self.pos + n]
-        self.pos += n
-        return out
-
-    def list_size(self, elem_type: int) -> int:
-        h = self._byte()
-        size = (h & 0xF0) >> 4
-        if (h & 0x0F) != elem_type:
-            raise ValueError(f"unexpected list element type {h & 0x0F}")
-        return self.varint() if size == 15 else size
-
-    def read_struct(self, spec: dict, out: dict) -> dict:
-        """spec: field_id -> callable(out) consuming the field payload."""
-        last = 0
-        while True:
-            h = self._byte()
-            if h == 0:
-                return out
-            nibble = (h & 0xF0) >> 4
-            if nibble == 0:
-                fid = self.unzigzag()
-            else:
-                fid = last + nibble
-            last = fid
-            if fid not in spec:
-                raise ValueError(f"unexpected parquet metadata field id {fid}")
-            spec[fid](out)
+    pq.write_table(table, path, row_group_size=n_rows)
 
 
 def read_parquet(path: Path) -> dict[str, list]:
-    """Reader matching write_parquet exactly (test round-trip; not a general
-    parquet reader). Field ids per parquet.thrift."""
-    blob = Path(path).read_bytes()
-    if blob[:4] != b"PAR1" or blob[-4:] != b"PAR1":
-        raise ValueError("not a parquet file")
-    fm_len = struct.unpack("<I", blob[-8:-4])[0]
-    rd = _CompactReader(blob[-8 - fm_len : -8])
-    meta: dict = {"schema": [], "row_groups": []}
+    """Read back what write_parquet wrote: column name -> python list. NaN
+    doubles come back as float('nan') (a value), never as None."""
+    import pyarrow.parquet as pq
 
-    def read_schema(_o):
-        for _ in range(rd.list_size(_T_CTYPE["struct"])):
-            se: dict = {}
-            rd.read_struct(
-                {
-                    1: lambda o: o.__setitem__("type", rd.unzigzag()),
-                    3: lambda o: o.__setitem__("repetition", rd.unzigzag()),
-                    4: lambda o: o.__setitem__("name", rd.binary_r().decode("utf-8")),
-                    5: lambda o: o.__setitem__("num_children", rd.unzigzag()),
-                    6: lambda o: o.__setitem__("converted", rd.unzigzag()),
-                },
-                se,
-            )
-            meta["schema"].append(se)
-
-    def read_row_groups(_o):
-        for _ in range(rd.list_size(_T_CTYPE["struct"])):
-            rg: dict = {"columns": []}
-
-            def read_columns(_o2, rg=rg):
-                for _k in range(rd.list_size(_T_CTYPE["struct"])):
-                    cc: dict = {}
-
-                    def read_cm(_o3, cc=cc):
-                        cm: dict = {}
-
-                        def read_enc(_o4, cm=cm):
-                            n = rd.list_size(_T_CTYPE["i32"])
-                            cm["encodings"] = [rd.unzigzag() for _ in range(n)]
-
-                        def read_path(_o4, cm=cm):
-                            n = rd.list_size(_T_CTYPE["binary"])
-                            cm["path"] = [rd.binary_r().decode("utf-8") for _ in range(n)]
-
-                        rd.read_struct(
-                            {
-                                1: lambda o: o.__setitem__("type", rd.unzigzag()),
-                                2: read_enc,
-                                3: read_path,
-                                4: lambda o: o.__setitem__("codec", rd.unzigzag()),
-                                5: lambda o: o.__setitem__("num_values", rd.unzigzag()),
-                                6: lambda o: o.__setitem__("total_compressed_size", rd.unzigzag()),
-                                7: lambda o: o.__setitem__(
-                                    "total_uncompressed_size", rd.unzigzag()
-                                ),
-                                9: lambda o: o.__setitem__("data_page_offset", rd.unzigzag()),
-                            },
-                            cm,
-                        )
-                        cc["meta"] = cm
-
-                    rd.read_struct(
-                        {
-                            2: lambda o: o.__setitem__("file_offset", rd.unzigzag()),
-                            3: read_cm,
-                        },
-                        cc,
-                    )
-                    rg["columns"].append(cc["meta"])
-
-            rd.read_struct(
-                {
-                    1: read_columns,
-                    2: lambda o: o.__setitem__("total_byte_size", rd.unzigzag()),
-                    3: lambda o: o.__setitem__("num_rows", rd.unzigzag()),
-                },
-                rg,
-            )
-            meta["row_groups"].append(rg)
-
-    rd.read_struct(
-        {
-            1: lambda o: o.__setitem__("version", rd.unzigzag()),
-            2: read_schema,
-            3: lambda o: o.__setitem__("num_rows", rd.unzigzag()),
-            4: read_row_groups,
-        },
-        meta,
-    )
-    out: dict[str, list] = {}
-    for cm in meta["row_groups"][0]["columns"]:
-        name = cm["path"][0]
-        phys = cm["type"]
-        page = blob[cm["data_page_offset"] : cm["data_page_offset"] + cm["total_compressed_size"]]
-        pr = _CompactReader(page)
-        state: dict = {}
-
-        def read_dph(o, pr=pr, state=state):
-            def n_vals(o2, pr=pr):
-                o2.__setitem__("n_values", pr.unzigzag())
-
-            def skip_enum(o2, pr=pr):
-                pr.unzigzag()
-
-            pr.read_struct(
-                {1: n_vals, 2: skip_enum, 3: skip_enum, 4: skip_enum},
-                state.setdefault("data_page_header", {}),
-            )
-
-        pr.read_struct(
-            {
-                1: lambda o, pr=pr: o.__setitem__("page_type", pr.unzigzag()),
-                2: lambda o, pr=pr: o.__setitem__("uncompressed_page_size", pr.unzigzag()),
-                3: lambda o, pr=pr: o.__setitem__("compressed_page_size", pr.unzigzag()),
-                5: read_dph,
-            },
-            state,
-        )
-        if state.get("page_type") != 0:
-            raise ValueError(f"expected DATA_PAGE v1 for column {name}")
-        n_values = state.get("data_page_header", {}).get("n_values", cm["num_values"])
-        data = page[pr.pos :]
-        if phys == 2:  # INT64
-            out[name] = np.frombuffer(data[: n_values * 8], dtype="<i8").tolist()
-        elif phys == 5:  # DOUBLE
-            out[name] = np.frombuffer(data[: n_values * 8], dtype="<f8").tolist()
-        elif phys == 6:  # BYTE_ARRAY / utf8
-            vals = []
-            pos = 0
-            for _ in range(n_values):
-                ln = struct.unpack("<I", data[pos : pos + 4])[0]
-                pos += 4
-                vals.append(data[pos : pos + ln].decode("utf-8"))
-                pos += ln
-            out[name] = vals
-        else:
-            raise ValueError(f"unsupported physical type {phys} for column {name}")
-    return out
+    table = pq.read_table(Path(path))
+    return {name: table.column(name).to_pylist() for name in table.schema.names}
 
 
 def parquet_columns_from_rows(rows: list[dict]) -> dict[str, tuple[str, list]]:
@@ -727,20 +398,14 @@ def _load_env() -> None:
 
 
 def resolve_aoi(override: list[float] | None) -> tuple[list[float], str]:
-    """AOI precedence: CLI > config/bailasar.yaml (AOIs are operational) > the
-    hour-2 gate estimate recorded in the brief (labelled estimate)."""
+    """AOI precedence: CLI > config/bailasar.yaml via the shared loader
+    (AOIs are operational). An unset AOI raises ConfigError — the loader's
+    "no made-up values" rule — instead of falling back to a hardcoded bbox."""
     if override:
-        return override, "CLI --aoi argument"
-    try:
-        ops = yaml.safe_load(OPS_PATH.read_text(encoding="utf-8"))
-        aoi = ops.get("aois", {}).get("2_eje_cafetero_quake")
-    except FileNotFoundError:
-        aoi = None
-    if aoi:
-        return [float(v) for v in aoi], "config/bailasar.yaml aois.2_eje_cafetero_quake"
-    return list(EJE_CAFETERO_AOI_ESTIMATE), (
-        "hour-2 gate estimate from briefs/feat/data-quake-dpm.md (config value null)"
-    )
+        return [float(v) for v in override], "CLI --aoi argument"
+    cfg = load_config()
+    bbox = list(cfg.aoi_bbox(QUAKE_AOI_NAME))
+    return bbox, f"config/bailasar.yaml aois.{QUAKE_AOI_NAME} via src/bailasar/config.py"
 
 
 def _bbox_wkt(aoi: list[float]) -> str:
@@ -748,11 +413,21 @@ def _bbox_wkt(aoi: list[float]) -> str:
     return f"POLYGON(({w} {s}, {e} {s}, {e} {n}, {w} {n}, {w} {s}))"
 
 
+def _gunw_pair_dates(granule_id: str) -> tuple[str, str]:
+    """(ref_date, sec_date) as YYYYMMDD from a GUNW granule ID: the four
+    timestamps are ref start/end then secondary start/end."""
+    stamps = re.findall(r"(\d{8}T\d{6})", granule_id)
+    if len(stamps) < 4:
+        raise RuntimeError(f"cannot parse dates from {granule_id}")
+    return stamps[0][:8], stamps[2][:8]  # ref start, secondary start
+
+
 def discover_pairs(track: int, aoi: list[float]) -> dict[str, dict]:
     """Select the R/C/K GUNW triplet for a track from a read-only ASF search
     (hour-2 gate): C spans the event; R is the pre-event pair immediately
     before C; K is the pre-event pair immediately before R (sharing no
-    acquisition with C; its secondary may equal R's reference)."""
+    acquisition with C; its secondary may equal R's reference). Fallback only:
+    the primary source of pairs is the gate catalog (pairs_from_catalog)."""
     import asf_search as asf
 
     results = asf.geo_search(
@@ -779,16 +454,8 @@ def discover_pairs(track: int, aoi: list[float]) -> dict[str, dict]:
     if not granules:
         raise RuntimeError(f"no GUNW granules found over the AOI for track {track}")
 
-    import re
-
-    def dates_of(g):
-        stamps = re.findall(r"(\d{8}T\d{6})", g["granule_id"])
-        if len(stamps) < 4:
-            raise RuntimeError(f"cannot parse dates from {g['granule_id']}")
-        return stamps[0][:8], stamps[2][:8]  # ref start, secondary start
-
     for g in granules:
-        g["ref_date"], g["sec_date"] = dates_of(g)
+        g["ref_date"], g["sec_date"] = _gunw_pair_dates(g["granule_id"])
         g["ref"] = datetime.strptime(g["ref_date"], "%Y%m%d").date()
         g["sec"] = datetime.strptime(g["sec_date"], "%Y%m%d").date()
         g["baseline_days"] = (g["sec"] - g["ref"]).days
@@ -814,6 +481,131 @@ def discover_pairs(track: int, aoi: list[float]) -> dict[str, dict]:
     return {"C": c, "R": r, "K": k, "all": granules}
 
 
+def pairs_from_catalog(track: int, catalog_path: Path | None = None) -> dict | None:
+    """R/C/K for a track from the hour-2 gate catalog — the gate's frozen
+    choice (nisar_colombia_granules_2026.json → quake_triplets), with URLs,
+    frame and flight direction resolved from the same catalog's granule
+    records. Returns None when the catalog or the track entry is absent (the
+    caller then falls back to discover_pairs).
+
+    Baselines are re-derived from the granule IDs and must match the catalog's
+    recorded baseline_days, or something was edited after the gate: fail rather
+    than paper over it.
+
+    TODO(#86): quake.pairs in config/preregistered.yaml is changing shape;
+    when it lands, read the frozen pair IDs from cfg.prereg("quake.pairs") and
+    keep this catalog as the gate evidence, not the source.
+    """
+    path = catalog_path or GATE_CATALOG_PATH
+    if not path.exists():
+        return None
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    entry = next((t for t in catalog.get("quake_triplets", []) if t.get("track") == track), None)
+    if entry is None:
+        return None
+    records = {
+        g["scene_name"]: g
+        for g in catalog.get("aois", {}).get(QUAKE_AOI_NAME, {}).get("granules", [])
+    }
+    pairs: dict = {"C": None, "R": None, "K": None}
+    for role in ("C", "R", "K"):
+        granule_id = entry.get(role)
+        if not granule_id:
+            continue
+        rec = records.get(granule_id)
+        if rec is None:
+            raise RuntimeError(
+                f"{role} granule {granule_id} is in quake_triplets but not in the gate "
+                f"catalog granule records for {QUAKE_AOI_NAME}"
+            )
+        ref_date, sec_date = _gunw_pair_dates(granule_id)
+        ref = datetime.strptime(ref_date, "%Y%m%d").date()
+        sec = datetime.strptime(sec_date, "%Y%m%d").date()
+        baseline = (sec - ref).days
+        recorded = entry.get("baseline_days", {}).get(role)
+        if recorded is not None and recorded != baseline:
+            raise RuntimeError(
+                f"{role} baseline from the granule ID ({baseline} d) differs from the "
+                f"gate catalog's recorded {recorded} d for {granule_id}"
+            )
+        pairs[role] = {
+            "granule_id": granule_id,
+            "url": rec["url"],
+            "start_time": rec.get("start_time"),
+            "ref_date": ref_date,
+            "sec_date": sec_date,
+            "baseline_days": baseline,
+            "frame": rec.get("frame"),
+            "flight_direction": rec.get("flight_direction"),
+        }
+    pairs["pair_source"] = (
+        "nisar_colombia_granules_2026.json quake_triplets (hour-2 gate frozen choice)"
+    )
+    pairs["catalog_baseline_days"] = entry.get("baseline_days", {})
+    pairs["catalog_baseline_mismatch"] = entry.get("baseline_mismatch")
+    return pairs
+
+
+def resolve_pairs(track: int, aoi: list[float]) -> tuple[dict, str]:
+    """Catalog first, discovery as the fallback, and a cross-check whenever
+    both are available: if a discovered pair differs from the gate catalog the
+    run fails with both IDs printed (a finding, never silently accepted)."""
+    pairs = pairs_from_catalog(track)
+    if pairs is not None:
+        discovered = None
+        try:
+            discovered = discover_pairs(track, aoi)
+        except Exception as exc:  # noqa: BLE001 - verification only; catalog stands
+            print(f"  [WARN] verification ASF discovery failed ({exc}); catalog pairs stand")
+        if discovered is not None:
+            for role in ("C", "R", "K"):
+                cat_id = pairs.get(role, {}).get("granule_id") if pairs.get(role) else None
+                dsc = discovered.get(role)
+                dsc_id = dsc["granule_id"] if dsc else None
+                if cat_id != dsc_id:
+                    raise RuntimeError(
+                        f"discovered {role} pair differs from the gate catalog on track "
+                        f"{track}: catalog={cat_id} discovered={dsc_id} — the gate's frozen "
+                        "choice and the current ASF index disagree; this is a finding"
+                    )
+        return pairs, "catalog"
+    pairs = discover_pairs(track, aoi)
+    pairs["pair_source"] = "fallback: ASF discovery (no quake_triplets entry in the gate catalog)"
+    return pairs, "discovery-fallback"
+
+
+def _new_gunw_filesystem():
+    """One authenticated HTTPS filesystem for a single GUNW granule — a fresh
+    Earthdata client with socket timeouts (not the memoized earthaccess
+    session, which has no read timeout and can stall for hours; docs/kb/
+    nisar-gcov-read-timeouts.md, same pattern as flood_polarimetric_math).
+    Reader limits, not science thresholds."""
+    import aiohttp
+    import earthaccess
+    import fsspec
+
+    auth = earthaccess.login(strategy="environment", persist=False)
+    if not getattr(auth, "authenticated", False):
+        auth = earthaccess.login(strategy="netrc", persist=False)
+    if not getattr(auth, "authenticated", False):
+        raise RuntimeError("Earthdata login failed (strategy environment, then netrc)")
+    token = auth.token["access_token"]
+    return fsspec.filesystem(
+        "https",
+        client_kwargs={
+            "headers": {"Authorization": f"Bearer {token}"},
+            "trust_env": False,
+            "timeout": aiohttp.ClientTimeout(sock_connect=SOCK_CONNECT_S, sock_read=SOCK_READ_S),
+        },
+    )
+
+
+def _safe_error(exc: BaseException) -> str:
+    """One-line, secret-free error for retry prints."""
+    text = f"{type(exc).__name__}: {exc}".replace("\n", " ")
+    return text[:200]
+
+
 def load_gunw_window(fs, url: str, aoi: list[float]) -> dict:
     """Stream ONLY the AOI window of the 20 m coherence grid (h5py over fsspec;
     no full download). Returns arrays + grid geometry + product dates."""
@@ -824,7 +616,7 @@ def load_gunw_window(fs, url: str, aoi: list[float]) -> dict:
     tr = Transformer.from_crs("EPSG:4326", "EPSG:32618", always_xy=True)
     x0, y0 = tr.transform(w, s)
     x1, y1 = tr.transform(e, n)
-    with fs.open(url, "rb") as fobj:
+    with fs.open(url, "rb", cache_type="blockcache", block_size=FSSPEC_BLOCK_SIZE) as fobj:
         with h5py.File(fobj, "r") as h5:
             ident = h5["/science/LSAR/identification"]
             ref_t = ident["referenceZeroDopplerStartTime"][()].decode()
@@ -835,6 +627,11 @@ def load_gunw_window(fs, url: str, aoi: list[float]) -> dict:
             dx = float(grp["xCoordinateSpacing"][()])
             dy = float(grp["yCoordinateSpacing"][()])
             epsg = int(grp["projection"][()])
+            if epsg != 32618:
+                raise RuntimeError(
+                    f"GUNW grid is EPSG:{epsg}, but the AOI-window transform assumes "
+                    f"UTM zone 18N (EPSG:32618) for {url}; refusing to mix projections"
+                )
             if abs(abs(dx) - 20.0) > 1e-6 or abs(abs(dy) - 20.0) > 1e-6:
                 raise RuntimeError(f"expected 20 m posting, got x spacing {dx}, y {dy} for {url}")
             col_flip = xs[1] < xs[0]
@@ -1001,13 +798,52 @@ def fetch_gee_layers(window: dict, tile: int = 512) -> tuple[np.ndarray, np.ndar
     return coverage, landcover, prov
 
 
-def fetch_units(window: dict, aoi: list[float], asset: str | None, name_prop: str | None):
-    """Official unit polygons from public GEE assets, rasterized onto the DPM
-    grid locally. Barrio polygons are pending (validation/README.md): the
-    default is the labeled FAO GAUL ADM2 (municipio) fallback."""
-    import ee
+def _rasterize_units(window: dict, shapes: list, names: dict[int, str], prov: dict):
+    """Rasterize (geometry, unit_id) shapes onto the DPM grid by pixel center.
+    (x0, y0) is the center of the top-left pixel; id 0 = outside every unit."""
     from rasterio.features import rasterize
     from rasterio.transform import Affine
+
+    sp = float(window["spacing"])
+    transform = Affine(sp, 0.0, window["x0"] - sp / 2.0, 0.0, -sp, window["y0"] + sp / 2.0)
+    unit_ids = rasterize(
+        shapes,
+        out_shape=(window["rows"], window["cols"]),
+        transform=transform,
+        fill=0,
+        dtype="int32",
+    )
+    prov["n_units"] = len(names)
+    prov["crs"] = f"EPSG:{window['epsg']} (rasterized at {sp:g} m pixel centers)"
+    return unit_ids, names, prov
+
+
+def fetch_units(
+    window: dict,
+    aoi: list[float],
+    asset: str | None,
+    name_prop: str | None,
+    units_file: Path | None = None,
+    units_id_prop: str | None = None,
+):
+    """Unit polygons for the DPM grid, from one of two sources (pluggable so
+    barrio layers drop in when #24 adopts them):
+
+    - a local GeoJSON/GeoPackage file (--units-file PATH --units-id-prop NAME);
+    - a public GEE asset (--units-asset/--units-name-prop; default the labeled
+      FAO GAUL ADM2 municipio fallback — barrio polygons are pending per
+      validation/README.md).
+
+    Provenance records the source (asset ID, or file path + sha256), the CRS
+    and the feature count; unit IDs are stable per source and unique.
+    """
+    if units_file is not None:
+        if asset is not None or name_prop is not None:
+            raise RuntimeError("--units-file and --units-asset/--units-name-prop are exclusive")
+        return load_units_from_file(window, units_file, units_id_prop)
+    if units_id_prop is not None:
+        raise RuntimeError("--units-id-prop requires --units-file")
+    import ee
     from rasterio.warp import transform_geom
 
     from gee_math.ee_session import init_ee
@@ -1043,27 +879,83 @@ def fetch_units(window: dict, aoi: list[float], asset: str | None, name_prop: st
     name_key = next((k for k in candidates if k and k in props0), None)
     if not name_key:
         raise RuntimeError(f"no usable name property in {used_asset}: keys={list(props0)[:12]}")
-    rows, cols = window["rows"], window["cols"]
-    # rasterize pixel centers: (x0c,y0c) is the top-left pixel center
-    transform = Affine(20.0, 0.0, window["x0"] - 10.0, 0.0, -20.0, window["y0"] + 10.0)
     shapes = []
     names: dict[int, str] = {}
     for i, f in enumerate(features, start=1):
         geom = f.get("geometry") or {}
         if not geom.get("coordinates"):
             continue
-        g = transform_geom("EPSG:4326", "EPSG:32618", geom)
+        g = transform_geom("EPSG:4326", f"EPSG:{window['epsg']}", geom)
         shapes.append((g, i))
         names[i] = str(f["properties"].get(name_key, f"unit_{i}"))
-    unit_ids = rasterize(shapes, out_shape=(rows, cols), transform=transform, fill=0, dtype="int32")
     prov = {
+        "unit_source": f"asset:{used_asset}",
         "unit_asset": used_asset,
         "unit_name_property": name_key,
         "unit_type": UNIT_FALLBACK_LABEL if "GAUL" in used_asset else used_asset,
-        "n_units": len(names),
+        "unit_source_crs": "EPSG:4326",
+        "n_source_features": len(features),
         "gee_project": project,
     }
-    return unit_ids, names, prov
+    return _rasterize_units(window, shapes, names, prov)
+
+
+def load_units_from_file(
+    window: dict, units_path: Path, id_prop: str | None
+) -> tuple[np.ndarray, dict[int, str], dict]:
+    """Units from a local GeoJSON or GeoPackage file (--units-file
+    PATH --units-id-prop NAME), rasterized onto the DPM grid locally. geopandas
+    reads either format (available transitively via the osmnx dependency);
+    geometries are reprojected to the window's UTM grid. The id property must
+    identify units uniquely, or the run stops (duplicates are a data error,
+    never silently merged). Provenance: path + sha256, CRS, feature count.
+
+    Maru's candidate barrio layers (#97 reports) are NOT downloaded here; the
+    loader only makes the code ready for whatever #24 adopts.
+    """
+    if id_prop is None:
+        raise RuntimeError("--units-id-prop is required with --units-file")
+    import geopandas as gpd
+
+    units_path = Path(units_path)
+    if not units_path.exists():
+        raise RuntimeError(f"units file not found: {units_path}")
+    gdf = gpd.read_file(units_path)
+    if id_prop not in gdf.columns:
+        raise RuntimeError(
+            f"units file {units_path.name} has no property {id_prop!r}; columns={list(gdf.columns)}"
+        )
+    if gdf.crs is None:
+        raise RuntimeError(f"units file {units_path.name} has no CRS")
+    raw_ids = [str(v) for v in gdf[id_prop]]
+    dupes = sorted({v for v in raw_ids if raw_ids.count(v) > 1})
+    if dupes:
+        raise RuntimeError(
+            f"--units-id-prop {id_prop!r} values are not unique in {units_path.name}: "
+            f"{dupes}; unit IDs must be unique"
+        )
+    src_crs = str(gdf.crs)
+    target = f"EPSG:{window['epsg']}"
+    gdf = gdf.to_crs(target)
+    shapes = []
+    names: dict[int, str] = {}
+    for i, (geom, rid) in enumerate(zip(gdf.geometry, raw_ids, strict=True), start=1):
+        if geom is None or geom.is_empty:
+            continue
+        shapes.append((geom, i))
+        names[i] = rid
+    if not shapes:
+        raise RuntimeError(f"no usable geometries in {units_path.name}")
+    sha256 = hashlib.sha256(units_path.read_bytes()).hexdigest()
+    prov = {
+        "unit_source": f"file:{units_path}",
+        "unit_file_sha256": sha256,
+        "unit_id_property": id_prop,
+        "unit_type": f"units from local file ({units_path.name})",
+        "unit_source_crs": src_crs,
+        "n_source_features": len(raw_ids),
+    }
+    return _rasterize_units(window, shapes, names, prov)
 
 
 def _print_pairs(pairs: dict) -> None:
@@ -1086,25 +978,46 @@ def _print_pairs(pairs: dict) -> None:
         )
 
 
-def _summary_line(summary: dict, pairs: dict) -> None:
+# Summary keys that are pure counts/metadata: the only C/K-pass numbers that
+# may be printed while the pre-registration is NOT frozen (brief,
+# "C-pair statistics stay sealed"). Everything else (mu, sigma, medians,
+# excess, n_px_zero_std) is a sealed statistic.
+_SUMMARY_COUNT_KEYS = (
+    "n_px_total",
+    "n_px_valid",
+    "n_px_built_up_valid",
+    "n_px_non_built_valid",
+    "n_reference_px",
+    "n_units_total",
+    "n_units_evaluated",
+    "n_units_excluded",
+    "min_built_up_pixels_per_unit",
+    "layover_shadow_mask",
+)
+_SUMMARY_STAT_KEYS = (
+    "mu",
+    "sigma",
+    "n_px_zero_std",
+    "median_z_built_up",
+    "median_z_non_built",
+    "excess_e",
+)
+
+
+def _summary_line(summary: dict, pairs: dict, is_frozen: bool = False) -> None:
+    """Print one pass summary. Until the pre-registration is frozen
+    (validation/README.md deviation 1 must not recur) only pixel and unit
+    counts are printed, plus the sealed line; μ, σ, median Z per class,
+    excess E and any other statistic stay inside local_cache outputs only."""
     _print_pairs(pairs)
-    for key in (
-        "n_px_total",
-        "n_px_valid",
-        "n_px_built_up_valid",
-        "n_px_non_built_valid",
-        "n_reference_px",
-        "mu",
-        "sigma",
-        "median_z_built_up",
-        "median_z_non_built",
-        "excess_e",
-        "n_units_total",
-        "n_units_evaluated",
-        "n_units_excluded",
-        "layover_shadow_mask",
-    ):
+    keys = _SUMMARY_COUNT_KEYS if not is_frozen else _SUMMARY_COUNT_KEYS + _SUMMARY_STAT_KEYS
+    for key in keys:
         print(f"  {summary['label']}_pass.{key} = {summary[key]}")
+    if not is_frozen:
+        print(
+            "  C/K statistics sealed until pre-registration freeze "
+            f"(status={summary.get('prereg_status', '?')})"
+        )
     for row in summary.get("excluded_rows_public", []):
         print(
             f"    excluded unit {row['unit_name']}: {row['n_built_up_valid_px']} px "
@@ -1128,46 +1041,99 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", type=Path, default=CACHE_DIR)
     parser.add_argument("--units-asset", default=None, help="GEE unit polygons asset")
     parser.add_argument("--units-name-prop", default=None)
+    parser.add_argument(
+        "--units-file",
+        type=Path,
+        default=None,
+        help="local unit polygons (GeoJSON or GeoPackage) instead of a GEE asset",
+    )
+    parser.add_argument(
+        "--units-id-prop",
+        default=None,
+        help="unique unit ID property for --units-file (e.g. a barrio code)",
+    )
     parser.add_argument("--no-control", action="store_true")
     parser.add_argument("--tile", type=int, default=512)
     args = parser.parse_args(argv)
 
     _load_env()
+    cfg = load_config()
     thresholds = load_quake_prereg()
     aoi, aoi_source = resolve_aoi(args.aoi)
     print(f"AOI [W,S,E,N] = {aoi} (source: {aoi_source})")
     print(
-        "thresholds from config/preregistered.yaml "
-        f"(sha1 {git_blob_sha1(PREREG_PATH)}, status={thresholds['status']}): "
+        "thresholds from config/preregistered.yaml via src/bailasar/config.py "
+        f"(sha1 {cfg.preregistered_hash}, status={cfg.status}): "
         f"built_up>={thresholds['built_up_min_footprint_fraction']}, "
         f"non_built<={thresholds['non_built_max_footprint_fraction']}, "
         f"min_built_up_px={thresholds['min_built_up_pixels_per_unit']}"
     )
+    if not cfg.is_frozen:
+        print(
+            "pre-registration NOT frozen: C/K statistics are computed and stored but "
+            "sealed; this run prints counts only"
+        )
 
-    pairs = discover_pairs(args.track, aoi)
-    print(f"discovered C/R/K on track {args.track} (ASF read-only search):")
+    pairs, pairs_source = resolve_pairs(args.track, aoi)
+    if pairs_source == "catalog":
+        print(f"C/R/K for track {args.track} from the hour-2 gate catalog (frozen choice):")
+    else:
+        print(f"discovered C/R/K on track {args.track} (fallback: ASF read-only search):")
     _print_pairs(pairs)
+    k_frame_note = "no K pair"
+    if pairs["K"]:
+        frames = {role: pairs[role].get("frame") for role in ("C", "R", "K") if pairs[role]}
+        if any(f is None for f in frames.values()):
+            k_frame_note = f"frame not recorded for every pair (frames {frames})"
+        elif len(set(frames.values())) == 1:
+            k_frame_note = f"K frame {frames['K']} matches R and C (frames {frames})"
+        else:
+            k_frame_note = f"K frame {frames['K']} differs from R/C (frames {frames})"
+        print(f"  {k_frame_note}")
 
-    import earthaccess
-
-    earthaccess.login(strategy="environment")
-    fs = earthaccess.get_fsspec_https_session()
     windows: dict[str, dict] = {}
+    missing_granules: list[dict] = []
     for role in ("C", "R", "K"):
         if role == "K" and (not pairs["K"] or args.no_control):
             print("control pass: SKIPPED (no K pair or --no-control)")
             continue
         g = pairs[role]
         print(f"streaming {role} = {g['granule_id']} (AOI window only, 20 m)...")
-        windows[role] = load_gunw_window(fs, g["url"], aoi)
-        wdw = windows[role]
+        wdw = None
+        for attempt in range(GRANULE_ATTEMPTS):
+            try:
+                fs = _new_gunw_filesystem()
+                wdw = load_gunw_window(fs, g["url"], aoi)
+                break
+            except Exception as exc:  # noqa: BLE001 - retried, then recorded missing
+                if attempt >= GRANULE_ATTEMPTS - 1:
+                    break
+                delay = GRANULE_BACKOFF_S[min(attempt, len(GRANULE_BACKOFF_S) - 1)]
+                print(
+                    f"  [WARN] {role} read attempt {attempt + 1} failed "
+                    f"({_safe_error(exc)}); retrying in {delay:.0f}s"
+                )
+                time.sleep(delay)
+        if wdw is None:
+            missing_granules.append(
+                {"role": role, "granule_id": g["granule_id"], "status": "missing"}
+            )
+            print(
+                f"  {role} granule {g['granule_id']} unreadable after "
+                f"{GRANULE_ATTEMPTS} attempts: recorded as missing"
+            )
+            continue
+        windows[role] = wdw
         print(
             f"  window {wdw['rows']}x{wdw['cols']} px, EPSG:{wdw['epsg']}, "
             f"ref={wdw['ref_time'][:10]} sec={wdw['sec_time'][:10]}, "
             f"coh outside [0,1]: {wdw['n_coh_outside_0_1']} px -> NaN"
         )
     if "C" not in windows or "R" not in windows:
-        raise RuntimeError("both C and R windows are required")
+        raise RuntimeError(
+            f"both C and R windows are required; missing: "
+            f"{[m['role'] + '=' + m['granule_id'] for m in missing_granules]}"
+        )
     ref_window = windows["R"]
     for role, wdw in windows.items():
         if role == "R":
@@ -1200,12 +1166,24 @@ def main(argv: list[str] | None = None) -> int:
 
     print("unit polygons (rasterized to the 20 m grid)...")
     unit_ids, unit_names, unit_prov = fetch_units(
-        ref_window, aoi, args.units_asset, args.units_name_prop
+        ref_window,
+        aoi,
+        args.units_asset,
+        args.units_name_prop,
+        units_file=args.units_file,
+        units_id_prop=args.units_id_prop,
     )
-    print(
-        f"  {unit_prov['n_units']} units from {unit_prov['unit_asset']} "
-        f"(name property {unit_prov['unit_name_property']})"
-    )
+    if args.units_file is not None:
+        print(
+            f"  {unit_prov['n_units']} of {unit_prov['n_source_features']} features from "
+            f"{args.units_file.name} (id property {unit_prov['unit_id_property']}, "
+            f"sha256 {unit_prov['unit_file_sha256'][:12]}…, CRS {unit_prov['unit_source_crs']})"
+        )
+    else:
+        print(
+            f"  {unit_prov['n_units']} units from {unit_prov['unit_source']} "
+            f"(name property {unit_prov['unit_name_property']})"
+        )
 
     vegetation = np.isin(landcover, WORLDCOVER_VEGETATION_CLASSES)
     water = landcover == WORLDCOVER_WATER_CLASS
@@ -1249,9 +1227,12 @@ def main(argv: list[str] | None = None) -> int:
             "(both pre-event, mismatch recorded)"
         )
 
-    print("\nDPM results (COMPUTED AND STORED; pre-registration pending, not interpreted):")
+    print(
+        "\nDPM results (computed and stored under local_cache/quake/; interpretation "
+        "deferred to the pre-registered scorecard):"
+    )
     for p in passes.values():
-        _summary_line(p["summary"], pairs)
+        _summary_line(p["summary"], pairs, is_frozen=cfg.is_frozen)
 
     c_pass = passes["C"]
     rows = []
@@ -1267,7 +1248,7 @@ def main(argv: list[str] | None = None) -> int:
                 "unit_id": uid,
                 "unit_name": name,
                 "unit_type": unit_prov["unit_type"],
-                "unit_source": unit_prov["unit_asset"],
+                "unit_source": unit_prov["unit_source"],
                 "evaluated": 1 if evaluated else 0,
                 "n_built_up_valid_px": s_c["n_px"],
                 "n_non_built_valid_px": n_non_built,
@@ -1277,12 +1258,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     out_dir = args.out_dir
     zarr_path = out_dir / f"dpm_track{args.track}.zarr"
-    parquet_path = out_dir / "barrio_dpm.parquet"
+    parquet_path = out_dir / f"dpm_units_track{args.track}.parquet"
     out_dir.mkdir(parents=True, exist_ok=True)
     write_parquet(parquet_path, parquet_columns_from_rows(rows))
     print(
         f"\nwrote {parquet_path} ({len(rows)} unit rows, "
-        f"{c_pass['summary']['n_units_excluded']} excluded, counted above)"
+        f"{c_pass['summary']['n_units_excluded']} excluded, counted above; pyarrow)"
     )
 
     import xarray as xr
@@ -1315,19 +1296,27 @@ def main(argv: list[str] | None = None) -> int:
         "aoi": aoi,
         "aoi_source": aoi_source,
         "event_date": EVENT_DATE,
-        "prereg_sha1": git_blob_sha1(PREREG_PATH),
-        "prereg_status": thresholds["status"],
+        "config_loader": "src/bailasar/config.py load_config()",
+        "prereg_sha1": cfg.preregistered_hash,
+        "prereg_status": cfg.status,
+        "prereg_frozen": cfg.is_frozen,
         "pairs": {
             role: {
                 "granule_id": pairs[role]["granule_id"],
                 "ref_date": pairs[role]["ref_date"],
                 "sec_date": pairs[role]["sec_date"],
                 "baseline_days": pairs[role]["baseline_days"],
+                "frame": pairs[role].get("frame"),
+                "flight_direction": pairs[role].get("flight_direction"),
                 "provisional": True,
             }
             for role in ("C", "R", "K")
             if pairs[role]
         },
+        "pair_source": pairs.get("pair_source", "ASF discovery"),
+        "pair_selection": pairs_source,
+        "k_frame_note": k_frame_note,
+        "missing_granules": missing_granules,
         "baseline_mismatch": (
             f"C spans {pairs['C']['baseline_days']} d; R and K span "
             f"{pairs['R']['baseline_days']} d and "
