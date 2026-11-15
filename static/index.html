@@ -12,6 +12,7 @@
   <script src="/assets/maplibre-gl.js"></script>
   <!-- Deck.gl standalone bundle -->
   <script src="/assets/deck.gl.js"></script>
+  <script src="/static/context-basemap.js"></script>
   <style>
     @font-face { font-family: 'Jost'; src: url('/assets/jost-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
     @font-face { font-family: 'Jost'; src: url('/assets/jost-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
@@ -260,6 +261,9 @@
           <button id="story-retry" type="button" class="underline text-cyan-300" hidden>Retry</button>
         </div>
       </section>
+      <p id="context-basemap-credit" style="position:absolute;top:42px;right:12px;z-index:30;width:210px;font-size:10px;line-height:1.35;color:#e2e8f0;background:rgba(18,18,18,.92);border:1px solid #2a2a2a;padding:4px 8px;border-radius:6px;pointer-events:none;">
+        Esri World Imagery is geographic context, not a measurement. Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community. If it cannot load, the field stays dark. No-data inside an area of interest stays marked.
+      </p>
       <div class="absolute bottom-3 inset-x-3 z-20 grid grid-cols-3 gap-2 text-xs" aria-live="polite">
         <p id="optical-status" class="bg-[#0d0d0d] p-2 rounded">Not cached · Sentinel-2 · Launch scan to load.</p>
         <p id="cband-status" class="bg-[#0d0d0d] p-2 rounded">Not cached · Sentinel-1 · Launch scan to load.</p>
@@ -343,15 +347,12 @@
       document.getElementById("story-chapter").disabled = true;
       throw new Error("Offline map assets are missing");
     }
-    const DARK_STYLE = {
-      version: 8,
-      sources: {},
-      layers: [{ id: "background", type: "background", paint: { "background-color": "#0f172a" } }],
-    };
+    const DARK_STYLE = contextBasemapStyle("#0f172a");
+    const MAP_OPTIONS = { style: DARK_STYLE, attributionControl: false, ...INITIAL_VIEW };
 
-    const mapOptical = new maplibregl.Map({ container: "map-optical", style: DARK_STYLE, ...INITIAL_VIEW });
-    const mapCBand   = new maplibregl.Map({ container: "map-cband",   style: DARK_STYLE, ...INITIAL_VIEW });
-    const mapNisar   = new maplibregl.Map({ container: "map-nisar",   style: DARK_STYLE, ...INITIAL_VIEW });
+    const mapOptical = new maplibregl.Map({ container: "map-optical", ...MAP_OPTIONS });
+    const mapCBand   = new maplibregl.Map({ container: "map-cband",   ...MAP_OPTIONS });
+    const mapNisar   = new maplibregl.Map({ container: "map-nisar",   ...MAP_OPTIONS });
 
     const maps = [mapOptical, mapCBand, mapNisar];
     let isSyncing = false;
@@ -551,7 +552,7 @@
         ? options
         : { type: "raster", tiles: [tileUrl], tileSize: 256, ...options };
       mapInstance.addSource(sourceId, source);
-      mapInstance.addLayer({ id: sourceId, type: "raster", source: sourceId, paint: { "raster-opacity": 0.85 } });
+      mapInstance.addLayer({ id: sourceId, type: "raster", source: sourceId, paint: { "raster-opacity": 1 } });
     }
 
     const domains = ["landslide", "flood", "earthquake"];

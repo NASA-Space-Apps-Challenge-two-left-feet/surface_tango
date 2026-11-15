@@ -1,5 +1,18 @@
 # Status: frontend-video
 
+## feat/context-basemap
+
+- The curtain and the atlas draw Esri World Imagery under the measured layers
+  so the visor is not an empty field around an area of interest.
+- The photograph is geographic context. It is not a measurement. If the tiles
+  do not load, the field stays dark. No-data inside an area of interest stays
+  marked.
+- Tile order checked 2026-11-15: `.../tile/12/1976/1188` over Medellín
+  (lon −75.563, lat 6.251) returned a 256×256 JPEG. The swapped axis order
+  returned a 678-byte tile.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## feat/picacha-window
 
 - La Picacha now has its own LOS window and the intersecting Aburrá Sentinel
