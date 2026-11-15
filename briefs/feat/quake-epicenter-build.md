@@ -34,3 +34,14 @@ Write `BLOCKED: <reason>` and stop (e.g. a granule missing for a track, or the t
 
 ## Report (append when done)
 Per AOI/track: window + pixel counts with denominators, co-event triplet IDs, E_C−E_K (PROVISIONAL), caveats, output sizes, and the tool-serves-it check.
+
+### Done 2026-11-15 (Chocó epicenter, track 11)
+
+Command: `uv run python -m gee_math.earthquake_dpm_math --track 11 --aoi -76.70 4.40 -75.95 5.25 --out-dir local_cache/choco_epicenter`. Full write-up: `reports/quake_epicenter_dpm.md`.
+
+- Discovered R/C/K on track 11 frame 086 (ASF fallback); baseline mismatch C 24 d vs R/K 12 d; **K is post-event control**.
+- C pass: 68,763 / 19,552,088 valid px (30,864 built-up / 37,899 non-built), E_C = −0.141523. K pass: 68,731 valid (30,835 / 37,896), E_K = +0.421725. **E_C − E_K = −0.563247** *(measured)*. 29 municipios, 27 evaluated, 2 excluded (0 built-up px).
+- Municipio-block 95% CI for the evaluated-unit built-up contrast: [−0.912049, −0.456434] (2000 replicates, seed 20261114) — excludes zero on the **negative** side.
+- **Verdict: a null.** No positive co-event coherence-loss excess over control; the contrast is negative and confounded (post-event control, 24 vs 12 d baseline, uninformative scorecard). Never "beats baseline". The result here is **coverage** of the optical-blind epicenter, not a damage map.
+- Outputs (git-ignored): `dpm_track11.zarr` (4691×4168), `dpm_units_track11.parquet` (29 rows), `dpm_run.log`.
+- Valle del Cauca / other tracks: not yet run.
