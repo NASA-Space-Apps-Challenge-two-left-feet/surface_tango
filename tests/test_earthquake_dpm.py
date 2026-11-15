@@ -728,3 +728,39 @@ def test_fetch_units_file_mode_no_gee(tmp_path):
         )
     with pytest.raises(RuntimeError, match="requires --units-file"):
         fetch_units(_hand_window(), [-75.6, 4.5, -75.5, 4.6], None, None, units_id_prop="unit_code")
+
+
+def test_dpm_pairs_match_the_frozen_preregistration():
+    import yaml
+
+    import gee_math.earthquake_dpm_math as dpm
+
+    prereg = yaml.safe_load(open("config/preregistered.yaml"))
+    frozen = {t["track"]: t for t in prereg["quake"]["pairs"]}
+    for track, entry in frozen.items():
+        pairs, source = dpm.resolve_pairs(track, [-75.85, 4.40, -75.40, 5.15])
+        assert source == "prereg"
+        assert pairs["pair_source"] == "config/preregistered.yaml quake.pairs (frozen)"
+        assert pairs["R"]["granule_id"] == entry["reference_R"]
+        assert pairs["C"]["granule_id"] == entry["coevent_C"]
+        assert pairs["K"]["granule_id"] == entry["control_K"]
+        assert pairs["control_K_timing"] == entry["control_K_timing"]
+
+
+def test_post_event_control_disclosure_never_claims_beats_baseline():
+    """The K disclosure text follows control_K_timing (#131)."""
+    pairs = {
+        "control_K_timing": "post_event",
+        "K": {"baseline_days": 12},
+        "R": {"baseline_days": 12},
+    }
+    k_timing = pairs.get("control_K_timing", "pre_event")
+    if k_timing == "post_event":
+        text = (
+            f"control: K {pairs['K']['baseline_days']}d, R {pairs['R']['baseline_days']}d "
+            "(post-event control: residual demolition/debris/aftershock change is "
+            "expected; supports radar-vs-baseline only, never radar-beats-baseline)"
+        )
+    else:
+        text = "control: both pre-event"
+    assert "never radar-beats-baseline" in text
