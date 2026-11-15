@@ -25,11 +25,18 @@
       --brand-grey: #5A5A5A;
     }
     body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--brand-ink); color: var(--brand-paper); font-family: 'Jost', 'Poppins', system-ui, sans-serif; }
-    .map-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .map-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transition: clip-path 70ms ease-out; }
     .curtain-handle {
       position: absolute; top: 0; bottom: 0; width: 3px; background: var(--brand-vermilion);
-      cursor: ew-resize; z-index: 30; box-shadow: 0 0 12px rgba(240, 74, 35, 0.7);
+      cursor: ew-resize; z-index: 50; pointer-events: auto; touch-action: none;
+      box-shadow: 0 0 12px rgba(240, 74, 35, 0.7);
     }
+    /* Wider invisible grab zone so the 3px line is easy to hit (mouse + touch). */
+    .curtain-handle::before {
+      content: ""; position: absolute; top: 0; bottom: 0; left: -12px; right: -12px; cursor: ew-resize;
+    }
+    .curtain-handle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .map-layer { transition: none; } }
     .curtain-pill {
       position: absolute; top: 50%; transform: translate(-50%, -50%);
       background: var(--brand-ink); border: 2px solid var(--brand-vermilion); color: var(--brand-paper);
@@ -361,19 +368,40 @@
     }
     updateCurtainClips();
 
+    // Pointer Events unify mouse + touch + pen, so the C-band↔L-band curtain
+    // drags on a trackpad, a touchscreen and a judge's tablet alike. Pointer
+    // capture keeps the drag alive even when the pointer leaves the 3px line or
+    // passes over the deck.gl overlay on the NISAR panel. Arrow keys nudge it too.
+    function moveHandleTo(clientX, isFirst) {
+      const rect = viewport.getBoundingClientRect();
+      const pct = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
+      if (isFirst) split1 = Math.min(pct, split2 - 6);
+      else split2 = Math.max(pct, split1 + 6);
+      updateCurtainClips();
+    }
     function attachDrag(handle, isFirst) {
-      let dragging = false;
-      handle.addEventListener("mousedown", () => (dragging = true));
-      window.addEventListener("mouseup", () => (dragging = false));
-      window.addEventListener("mousemove", (e) => {
-        if (!dragging) return;
-        const rect = viewport.getBoundingClientRect();
-        const pct = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-        if (isFirst) {
-          split1 = Math.min(pct, split2 - 6);
-        } else {
-          split2 = Math.max(pct, split1 + 6);
-        }
+      handle.setAttribute("tabindex", "0");
+      handle.setAttribute("role", "slider");
+      handle.setAttribute("aria-label", isFirst ? "Optical / C-band split" : "C-band / L-band split");
+      handle.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+        const onMove = (ev) => moveHandleTo(ev.clientX, isFirst);
+        const onUp = () => {
+          handle.removeEventListener("pointermove", onMove);
+          handle.removeEventListener("pointerup", onUp);
+          handle.removeEventListener("pointercancel", onUp);
+        };
+        handle.addEventListener("pointermove", onMove);
+        handle.addEventListener("pointerup", onUp);
+        handle.addEventListener("pointercancel", onUp);
+      });
+      handle.addEventListener("keydown", (e) => {
+        const step = e.key === "ArrowLeft" ? -2 : e.key === "ArrowRight" ? 2 : 0;
+        if (!step) return;
+        e.preventDefault();
+        if (isFirst) split1 = Math.max(5, Math.min(split2 - 6, split1 + step));
+        else split2 = Math.max(split1 + 6, Math.min(95, split2 + step));
         updateCurtainClips();
       });
     }
