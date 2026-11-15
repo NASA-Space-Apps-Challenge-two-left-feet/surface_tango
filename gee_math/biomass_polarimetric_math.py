@@ -1,6 +1,7 @@
 # gee_math/biomass_polarimetric_math.py
 import ee
 
+
 def compute_biomass_and_carbon_flux(
     gcov_hhhh_gcs: str,
     gcov_hvhv_gcs: str,
@@ -18,7 +19,7 @@ def compute_biomass_and_carbon_flux(
     l_hv = ee.Image.loadGeoTIFF(gcov_hvhv_gcs).max(eps).rename("l_hv")
 
     # 1. Compute L-band Polarimetric Vegetation & Degradation Indices
-    polarimetric_indices = ee.Image.cat([l_hh, l_hv]).expression(
+    polarimetric_indices = ee.Image.cat(  # noqa: F841  (biomass is out of scope; dead code kept as-is)[l_hh, l_hv]).expression(
         """
         var hh = b('l_hh');
         var hv = b('l_hv');
@@ -70,16 +71,13 @@ def compute_biomass_and_carbon_flux(
     )
 
     # Sample GEDI shots across the AOI to train the GEE Gradient Tree Boost Regressor
-    training_samples = (
-        ee.Image.cat([predictors, gedi_l4a])
-        .sample(
-            region=aoi,
-            scale=25,
-            numPixels=1500,
-            seed=2026,
-            dropNulls=True,
-            geometries=False,
-        )
+    training_samples = ee.Image.cat([predictors, gedi_l4a]).sample(
+        region=aoi,
+        scale=25,
+        numPixels=1500,
+        seed=2026,
+        dropNulls=True,
+        geometries=False,
     )
 
     gbdt_regressor = (
@@ -97,7 +95,9 @@ def compute_biomass_and_carbon_flux(
     )
 
     # Predict current Aboveground Biomass (Mg/ha) from NISAR + S1 + FABDEM
-    agb_nisar_pred = predictors.classify(gbdt_regressor).clamp(0.0, 380.0).rename("agb_current_mgha")
+    agb_nisar_pred = (
+        predictors.classify(gbdt_regressor).clamp(0.0, 380.0).rename("agb_current_mgha")
+    )
 
     # 5. Compare against Awesome GEE Community Catalog ESA CCI AGB v6.0 Baseline
     esa_cci_baseline = (
@@ -110,11 +110,9 @@ def compute_biomass_and_carbon_flux(
 
     # Net Aboveground Carbon Change (Mg C / ha, using IPCC 0.47 carbon fraction)
     delta_carbon_mgha = (
-        agb_nisar_pred.subtract(esa_cci_baseline)
-        .multiply(0.47)
-        .rename("delta_carbon_mgha")
+        agb_nisar_pred.subtract(esa_cci_baseline).multiply(0.47).rename("delta_carbon_mgha")
     )
 
-    return ee.Image.cat([
-        l_hv_db, rfdi, rvi, wfr_lc, agb_nisar_pred, esa_cci_baseline, delta_carbon_mgha
-    ])
+    return ee.Image.cat(
+        [l_hv_db, rfdi, rvi, wfr_lc, agb_nisar_pred, esa_cci_baseline, delta_carbon_mgha]
+    )

@@ -1,4 +1,78 @@
+# mcp_servers/gee_fusion_mcp.py
+from typing import Any
+
+import ee
+from fastmcp import FastMCP
+
+from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
+from gee_math.earthquake_dpm_math import compute_earthquake_dpm_and_rupture
+from gee_math.ee_session import init_ee
+from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
+from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
+from mcp_servers.cache_guard import with_offline_zarr_fallback
+
+mcp = FastMCP(name="gee-hazard-fusion-engine")
+
+init_ee()  # ADC identity + GCP_PROJECT_ID (gee_math/ee_session.py)
+
+
+def _extract_zonal_stats_and_hotspot(
+    metric_stack: ee.Image,
+    primary_band: str,
+    hotspot_threshold: float,
+    aoi: ee.Geometry,
+    scale: int = 30,
+) -> dict[str, Any]:
+    """
+    Executes a single-pass GEE High-Volume reduction to compute [p50, p95, p99] percentiles
+    across all bands in `metric_stack` AND extracts the [lon, lat] coordinates of the
+    peak anomaly where `primary_band >= hotspot_threshold`.
+    """
+    # Attach pixel coordinates masked to the severe anomaly zone
+    hotspot_mask = metric_stack.select(primary_band).gte(hotspot_threshold)
+    lon_lat_hotspots = (
+        ee.Image.pixelLonLat().updateMask(hotspot_mask).rename(["hotspot_lon", "hotspot_lat"])
+    )
+
+    # Combine percentiles for physical metrics + mean for hotspot centroid in one pass
+    pct_stats = metric_stack.reduceRegion(
+        reducer=ee.Reducer.percentile([50, 95, 99]),
+        geometry=aoi,
+        scale=scale,
+        maxPixels=1e8,
+        bestEffort=True,
+    )
+
+    coord_stats = lon_lat_hotspots.reduceRegion(
+        reducer=ee.Reducer.mean(),
+        geometry=aoi,
+        scale=scale,
+        maxPixels=1e8,
+        bestEffort=True,
+    )
+
+    # Evaluate both dictionaries in a singleee.List(...).getInfo() round-trip
+    combined_info = ee.List([pct_stats, coord_stats]).getInfo()
+    metrics_dict = combined_info[0] or {}
+    coords_dict = combined_info[1] or {}
+
+    # Fallback to AOI center if no pixels exceed threshold
+    lon = coords_dict.get("hotspot_lon")
+    lat = coords_dict.get("hotspot_lat")
+    if lon is None or lat is None:
+        center = aoi.centroid(10).coordinates().getInfo()
+        lon, lat = center[0], center[1]
+
+    # Clean up None values and round floats for clean LLM consumption
+    clean_metrics = {k: round(float(v), 3) for k, v in metrics_dict.items() if v is not None}
+    return {
+        "zonal_percentiles": clean_metrics,
+        "hotspot_coordinates": [round(float(lon), 5), round(float(lat), 5)],
+    }
+
+
 # Continuation of mcp_servers/gee_fusion_mcp.py
+
 
 @mcp.tool
 @with_offline_zarr_fallback(timeout_sec=1.8)
@@ -7,11 +81,11 @@ def analyze_landslide_kinematics(
     gunw_iono_gcs: str,
     gunw_coh_gcs: str,
     gunw_conncomp_gcs: str,
-    bbox: List[float],
+    bbox: list[float],
     rain_start_date: str = "2026-10-29",
     rain_end_date: str = "2026-11-13",
     temporal_baseline_days: float = 12.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Executes Module 1 (compute_landslide_insar_kinematics):
     Removes equatorial ionospheric & stratified tropospheric phase delays, projects L-band LOS
@@ -35,30 +109,33 @@ def analyze_landslide_kinematics(
     vel_viz = (
         landslide_stack.select("v_downslope_mm_yr")
         .updateMask(landslide_stack.select("v_downslope_mm_yr").gte(10.0))
-        .getMapId({
-            "min": 10.0,
-            "max": 120.0,
-            "palette": ["00ff87", "facc15", "f97316", "dc2626", "7f1d1d"],
-        })
+        .getMapId(
+            {
+                "min": 10.0,
+                "max": 120.0,
+                "palette": ["00ff87", "facc15", "f97316", "dc2626", "7f1d1d"],
+            }
+        )
     )
 
     # 3. Render Multi-Band Diagnostic RGB Composite Tile:
     # Red = Downslope Velocity, Green = 15-day CHIRPS Rainfall, Blue = FABDEM Slope
-    rgb_diag_map = (
-        landslide_stack.select(["v_downslope_mm_yr", "rain_15d_mm", "slope"])
-        .getMapId({"min": [0, 50, 15], "max": [100, 220, 45]})
+    rgb_diag_map = landslide_stack.select(["v_downslope_mm_yr", "rain_15d_mm", "slope"]).getMapId(
+        {"min": [0, 50, 15], "max": [100, 220, 45]}
     )
 
     # 4. Single-pass Zonal Percentiles [p50, p95, p99] + Peak Hotspot [lon, lat]
     summary = _extract_zonal_stats_and_hotspot(
-        metric_stack=landslide_stack.select([
-            "d_los_mm",
-            "v_downslope_mm_yr",
-            "slope",
-            "rain_15d_mm",
-            "coherence",
-            "landslide_hazard_index",
-        ]),
+        metric_stack=landslide_stack.select(
+            [
+                "d_los_mm",
+                "v_downslope_mm_yr",
+                "slope",
+                "rain_15d_mm",
+                "coherence",
+                "landslide_hazard_index",
+            ]
+        ),
         primary_band="landslide_hazard_index",
         hotspot_threshold=0.65,
         aoi=aoi,
@@ -66,7 +143,15 @@ def analyze_landslide_kinematics(
     )
 
     p99_vel = summary["zonal_percentiles"].get("v_downslope_mm_yr_p99", 0.0)
-    alert = "RED" if p99_vel > 80.0 else "ORANGE" if p99_vel > 35.0 else "YELLOW" if p99_vel > 15.0 else "GREEN"
+    alert = (
+        "RED"
+        if p99_vel > 80.0
+        else "ORANGE"
+        if p99_vel > 35.0
+        else "YELLOW"
+        if p99_vel > 15.0
+        else "GREEN"
+    )
 
     return {
         "domain": "landslide",
@@ -90,10 +175,10 @@ def analyze_flood_inundation(
     gcov_hvhv_pre_gcs: str,
     gcov_hhhh_post_gcs: str,
     gcov_hvhv_post_gcs: str,
-    bbox: List[float],
+    bbox: list[float],
     s1_post_start: str = "2026-11-01",
     s1_post_end: str = "2026-11-13",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Executes Module 2 (compute_flood_scattering_decomposition):
     Decomposes NISAR L2 GCOV polarimetric covariance into Specular Open-Water Flooding (Class 1)
@@ -114,30 +199,36 @@ def analyze_flood_inundation(
 
     # 2. Render Categorical Flood Regime Tile (Cyan = Specular Open Water, Magenta = Sub-Canopy Double-Bounce)
     flood_class = flood_stack.select("flood_regime_class")
-    class_viz = (
-        flood_class.updateMask(flood_class.gt(0))
-        .getMapId({"min": 1, "max": 2, "palette": ["00b4d8", "ff007f"]})
+    class_viz = flood_class.updateMask(flood_class.gt(0)).getMapId(
+        {"min": 1, "max": 2, "palette": ["00b4d8", "ff007f"]}
     )
 
     # 3. Render Polarimetric Pauli/Freeman False-Color RGB Tile:
     # Red = HH Post (dB, Double-Bounce), Green = HV Post (dB, Canopy Volume), Blue = Delta HH (dB)
-    pol_rgb_map = (
-        flood_stack.select(["hh_post_db", "hv_post_db", "delta_hh_db"])
-        .getMapId({"min": [-18, -24, -8], "max": [-2, -8, 6]})
+    pol_rgb_map = flood_stack.select(["hh_post_db", "hv_post_db", "delta_hh_db"]).getMapId(
+        {"min": [-18, -24, -8], "max": [-2, -8, 6]}
     )
 
     # 4. Compute exact inundated area (hectares) + radiometric percentiles in one GEE pass
     pixel_ha = ee.Image.pixelArea().divide(1e4)
-    area_bands = ee.Image.cat([
-        flood_stack.select("specular_open_flood").multiply(pixel_ha).rename("open_water_flood_ha"),
-        flood_stack.select("subcanopy_double_bounce_flood").multiply(pixel_ha).rename("subcanopy_double_bounce_ha"),
-    ])
+    area_bands = ee.Image.cat(
+        [
+            flood_stack.select("specular_open_flood")
+            .multiply(pixel_ha)
+            .rename("open_water_flood_ha"),
+            flood_stack.select("subcanopy_double_bounce_flood")
+            .multiply(pixel_ha)
+            .rename("subcanopy_double_bounce_ha"),
+        ]
+    )
 
     area_totals = area_bands.reduceRegion(
         reducer=ee.Reducer.sum(), geometry=aoi, scale=20, maxPixels=1e8, bestEffort=True
     )
     summary = _extract_zonal_stats_and_hotspot(
-        metric_stack=flood_stack.select(["hh_post_db", "hv_post_db", "delta_hh_db", "double_bounce_fraction"]),
+        metric_stack=flood_stack.select(
+            ["hh_post_db", "hv_post_db", "delta_hh_db", "double_bounce_fraction"]
+        ),
         primary_band="double_bounce_fraction",
         hotspot_threshold=0.60,
         aoi=aoi,
@@ -154,7 +245,15 @@ def analyze_flood_inundation(
     metrics["subcanopy_double_bounce_flood_ha"] = subcanopy_ha
     metrics["total_inundated_ha"] = round(total_ha, 2)
 
-    alert = "RED" if total_ha > 150.0 else "ORANGE" if total_ha > 50.0 else "YELLOW" if total_ha > 10.0 else "GREEN"
+    alert = (
+        "RED"
+        if total_ha > 150.0
+        else "ORANGE"
+        if total_ha > 50.0
+        else "YELLOW"
+        if total_ha > 10.0
+        else "GREEN"
+    )
 
     return {
         "domain": "flood",
@@ -178,8 +277,8 @@ def analyze_earthquake_dpm(
     coh_coseismic_gcs: str,
     goff_range_gcs: str,
     goff_azimuth_gcs: str,
-    bbox: List[float],
-) -> Dict[str, Any]:
+    bbox: list[float],
+) -> dict[str, Any]:
     """
     Executes Module 3 (compute_earthquake_dpm_and_rupture):
     Computes Z-score normalized ARIA Coherence Loss Damage Proxy Map (DPM), 3D fault rupture slip
@@ -202,11 +301,13 @@ def analyze_earthquake_dpm(
     dpm_viz = (
         eq_stack.select("dpm")
         .updateMask(eq_stack.select("dpm").gte(0.18))
-        .getMapId({
-            "min": 0.18,
-            "max": 0.65,
-            "palette": ["fef08a", "f97316", "dc2626", "7f1d1d"],
-        })
+        .getMapId(
+            {
+                "min": 0.18,
+                "max": 0.65,
+                "palette": ["fef08a", "f97316", "dc2626", "7f1d1d"],
+            }
+        )
     )
 
     # 3. Render Near-Fault 3D Pixel Offset Magnitude Tile (NISAR L2 GOFF)
@@ -238,7 +339,15 @@ def analyze_earthquake_dpm(
     metrics["exposed_population_count"] = float(exposed_pop)
     metrics["damaged_vida_buildings_count"] = float(damaged_bldgs)
 
-    alert = "RED" if damaged_bldgs > 100 else "ORANGE" if damaged_bldgs > 15 else "YELLOW" if metrics.get("dpm_p99", 0) > 0.25 else "GREEN"
+    alert = (
+        "RED"
+        if damaged_bldgs > 100
+        else "ORANGE"
+        if damaged_bldgs > 15
+        else "YELLOW"
+        if metrics.get("dpm_p99", 0) > 0.25
+        else "GREEN"
+    )
 
     return {
         "domain": "earthquake",
@@ -260,10 +369,10 @@ def analyze_earthquake_dpm(
 def analyze_biomass_disturbance(
     gcov_hhhh_gcs: str,
     gcov_hvhv_gcs: str,
-    bbox: List[float],
+    bbox: list[float],
     s1_start: str = "2026-09-01",
     s1_end: str = "2026-11-13",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Executes Module 4 (compute_biomass_and_carbon_flux):
     Fuses NISAR L-band GCOV (HHHH, HVHV) with Sentinel-1 C-band (WFR_L/C), trains an in-situ GEE
@@ -281,33 +390,33 @@ def analyze_biomass_disturbance(
     )
 
     # 2. Render Primary Tile: Current NISAR+GEDI Aboveground Biomass Density (Mg/ha)
-    agb_viz = (
-        bio_stack.select("agb_current_mgha")
-        .getMapId({
+    agb_viz = bio_stack.select("agb_current_mgha").getMapId(
+        {
             "min": 10.0,
             "max": 260.0,
             "palette": ["f7fcb9", "addd8e", "41ab5d", "006837", "004529"],
-        })
+        }
     )
 
     # 3. Render Multi-Band Polarimetric Structural RGB Composite Tile:
     # Red = RFDI (Degradation), Green = RVI_dual (Canopy Volume), Blue = WFR_L/C (Woody-to-Foliage Ratio)
-    struct_rgb_map = (
-        bio_stack.select(["rfdi", "rvi_dual", "wfr_lc_db"])
-        .getMapId({"min": [0.1, 0.2, -4.0], "max": [0.75, 0.9, 6.0]})
+    struct_rgb_map = bio_stack.select(["rfdi", "rvi_dual", "wfr_lc_db"]).getMapId(
+        {"min": [0.1, 0.2, -4.0], "max": [0.75, 0.9, 6.0]}
     )
 
     # 4. Extract Zonal Percentiles + Total Carbon Loss (Tons C) where Delta Carbon < -15 Mg C/ha
     summary = _extract_zonal_stats_and_hotspot(
-        metric_stack=bio_stack.select([
-            "l_hv_db",
-            "rfdi",
-            "rvi_dual",
-            "wfr_lc_db",
-            "agb_current_mgha",
-            "agb_baseline_mgha",
-            "delta_carbon_mgha",
-        ]),
+        metric_stack=bio_stack.select(
+            [
+                "l_hv_db",
+                "rfdi",
+                "rvi_dual",
+                "wfr_lc_db",
+                "agb_current_mgha",
+                "agb_baseline_mgha",
+                "delta_carbon_mgha",
+            ]
+        ),
         primary_band="rfdi",
         hotspot_threshold=0.55,
         aoi=aoi,
@@ -322,15 +431,26 @@ def analyze_biomass_disturbance(
         .multiply(ee.Image.pixelArea().divide(1e4))
         .rename("carbon_loss_tons")
     )
-    loss_dict = carbon_loss_img.reduceRegion(
-        reducer=ee.Reducer.sum(), geometry=aoi, scale=30, maxPixels=1e8, bestEffort=True
-    ).getInfo() or {}
+    loss_dict = (
+        carbon_loss_img.reduceRegion(
+            reducer=ee.Reducer.sum(), geometry=aoi, scale=30, maxPixels=1e8, bestEffort=True
+        ).getInfo()
+        or {}
+    )
 
     carbon_lost_tons = round(float(loss_dict.get("carbon_loss_tons", 0.0)), 1)
     metrics = summary["zonal_percentiles"]
     metrics["aboveground_carbon_disturbed_tons"] = carbon_lost_tons
 
-    alert = "RED" if carbon_lost_tons > 2500.0 else "ORANGE" if carbon_lost_tons > 500.0 else "YELLOW" if carbon_lost_tons > 100.0 else "GREEN"
+    alert = (
+        "RED"
+        if carbon_lost_tons > 2500.0
+        else "ORANGE"
+        if carbon_lost_tons > 500.0
+        else "YELLOW"
+        if carbon_lost_tons > 100.0
+        else "GREEN"
+    )
 
     return {
         "domain": "biomass",

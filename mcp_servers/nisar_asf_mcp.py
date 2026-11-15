@@ -1,16 +1,18 @@
 # mcp_servers/nisar_asf_mcp.py
 import os
-from typing import Dict, Any, List
-import earthaccess
+from typing import Any
+
 import asf_search as asf
+import earthaccess
 import rioxarray
-from google.cloud import storage
 from fastmcp import FastMCP
+from google.cloud import storage
 
 mcp = FastMCP(name="nisar-asf-subsetter")
 
 GCS_BUCKET = os.environ.get("GCS_NISAR_BUCKET", "spaceapps-medellin-nisar")
 earthaccess.login(strategy="netrc")
+
 
 def _upload_cog_to_gcs(da, local_path: str, blob_name: str) -> str:
     da.rio.to_raster(
@@ -26,13 +28,14 @@ def _upload_cog_to_gcs(da, local_path: str, blob_name: str) -> str:
     blob.upload_from_filename(local_path)
     return f"gs://{GCS_BUCKET}/{blob_name}"
 
+
 @mcp.tool
 def search_nisar_granules(
-    bbox: List[float],
+    bbox: list[float],
     start_date: str,
     end_date: str,
     product_level: str = "GCOV",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Search NASA ASF DAAC for NISAR Level-2 granules (GCOV, GUNW, GOFF) intersecting a bounding box.
     bbox format: [min_lon, min_lat, max_lon, max_lat] (e.g., [-75.70, 6.15, -75.45, 6.40] for Medellin/Bello).
@@ -52,45 +55,49 @@ def search_nisar_granules(
     granules = []
     for r in results[:5]:
         props = r.properties
-        granules.append({
-            "scene_name": props.get("sceneName"),
-            "start_time": props.get("startTime"),
-            "https_url": props.get("url"),
-            "s3_url": props.get("s3Urls", [None])[0],
-            "product_level": product_level,
-        })
+        granules.append(
+            {
+                "scene_name": props.get("sceneName"),
+                "start_time": props.get("startTime"),
+                "https_url": props.get("url"),
+                "s3_url": props.get("s3Urls", [None])[0],
+                "product_level": product_level,
+            }
+        )
     return granules
+
 
 @mcp.tool
 def stage_nisar_gcov_to_gcs(
     https_url: str,
     scene_name: str,
-    bbox: List[float],
-    polarizations: List[str] = ["HHHH", "HVHV"],
-) -> Dict[str, str]:
+    bbox: list[float],
+    polarizations: list[str] | None = None,
+) -> dict[str, str]:
     """
     Zero-download byte-range extraction of NISAR L2 GCOV polarimetric backscatter covariance grids
     (/science/LSAR/GCOV/grids/frequencyA/{pol}) into Cloud-Optimized GeoTIFFs on GCS for GEE ingestion.
     """
     gcs_uris = {}
-    for pol in polarizations:
+    for pol in polarizations or ["HHHH", "HVHV"]:
         h5_path = f"/science/LSAR/GCOV/grids/frequencyA/{pol}"
         vsi_uri = f'HDF5:"/vsicurl/{https_url}":{h5_path}'
         da = rioxarray.open_rasterio(vsi_uri, masked=True, chunks="auto")
         da_clipped = da.rio.clip_box(*bbox, crs="EPSG:4326")
-        
+
         local_cog = f"/tmp/{scene_name}_GCOV_{pol}.tif"
         blob_name = f"nisar_gcov/{scene_name}_{pol}.tif"
         gcs_uris[pol] = _upload_cog_to_gcs(da_clipped, local_cog, blob_name)
-        
+
     return gcs_uris
+
 
 @mcp.tool
 def stage_nisar_gunw_ionosphere_corrected_to_gcs(
     https_url: str,
     scene_name: str,
-    bbox: List[float],
-) -> Dict[str, str]:
+    bbox: list[float],
+) -> dict[str, str]:
     """
     Extracts NISAR L2 GUNW unwrappedPhase, subtracts the equatorial ionosphericPhaseScreen,
     and exports corrected phase + coherenceMagnitude as COGs on GCS for Landslide & Earthquake agents.
@@ -119,6 +126,7 @@ def stage_nisar_gunw_ionosphere_corrected_to_gcs(
         f"nisar_gunw/{scene_name}_coh.tif",
     )
     return {"corrected_phase_gcs": phase_gcs, "coherence_gcs": coh_gcs}
+
 
 if __name__ == "__main__":
     mcp.run()
