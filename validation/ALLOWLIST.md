@@ -47,3 +47,25 @@ contract; the production scorecard assembly is part of issue #32. Confidence int
 use linear empirical percentile interpolation. Wilson intervals are computed separately
 from successes and the top-k denominator. An interval containing zero does not prove
 absence of an effect; the claim rule uses positive C and C-minus-pre-event-K bounds.
+
+## Issue #33: known-answer landslide analyst fixtures
+
+All inputs below are hand-written logic fixtures in `tests/test_landslide_geology.py`,
+`tests/test_landslide_geomorphology.py`, `tests/test_landslide_hydrogeology.py`, and
+`tests/test_landslide_analysts.py`. They are not observations, measured results, or
+cache contents. None may enter application output, reports of real AOIs, or video.
+No source granules apply. The numerical values are exact test arithmetic.
+
+| Fixture | Inputs and expected arithmetic |
+|---|---|
+| Engineering class | Stems match in order colluvium, rock, soil, so `arenisca` is rock and `arcilla aluvial` is soil. A blank or unrecognized label stays unclassified. |
+| Dominant unit | Counts `5, 5, missing, 9` select the count-9 unit. A tie of count 5 selects the smaller name. Every missing count returns no dominant unit. |
+| Structures | One true fault, one false contact, one missing flag: faults 1, contacts 0, missing 1. A false flag is not an intersection. |
+| Slope summary | Finite samples `0, 10, 20, 30` (one NaN excluded from the percentiles, kept in `n_pixels`). Linear index `(n-1)*p`: median 15, p05 1.5, p95 28.5. |
+| Horn derivatives | 3×3 elevation `[[10,10,10],[10,20,30],[10,20,30]]`, cell 10 m. `p=0.75`, `q=-0.5`, `r=0`, `t=-0.1`, `s=0.05`. Slope `degrees(atan(hypot(p,q)))` = 42.03111377419729. Aspect `degrees(atan2(-p,-q)) mod 360` = 303.69006752597977. Profile curvature 0.031523877038014105 per metre. Plan curvature 0.025601547518087502 per metre. Edges and any window with a non-finite neighbor stay NaN. A flat cell has slope 0 and NaN aspect. Relative relief is max−min = 20 m. |
+| Photogrammetry | `(0,0)` to `(3,4)` is 5 m. Two such steps sum to 10 m. A missing point leaves the path missing. Control `(0,0),(10,0)` onto `(1,2),(12,2)` shifts by `(1.5, 2)` with RMSE 0.5 m. Gully 10 m over 365.25 days is 10 m/yr. A non-positive interval is missing. Sign agreement is undefined at zero or when either side is missing. |
+| Green-Ampt | `Δθ=0.2`, `ψ=0.5` m, `F=0.1` m, `K=1e-5` m/s gives `t=3068.528194400546` s and `z_f=0.5` m. Rainfall cap 0.02 m gives `F=0.02` m and `z_f=0.1` m. Rainfall 0 m is a real zero. A missing soil term leaves both depths null. |
+| Effective stress | `Δσ' = -9.81 * Δh`. A 2 m rise is -19.62 kPa. A 0 m rise is 0. A missing rise is null. |
+| SPT-N | Wolff / Peck: `φ = 27.1 + 0.3 N − 0.00054 N²`. `N=10` is 30.046°. `N=0` is 27.1°. A negative or missing N is null. Stroud: `cu = f1 * N` with `f1` required. `N=8`, `f1=4.5` is 36 kPa. |
+| Built-up load | Fraction 0.25 times 20 kPa is 5 kPa. A fraction outside `[0, 1]` is null. |
+| Culmann | `β=60°`, `φ=30°`, `c=10` kPa, `γ=20` kN/m³. `sin β cos φ = 0.75`. `H_c = 11.196152422706637` m. `H=5` m gives FS 2.2392304845413276. Surcharge 10 kPa gives FS 2.035664076855752. `β≤φ` withholds the height. |
