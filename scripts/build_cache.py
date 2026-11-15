@@ -3,7 +3,7 @@
 Supports all three hackathon AOIs:
   1. Eje Cafetero (Quake DPM: Track 11 R/C/K coherence & damage proxy)
   2. Aburrá Valley (Landslide kinematics: InSAR phase & rain trigger)
-  3. La Mojana (Flood dynamics: Track 47 Frame 5 GCOV dual-pol & water)
+  3. La Mojana (Flood dynamics: Track 47 Frame 5 GCOV dual-pol, HAND & water)
 
 Outputs:
   - local_cache/<aoi>/cogs/*.tif (Cloud-Optimized GeoTIFFs)
@@ -24,6 +24,7 @@ import math
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -49,6 +50,11 @@ DST_CRS = "EPSG:4326"
 GEE_NODATA_SENTINEL = -9999.0
 DEFAULT_WIDTH = 512
 DEFAULT_HEIGHT = 512
+MERIT_HYDRO_ASSET = "MERIT/Hydro/v1_0_1"
+MERIT_HAND_BAND = "hnd"
+MERIT_HYDRO_VERSION = "v1_0_1"
+HAND_BAND_NAME = "hand_m"
+HAND_PROVENANCE_KEYS = ("band", "version", "grid", "source")
 
 NAME_RE = re.compile(
     r"NISAR_L2_(?P<stream>[A-Z]{2})_(?P<product>[A-Z]{4})_.*?_(?P<pol>[A-Z]{2,4})_(?:[A-Z]_)?"
@@ -133,6 +139,178 @@ def check_array_coverage(arr: np.ndarray, min_ratio: float = 0.05) -> bool:
         return False
     finite_px = np.count_nonzero(np.isfinite(arr))
     return bool(finite_px >= (arr.size * min_ratio))
+
+
+@dataclass(frozen=True)
+class SampleGrid:
+    """Affine passed to ee.data.computePixels. Taken from a cube, not hardcoded."""
+
+    crs: str
+    width: int
+    height: int
+    scale_x: float
+    scale_y: float
+    translate_x: float
+    translate_y: float
+    clip_bbox: tuple[float, float, float, float]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "crs": self.crs,
+            "width": self.width,
+            "height": self.height,
+            "scale_x": self.scale_x,
+            "scale_y": self.scale_y,
+            "translate_x": self.translate_x,
+            "translate_y": self.translate_y,
+        }
+
+
+def _is_geographic_bbox(bbox: list[float] | tuple[float, ...]) -> bool:
+    west, south, east, north = (float(value) for value in bbox)
+    return -180.0 <= west < east <= 180.0 and -90.0 <= south < north <= 90.0
+
+
+def _edges_match_bbox(
+    x_vals: np.ndarray,
+    y_vals: np.ndarray,
+    bbox: tuple[float, float, float, float],
+) -> bool:
+    west, south, east, north = bbox
+    return bool(
+        np.isclose(x_vals[0], west)
+        and np.isclose(x_vals[-1], east)
+        and np.isclose(y_vals[0], north)
+        and np.isclose(y_vals[-1], south)
+    )
+
+
+def grid_from_cube_coords(
+    y: np.ndarray,
+    x: np.ndarray,
+    crs: str,
+    bbox: list[float] | tuple[float, ...] | None = None,
+) -> SampleGrid:
+    """Build the computePixels affine from stored cube coordinates.
+
+    This builder writes an inclusive linspace of the outer edges and samples
+    with scale = edge span / pixel count. When the coordinates sit on a
+    geographic bbox, that is the affine. Otherwise the coordinates are cell
+    centers and the scale is their spacing.
+    """
+    y_vals = np.asarray(y, dtype=np.float64)
+    x_vals = np.asarray(x, dtype=np.float64)
+    height = int(y_vals.size)
+    width = int(x_vals.size)
+    if height < 2 or width < 2:
+        raise ValueError("cube grid needs at least 2 samples on each axis")
+    if not crs:
+        raise ValueError("cube has no crs")
+
+    clip_bbox: tuple[float, float, float, float] | None = None
+    edge_aligned = False
+    if bbox is not None and len(bbox) == 4 and _is_geographic_bbox(bbox):
+        clip_bbox = (float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]))
+        edge_aligned = _edges_match_bbox(x_vals, y_vals, clip_bbox)
+
+    if edge_aligned:
+        scale_x = (float(x_vals[-1]) - float(x_vals[0])) / width
+        scale_y = (float(y_vals[-1]) - float(y_vals[0])) / height
+        translate_x = float(x_vals[0])
+        translate_y = float(y_vals[0])
+    else:
+        dx = float(np.median(np.diff(x_vals)))
+        dy = float(np.median(np.diff(y_vals)))
+        if not np.isfinite(dx) or not np.isfinite(dy) or dx == 0.0 or dy == 0.0:
+            raise ValueError("cube coordinates are not a regular grid")
+        scale_x = dx
+        scale_y = dy
+        translate_x = float(x_vals[0]) - dx / 2.0
+        translate_y = float(y_vals[0]) - dy / 2.0
+
+    if clip_bbox is None:
+        x_far = translate_x + scale_x * width
+        y_far = translate_y + scale_y * height
+        clip_bbox = (
+            min(translate_x, x_far),
+            min(translate_y, y_far),
+            max(translate_x, x_far),
+            max(translate_y, y_far),
+        )
+    return SampleGrid(
+        crs=str(crs),
+        width=width,
+        height=height,
+        scale_x=scale_x,
+        scale_y=scale_y,
+        translate_x=translate_x,
+        translate_y=translate_y,
+        clip_bbox=clip_bbox,
+    )
+
+
+def grid_from_dataset(dataset: xr.Dataset) -> SampleGrid:
+    crs = dataset.attrs.get("crs")
+    if not crs:
+        raise ValueError("cube attributes have no crs")
+    return grid_from_cube_coords(
+        dataset.y.values,
+        dataset.x.values,
+        str(crs),
+        dataset.attrs.get("bbox"),
+    )
+
+
+def sample_grid_from_bbox(
+    bbox: list[float],
+    width: int,
+    height: int,
+    crs: str = DST_CRS,
+) -> SampleGrid:
+    """Affine for a full cache build: outer edges, scale = span / pixel count."""
+    west, south, east, north = (float(value) for value in bbox)
+    return SampleGrid(
+        crs=crs,
+        width=width,
+        height=height,
+        scale_x=(east - west) / width,
+        scale_y=-(north - south) / height,
+        translate_x=west,
+        translate_y=north,
+        clip_bbox=(west, south, east, north),
+    )
+
+
+def merit_hand_source_id(grid: SampleGrid) -> str:
+    return (
+        f"GEE {MERIT_HYDRO_ASSET} band {MERIT_HAND_BAND} "
+        f"version {MERIT_HYDRO_VERSION} "
+        f"grid {grid.crs} {grid.width}x{grid.height}"
+    )
+
+
+def hand_band_meta(grid: SampleGrid) -> dict[str, Any]:
+    return {
+        "band": MERIT_HAND_BAND,
+        "version": MERIT_HYDRO_VERSION,
+        "grid": grid.as_dict(),
+        "source": MERIT_HYDRO_ASSET,
+    }
+
+
+def structured_band(structured: np.ndarray, band_name: str) -> np.ndarray:
+    """Pick one computePixels field. A mask field is not the measurement."""
+    names = getattr(structured.dtype, "names", None)
+    if not names:
+        return np.asarray(structured)
+    if band_name in names:
+        return np.asarray(structured[band_name])
+    matches = [
+        name for name in names if band_name.lower() in name.lower() and "mask" not in name.lower()
+    ]
+    if len(matches) == 1:
+        return np.asarray(structured[matches[0]])
+    raise KeyError(f"computePixels fields {list(names)} do not include {band_name}")
 
 
 def init_earthaccess() -> str | None:
@@ -281,40 +459,67 @@ def gee_nodata_to_nan(arr: np.ndarray) -> np.ndarray:
     return out
 
 
+def hand_array_from_sample(values: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    """Float32 HAND. Sentinel and non-finite samples stay NaN. 0 m is kept.
+
+    Nothing is zero-filled.
+    """
+    arr = gee_nodata_to_nan(np.asarray(values))
+    if arr.shape != shape:
+        raise ValueError(f"HAND sample shape {arr.shape} != grid {shape}")
+    return arr
+
+
 def fetch_gee_layer(
     image: Any,
     band_name: str,
     bbox: list[float],
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
+    grid: SampleGrid | None = None,
 ) -> np.ndarray | None:
     try:
         import ee
 
-        region = ee.Geometry.Rectangle(bbox)
+        sample = grid if grid is not None else sample_grid_from_bbox(bbox, width, height, DST_CRS)
+        region = ee.Geometry.Rectangle(list(sample.clip_bbox))
+        # Masked pixels become the sentinel, then NaN. Do not unmask(0).
+        # Do not call image.resample(): nearest is the computePixels default,
+        # and "nearest" is not a legal resample() mode.
         params = {
             "expression": image.clip(region).unmask(GEE_NODATA_SENTINEL),
             "fileFormat": "NPY",
             "grid": {
-                "dimensions": {"width": width, "height": height},
+                "dimensions": {"width": sample.width, "height": sample.height},
                 "affineTransform": {
-                    "scaleX": (bbox[2] - bbox[0]) / width,
+                    "scaleX": sample.scale_x,
                     "shearX": 0,
-                    "translateX": bbox[0],
+                    "translateX": sample.translate_x,
                     "shearY": 0,
-                    "scaleY": -(bbox[3] - bbox[1]) / height,
-                    "translateY": bbox[3],
+                    "scaleY": sample.scale_y,
+                    "translateY": sample.translate_y,
                 },
-                "crsCode": DST_CRS,
+                "crsCode": sample.crs,
             },
         }
         raw_bytes = ee.data.computePixels(params)
         structured = np.load(io.BytesIO(raw_bytes))
-        arr = structured[band_name].astype(np.float32)
+        arr = structured_band(structured, band_name)
         return gee_nodata_to_nan(arr)
     except Exception as exc:
         print(f"   [WARN] GEE computePixels failed for {band_name}: {exc}")
         return None
+
+
+def fetch_merit_hand(grid: SampleGrid) -> np.ndarray | None:
+    """Sample MERIT Hydro band hnd onto ``grid``. Missing pixels stay NaN."""
+    import ee
+
+    image = ee.Image(MERIT_HYDRO_ASSET).select(MERIT_HAND_BAND)
+    sampled = fetch_gee_layer(image, MERIT_HAND_BAND, list(grid.clip_bbox), grid=grid)
+    if sampled is None:
+        return None
+    return hand_array_from_sample(sampled, (grid.height, grid.width))
 
 
 def save_array_as_cog(
@@ -368,7 +573,7 @@ def assemble_manifest_record(
 
         if is_missing:
             provenance[name] = "missing"
-            band_records[name] = {
+            record = {
                 "source_id": "missing",
                 "status": "missing",
                 "asset_type": data.get("asset_type", "UNKNOWN"),
@@ -382,7 +587,7 @@ def assemble_manifest_record(
             present_arr = cast(np.ndarray, arr)
             finite_cnt = int(np.count_nonzero(np.isfinite(present_arr)))
             ratio = float(finite_cnt / present_arr.size) if present_arr.size > 0 else 0.0
-            band_records[name] = {
+            record = {
                 "source_id": src_id,
                 "status": "cached",
                 "asset_type": data.get("asset_type", "UNKNOWN"),
@@ -391,6 +596,10 @@ def assemble_manifest_record(
                 "finite_pixel_count": finite_cnt,
                 "finite_pixel_ratio": round(ratio, 4),
             }
+        for key in HAND_PROVENANCE_KEYS:
+            if data.get(key) is not None:
+                record[key] = data[key]
+        band_records[name] = record
 
     manifest = {
         "aoi": aoi_short,
@@ -864,6 +1073,15 @@ def build_cache_for_aoi(
         }
         bands["los_disp_mm"] = {"arr": disp_mm, "source_id": src_corr, "asset_type": "NISAR_GUNW"}
 
+        hand_grid = sample_grid_from_bbox(bbox, width, height, DST_CRS)
+        hand_arr = fetch_merit_hand(hand_grid) if gee_online else None
+        bands[HAND_BAND_NAME] = {
+            "arr": hand_arr,
+            "source_id": merit_hand_source_id(hand_grid) if hand_arr is not None else None,
+            "asset_type": "GEE",
+            **hand_band_meta(hand_grid),
+        }
+
     # 3. Save COGs
     print(f"💾 Saving Cloud-Optimized GeoTIFFs (COGs) to {cogs_dir}...")
     cog_files: dict[str, str] = {}
@@ -910,6 +1128,116 @@ def build_cache_for_aoi(
     return manifest_path
 
 
+def hand_manifest_entry(arr: np.ndarray, grid: SampleGrid) -> tuple[dict[str, Any], str]:
+    """Manifest record for hand_m. Finite pixels stay cached; an empty sample is missing."""
+    meta = hand_band_meta(grid)
+    finite = int(np.count_nonzero(np.isfinite(arr)))
+    total = int(arr.size)
+    if finite == 0 or total == 0:
+        record = {
+            "source_id": "missing",
+            "status": "missing",
+            "asset_type": "GEE",
+            "stream": None,
+            "dates": None,
+            "finite_pixel_count": 0,
+            "finite_pixel_ratio": 0.0,
+            **meta,
+        }
+        return record, "missing"
+    source_id = merit_hand_source_id(grid)
+    record = {
+        "source_id": source_id,
+        "status": "cached",
+        "asset_type": "GEE",
+        "stream": None,
+        "dates": None,
+        "finite_pixel_count": finite,
+        "finite_pixel_ratio": round(finite / total, 4),
+        **meta,
+    }
+    return record, source_id
+
+
+def write_hand_variable(
+    zarr_path: Path,
+    arr: np.ndarray,
+    y_vals: np.ndarray,
+    x_vals: np.ndarray,
+    chunk_shape: tuple[int, int],
+    cube_attrs: dict[str, Any],
+) -> None:
+    """Append hand_m. Cube attributes are written back so mode='a' does not clear them."""
+    out = xr.Dataset(
+        {HAND_BAND_NAME: (("y", "x"), np.asarray(arr, dtype=np.float32))},
+        coords={"y": ("y", y_vals), "x": ("x", x_vals)},
+        attrs=cube_attrs,
+    )
+    out.to_zarr(zarr_path, mode="a", encoding={HAND_BAND_NAME: {"chunks": chunk_shape}})
+
+
+def append_merit_hand_band(aoi_input: str) -> Path:
+    """Add only hand_m to an existing La Mojana cube.
+
+    The sample grid is read from the cube. Other bands, COGs, tiles and
+    provenance.json are left untouched.
+    """
+    _canonical, aoi_short, _bbox = resolve_aoi(aoi_input)
+    if aoi_short != "mojana":
+        raise ValueError("hand_m is only added to the La Mojana cube")
+    out_dir = LOCAL_CACHE_DIR / aoi_short
+    zarr_path = out_dir / f"{aoi_short}_sar_cube.zarr"
+    manifest_path = out_dir / "manifest.json"
+    if not zarr_path.is_dir():
+        raise FileNotFoundError(f"existing cube required: {zarr_path}")
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"existing manifest required: {manifest_path}")
+
+    with xr.open_zarr(zarr_path, chunks=None, mask_and_scale=False) as dataset:
+        if HAND_BAND_NAME in dataset.data_vars:
+            raise ValueError("hand_m is already in the cube; refusing to rewrite bands")
+        grid = grid_from_dataset(dataset)
+        y_vals = np.asarray(dataset.y.values)
+        x_vals = np.asarray(dataset.x.values)
+        cube_attrs = dict(dataset.attrs)
+        chunk_shape = (256, 256)
+        for name in dataset.data_vars:
+            chunks = dataset[name].encoding.get("chunks")
+            if chunks:
+                chunk_shape = tuple(int(size) for size in chunks)
+                break
+
+    print(
+        f"HAND grid read from cube: crs={grid.crs} {grid.width}x{grid.height} "
+        f"scale_x={grid.scale_x} scale_y={grid.scale_y} "
+        f"translate=({grid.translate_x}, {grid.translate_y})"
+    )
+    if not init_gee_session():
+        raise RuntimeError("Earth Engine did not initialize; hand_m was not written")
+    arr = fetch_merit_hand(grid)
+    if arr is None:
+        raise RuntimeError("MERIT Hydro HAND sample failed; cube left unchanged")
+    finite = int(np.count_nonzero(np.isfinite(arr)))
+    total = int(arr.size)
+    if finite == 0 or total == 0:
+        raise RuntimeError("MERIT Hydro HAND sample has no finite pixels; cube left unchanged")
+
+    write_hand_variable(zarr_path, arr, y_vals, x_vals, chunk_shape, cube_attrs)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    record, provenance = hand_manifest_entry(arr, grid)
+    manifest.setdefault("bands", {})[HAND_BAND_NAME] = record
+    manifest.setdefault("nisar_granule_provenance", {})[HAND_BAND_NAME] = provenance
+    text = json.dumps(manifest, indent=2)
+    if not text.endswith("\n"):
+        text += "\n"
+    manifest_path.write_text(text, encoding="utf-8")
+    print(f"hand_m finite pixels: {finite} of {total} (ratio {finite / total}) *(measured)*")
+    print(f"manifest finite_pixel_ratio: {record['finite_pixel_ratio']}")
+    print(f"appended {HAND_BAND_NAME} to {zarr_path}")
+    return manifest_path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
@@ -928,7 +1256,19 @@ def main() -> None:
     )
     ap.add_argument("--chirps-start", default=None, help="CHIRPS start date (YYYY-MM-DD)")
     ap.add_argument("--chirps-end", default=None, help="CHIRPS end date (YYYY-MM-DD)")
+    ap.add_argument(
+        "--only-band",
+        default=None,
+        choices=[HAND_BAND_NAME],
+        help="Append this one band onto the existing cube grid. Does not rebuild other bands.",
+    )
     args = ap.parse_args()
+
+    if args.only_band:
+        if args.aoi == "all":
+            raise SystemExit("--only-band cannot be combined with --aoi all")
+        append_merit_hand_band(args.aoi)
+        return
 
     if args.aoi == "all":
         # Build in agreed priority order: Eje Cafetero first, then Aburrá, then La Mojana

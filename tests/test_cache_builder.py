@@ -10,15 +10,23 @@ import re
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
 
 from scripts.build_cache import (
     GEE_NODATA_SENTINEL,
+    MERIT_HYDRO_ASSET,
     check_array_coverage,
     gee_nodata_to_nan,
+    grid_from_cube_coords,
+    hand_array_from_sample,
+    hand_manifest_entry,
     load_aois,
     make_missing_band,
+    merit_hand_source_id,
     parse_nisar_scene_name,
     resolve_aoi,
+    structured_band,
+    write_hand_variable,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -151,6 +159,142 @@ def test_no_synthetic_data_in_scripts():
                 assert not forbidden.search(line), (
                     f"Forbidden pattern in {script_file.name}:{i} -> {line}"
                 )
+
+
+def test_hand_grid_reads_edge_affine_from_coordinates():
+    """Edge-aligned cube coordinates use span/count, not a hardcoded 512 or 90 m."""
+    # Hand-written: 4 rows, 5 columns, outer edges on the bbox.
+    y = np.array([10.0, 9.0, 8.0, 7.0])
+    x = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    grid = grid_from_cube_coords(y, x, "EPSG:4326", [0.0, 7.0, 4.0, 10.0])
+    assert grid.crs == "EPSG:4326"
+    assert (grid.width, grid.height) == (5, 4)
+    assert grid.scale_x == 0.8  # (4 - 0) / 5
+    assert grid.scale_y == -0.75  # (7 - 10) / 4
+    assert grid.translate_x == 0.0
+    assert grid.translate_y == 10.0
+    assert grid.clip_bbox == (0.0, 7.0, 4.0, 10.0)
+
+
+def test_hand_grid_reads_cell_centers_from_spacing():
+    """Projected coordinates that are not bbox edges use their own spacing."""
+    # Hand-written 90 m cell centers. Expected origin is the first center minus half a cell.
+    x = np.array([45.0, 135.0, 225.0])
+    y = np.array([225.0, 135.0, 45.0])
+    grid = grid_from_cube_coords(y, x, "EPSG:32618", [-75.4, 7.9, -74.2, 9.2])
+    assert grid.crs == "EPSG:32618"
+    assert (grid.width, grid.height) == (3, 3)
+    assert grid.scale_x == 90.0
+    assert grid.scale_y == -90.0
+    assert grid.translate_x == 0.0  # 45 - 90/2
+    assert grid.translate_y == 270.0  # 225 - (-90)/2
+    assert grid.clip_bbox == (-75.4, 7.9, -74.2, 9.2)
+
+
+def test_hand_sample_keeps_zero_and_maps_sentinel_to_nan():
+    """HAND missing stays NaN. A drainage value of 0 m is kept. No zero-fill."""
+    # Hand-written 2x3 sample. Expected finite count: 3 of 6
+    # (0 m, 4.5 m, 18 m). Two sentinels and one infinity stay NaN.
+    raw = np.array(
+        [
+            [-9999.0, 0.0, 4.5],
+            [np.inf, 18.0, -9999.0],
+        ],
+        dtype=np.float32,
+    )
+    out = hand_array_from_sample(raw, (2, 3))
+    assert out.shape == (2, 3)
+    assert out.dtype == np.float32
+    assert np.isnan(out[0, 0])
+    assert out[0, 1] == 0.0
+    assert out[0, 2] == np.float32(4.5)
+    assert np.isnan(out[1, 0])
+    assert out[1, 1] == 18.0
+    assert np.isnan(out[1, 2])
+    assert int(np.isfinite(out).sum()) == 3
+    assert out.size == 6
+
+
+def test_structured_band_picks_hnd_not_the_mask():
+    """The measurement field is hnd. A mask field with the same stem is ignored."""
+    raw = np.zeros(2, dtype=[("hnd", "f4"), ("hnd_mask", "f4")])
+    raw["hnd"] = np.array([0.0, -9999.0], dtype=np.float32)
+    raw["hnd_mask"] = np.array([1.0, 0.0], dtype=np.float32)
+    picked = structured_band(raw, "hnd")
+    out = gee_nodata_to_nan(picked)
+    assert out[0] == 0.0
+    assert np.isnan(out[1])
+
+
+def test_hand_manifest_records_merit_provenance():
+    """A finite HAND sample records the MERIT asset, band, version and grid."""
+    y = np.array([10.0, 7.0])
+    x = np.array([0.0, 4.0])
+    grid = grid_from_cube_coords(y, x, "EPSG:4326", [0.0, 7.0, 4.0, 10.0])
+    # Hand-written: 3 finite of 4. 0 m stays finite.
+    present = np.array([[0.0, np.nan], [12.0, 4.0]], dtype=np.float32)
+    record, provenance = hand_manifest_entry(present, grid)
+    assert record["status"] == "cached"
+    assert record["source_id"].startswith("GEE MERIT/Hydro/v1_0_1")
+    assert record["band"] == "hnd"
+    assert record["version"] == "v1_0_1"
+    assert record["source"] == MERIT_HYDRO_ASSET
+    assert record["grid"]["crs"] == "EPSG:4326"
+    assert record["grid"]["width"] == 2
+    assert record["grid"]["height"] == 2
+    assert record["finite_pixel_count"] == 3
+    assert record["finite_pixel_ratio"] == 0.75
+    assert provenance == record["source_id"]
+    assert merit_hand_source_id(grid) == provenance
+
+    empty = np.full((2, 2), np.nan, dtype=np.float32)
+    missing, missing_id = hand_manifest_entry(empty, grid)
+    assert missing["status"] == "missing"
+    assert missing["source_id"] == "missing"
+    assert missing_id == "missing"
+    assert missing["finite_pixel_count"] == 0
+    assert missing["source"] == MERIT_HYDRO_ASSET
+
+
+def test_write_hand_band_keeps_other_bytes_attrs_and_nan(tmp_path):
+    """Appending hand_m leaves an existing band's chunks and the cube crs in place."""
+    y = np.linspace(10.0, 7.0, 4)
+    x = np.linspace(0.0, 4.0, 4)
+    attrs = {
+        "aoi": "mojana",
+        "aoi_key": "3_la_mojana_caregato",
+        "bbox": [0.0, 7.0, 4.0, 10.0],
+        "crs": "EPSG:4326",
+    }
+    store = tmp_path / "cube.zarr"
+    slope = np.arange(16, dtype=np.float32).reshape(4, 4)
+    xr.Dataset(
+        {"slope_deg": (("y", "x"), slope)},
+        coords={"y": y, "x": x},
+        attrs=attrs,
+    ).to_zarr(store, mode="w", encoding={"slope_deg": {"chunks": (2, 2)}})
+    chunk = store / "slope_deg" / "c" / "0" / "0"
+    before = chunk.read_bytes()
+    # Hand-written: one missing sample stays NaN, 0 m stays 0.
+    hand = np.full((4, 4), 3.0, dtype=np.float32)
+    hand[0, 1] = np.nan
+    hand[1, 0] = 0.0
+    write_hand_variable(store, hand, y, x, (2, 2), attrs)
+    assert chunk.read_bytes() == before
+    with xr.open_zarr(store, chunks=None, mask_and_scale=False) as dataset:
+        assert dict(dataset.attrs) == attrs
+        written = dataset["hand_m"].values
+        assert np.isnan(written[0, 1])
+        assert written[1, 0] == 0.0
+        assert written[0, 0] == 3.0
+        assert np.array_equal(dataset["slope_deg"].values, slope)
+
+
+def test_hand_fetch_does_not_request_nearest_resample():
+    """computePixels nearest is the default. resample('nearest') is illegal."""
+    source = (ROOT / "scripts" / "build_cache.py").read_text(encoding="utf-8")
+    assert 'resample("nearest")' not in source
+    assert "resample('nearest')" not in source
 
 
 def test_gee_nodata_to_nan_maps_sentinel():
