@@ -241,7 +241,7 @@ sequenceDiagram
 - **Hour-2 gate** *(measured)*: [reports/gate.md](reports/gate.md) — 251 granules, quake triplets on both tracks, C-baseline mismatch recorded.
 - **Real-data cache** *(measured)*: [builder brief](briefs/feat/data-cache-builder.md) — Eje 45 MB / 15 bands, Aburrá 36 MB / 16, Mojana 30 MB / 16; every band carries a granule ID or `missing` (CHIRPS ×3 missing: publication lag; Eje `gcov_hvhv_post` missing: post-event GCOV is single-pol).
 - **Curtain tiles** *(measured)*: `local_cache/<aoi>/tiles/manifest.json` — rule-selected S1/S2 scenes per AOI (#65).
-- **Tool latency** *(measured, n=10 per tool)*: `search_nisar_granules` (warm p95 0.693 s → 1.2 s) and `analyze_flood_inundation` (warm p95 0.019 s → 0.52 s) are budgeted; the landslide and quake analysis tools and the staging tools still use the default pending measurement — see [reports/tool_latency.md](reports/tool_latency.md).
+- **Tool latency** *(measured, n=10 per tool, owner run of `mcp_servers/tool_latency.py`)*: `search_nisar_granules` (p95 2.735 s incl. cold call → 3.24 s) and `analyze_flood_inundation` (p95 0.007 s → 0.51 s) are budgeted; the landslide and quake analysis tools and the staging tools still use the default pending measurement — see [reports/tool_latency.md](reports/tool_latency.md).
 - Quake scorecard, Aburrá noise floor (null valid), Mojana classes and offline demo: **pending** — see the Status table.
 
 ## Quickstart

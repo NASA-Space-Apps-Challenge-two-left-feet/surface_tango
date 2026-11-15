@@ -1,14 +1,14 @@
 {
-  "command": "uv run python -m mcp_servers.tool_latency --plan reports/tool_latency_plan.json",
-  "recorded_utc": "2026-11-15T00:14:53.512275+00:00",
-  "execution": "offline_preflight",
+  "command": "uv run python -m mcp_servers.tool_latency --plan reports/tool_latency_plan.json --execute --owner Jack4Codes --watchdog-s 120",
+  "recorded_utc": "2026-11-15T09:25:10.607170+00:00",
+  "execution": "owner_live_measurements",
   "method": "uncached raw function; sequential successful calls; linear empirical percentile",
   "results": [
     {
       "server": "nisar_asf",
       "tool": "search_nisar_granules",
       "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello",
-      "status": "not measured",
+      "status": "measured",
       "blockers": [],
       "required_arguments": [
         "bbox",
@@ -17,8 +17,40 @@
         "product_level"
       ],
       "input_granule_ids": [],
-      "granule_ids": [],
-      "budget_s": null
+      "granule_ids": [
+        "NISAR_L2_PR_GCOV_032_047_A_005_4005_DHDH_A_20261003T103903_20261003T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_033_011_D_085_4005_DHDH_A_20261012T232837_20261012T232912_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001",
+        "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001"
+      ],
+      "samples_s": [
+        4.322930200010887,
+        0.30551580000610556,
+        0.7946628000063356,
+        0.31275470000400674,
+        0.36635639998712577,
+        0.3370613000006415,
+        0.31924029999936465,
+        0.30247209999652114,
+        0.29741379999904893,
+        0.35204739999608137
+      ],
+      "sample_count": 10,
+      "p95_s": 2.735209870008835,
+      "budget_s": 3.235209870008835,
+      "range_s": [
+        0.29741379999904893,
+        4.322930200010887
+      ],
+      "interval": null,
+      "evidence": {
+        "samples_s": "measured",
+        "sample_count": "measured",
+        "range_s": "measured",
+        "p95_s": "estimate",
+        "budget_s": "estimate"
+      }
     },
     {
       "server": "nisar_asf",
@@ -46,7 +78,6 @@
       "source": "nisar_colombia_granules_2026.json:aois.1_aburra_medellin_bello.granules",
       "status": "blocked",
       "blockers": [
-        "committed_preregistration_not_ready",
         "staging_bucket_must_be_explicit"
       ],
       "required_arguments": [
@@ -63,23 +94,13 @@
     {
       "server": "gee_fusion",
       "tool": "analyze_landslide_kinematics",
-      "source": "owner-supplied staged real GUNW artifacts required",
+      "source": "local_cache/aburra/landslide_evidence.json (scripts/write_hazard_evidence.py --hazard landslide; needs aburra/calibration.json)",
       "status": "blocked",
       "blockers": [
-        "missing_or_unknown_arguments",
-        "server_bootstrap_incomplete",
-        "committed_preregistration_not_ready",
         "science_requires_real_input_granule_ids"
       ],
       "required_arguments": [
-        "gunw_unw_gcs",
-        "gunw_iono_gcs",
-        "gunw_coh_gcs",
-        "gunw_conncomp_gcs",
-        "bbox",
-        "rain_start_date",
-        "rain_end_date",
-        "temporal_baseline_days"
+        "aoi"
       ],
       "input_granule_ids": [],
       "granule_ids": [],
@@ -88,44 +109,67 @@
     {
       "server": "gee_fusion",
       "tool": "analyze_flood_inundation",
-      "source": "owner-supplied staged real GCOV artifacts required",
-      "status": "blocked",
-      "blockers": [
-        "missing_or_unknown_arguments",
-        "server_bootstrap_incomplete",
-        "committed_preregistration_not_ready",
-        "science_requires_real_input_granule_ids"
-      ],
+      "source": "local_cache/mojana/flood_evidence.json (scripts/write_hazard_evidence.py --hazard flood; display date 2026-06-17)",
+      "status": "measured",
+      "blockers": [],
       "required_arguments": [
-        "gcov_hhhh_pre_gcs",
-        "gcov_hvhv_pre_gcs",
-        "gcov_hhhh_post_gcs",
-        "gcov_hvhv_post_gcs",
-        "bbox",
-        "s1_post_start",
-        "s1_post_end"
+        "aoi"
       ],
-      "input_granule_ids": [],
-      "granule_ids": [],
-      "budget_s": null
+      "input_granule_ids": [
+        "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+      ],
+      "granule_ids": [
+        "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001",
+        "NISAR_L2_PR_GCOV_024_047_A_005_4005_DHDH_A_20260629T103906_20260629T103940_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_025_047_A_005_4005_DHDH_A_20260711T103905_20260711T103939_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_026_047_A_005_4005_DHDH_A_20260723T103904_20260723T103939_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_028_047_A_005_4005_DHDH_A_20260816T103903_20260816T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_029_047_A_005_4005_DHDH_A_20260828T103903_20260828T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_030_047_A_005_4005_DHDH_A_20260909T103903_20260909T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_031_047_A_005_4005_DHDH_A_20260921T103903_20260921T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_032_047_A_005_4005_DHDH_A_20261003T103903_20261003T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+        "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001"
+      ],
+      "samples_s": [
+        0.005917899994528852,
+        0.005420400004368275,
+        0.004886800001258962,
+        0.004654000003938563,
+        0.005120200003148057,
+        0.004712100009783171,
+        0.004581599991070107,
+        0.00647900000330992,
+        0.005621899996185675,
+        0.007502399996155873
+      ],
+      "sample_count": 10,
+      "p95_s": 0.007041869999375193,
+      "budget_s": 0.5070418699993752,
+      "range_s": [
+        0.004581599991070107,
+        0.007502399996155873
+      ],
+      "interval": null,
+      "evidence": {
+        "samples_s": "measured",
+        "sample_count": "measured",
+        "range_s": "measured",
+        "p95_s": "estimate",
+        "budget_s": "estimate"
+      }
     },
     {
       "server": "gee_fusion",
       "tool": "analyze_earthquake_dpm",
-      "source": "owner-supplied frozen pair artifacts required",
+      "source": "local_cache/eje_cafetero/quake_evidence_track11.json (scripts/write_hazard_evidence.py --hazard quake --track 11; needs quake/dpm_track11.zarr)",
       "status": "blocked",
       "blockers": [
-        "missing_or_unknown_arguments",
-        "server_bootstrap_incomplete",
-        "committed_preregistration_not_ready",
         "science_requires_real_input_granule_ids"
       ],
       "required_arguments": [
-        "coh_pre_gcs",
-        "coh_coseismic_gcs",
-        "goff_range_gcs",
-        "goff_azimuth_gcs",
-        "bbox"
+        "aoi",
+        "track"
       ],
       "input_granule_ids": [],
       "granule_ids": [],

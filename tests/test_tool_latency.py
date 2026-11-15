@@ -33,6 +33,42 @@ def test_empty_catalog_is_a_real_coverage_result_but_empty_science_is_not():
         latency.validate_response("analyze_flood_inundation", {}, [])
 
 
+def test_recorded_hash_reads_the_leading_blob_and_ignores_trailing_notes():
+    # Hand-written rows; the hex strings are placeholders, not real blobs.
+    current, superseded = "a" * 40, "b" * 40
+    plain = f"| `config/preregistered.yaml` hash (`git hash-object`) | `{current}` |"
+    noted = (
+        f"| `config/preregistered.yaml` hash (`git hash-object`) | `{current}` *(re-frozen)*"
+        f" — notes. Superseded freeze: `{superseded}` (#26). |"
+    )
+    assert latency.recorded_hash(plain) == current
+    assert latency.recorded_hash(noted) == current
+    assert latency.recorded_hash("| other row | `" + current + "` |") is None
+    pending = "| `config/preregistered.yaml` hash (`git hash-object`) | pending |"
+    assert latency.recorded_hash(pending) is None
+
+
+def test_committed_validation_readme_hash_parses():
+    text = (ROOT / "validation/README.md").read_text(encoding="utf-8")
+    recorded = latency.recorded_hash(text)
+    assert recorded is not None and len(recorded) == 40
+
+
+def test_envelope_provenance_beside_data_is_accepted():
+    # Hand-written #122-style envelope; IDs are placeholders, not catalog granules.
+    envelope = {
+        "state": "live",
+        "data": {"dates": []},
+        "provenance": {"source": "cache", "granule_ids": ["G1", "G2"]},
+    }
+    assert latency.validate_response("analyze_flood_inundation", envelope, ["G1"]) == ["G1", "G2"]
+    with pytest.raises(latency.PlanError, match="omits declared"):
+        latency.validate_response("analyze_flood_inundation", envelope, ["G3"])
+    without = {"state": "live", "data": {"dates": []}, "provenance": None}
+    with pytest.raises(latency.PlanError, match="lacks granule provenance"):
+        latency.validate_response("analyze_flood_inundation", without, [])
+
+
 def test_preflight_only_reads_sources_and_does_not_import_live_servers(monkeypatch):
     def forbidden(*args):
         pytest.fail("preflight imported a live/authenticating module")

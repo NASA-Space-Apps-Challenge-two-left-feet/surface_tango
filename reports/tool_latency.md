@@ -3,11 +3,55 @@
 Goal: 10 timed calls per live tool, write `p95 + 0.5 s` into
 `config/bailasar.yaml` → `breaker_budgets_s`.
 
-Status (2026-11-15, after #136 made the `analyze_*` tools cache readers):
-**`search_nisar_granules` and `analyze_flood_inundation` measured and
-budgeted.** `analyze_landslide_kinematics`, `analyze_earthquake_dpm` and the
-two staging tools are still not timeable on real data — they stay on
-`default: 1.8`, not an invented number.
+Status (2026-11-15 04:25 COT, owner run of the #146 runner):
+**`search_nisar_granules` and `analyze_flood_inundation` measured with the
+official runner and budgeted.** `analyze_landslide_kinematics`,
+`analyze_earthquake_dpm` and the two staging tools are still not timeable on
+real data — they stay on `default: 1.8`, not an invented number.
+
+## Official runner — owner run (current budgets)
+
+`mcp_servers/tool_latency.py` (#146) is the team's method
+(`docs/kb/mcp-live-tool-latency.md`): raw function with the cache wrapper
+unwrapped, 10 sequential successful calls, **all kept** (no cold-call
+censoring), NumPy linear p95, budget `p95 + 0.5 s`. Raw samples, granule
+provenance and the command are in [`tool_latency.json`](tool_latency.json).
+
+- Command: `uv run python -m mcp_servers.tool_latency --plan reports/tool_latency_plan.json --execute --owner Jack4Codes --watchdog-s 120`
+  (recorded 2026-11-15T09:25:10Z; exit 2 because the blocked tools are not
+  measured). Host: Windows 11, Python 3.12, fastmcp 4.2.0.
+- Before it could run, three runner defects were fixed in the same PR:
+  the frozen-hash check misread the `validation/README.md` cell once it
+  carried notes after the hash (#134), so every freeze-gated tool was
+  blocked; the plan still had the pre-#136 `analyze_*` arguments; and the
+  response check looked for provenance inside `data`, not beside it in the
+  #122 envelope.
+
+| Tool | n | state | range | p95 (linear) | budget → config |
+|---|---|---|---|---|---|
+| `search_nisar_granules` (Aburrá bbox, GCOV, catalog window) | 10 | live | 0.297–4.323 s (call 1 cold) | 2.735 s | 3.235 → **3.24 s** |
+| `analyze_flood_inundation` (`aoi="mojana"`) | 10 | live | 0.0046–0.0075 s | 0.0070 s | 0.507 → **0.51 s** |
+
+*(measured; samples measured, p95 and budget are estimates of the sampled
+workload per the KB note; denominator 10 calls each)*
+
+- Granules: the search returned scene names such as
+  `NISAR_L2_PR_GCOV_032_047_A_005_4005_DHDH_A_20261003T103903_20261003T103937_P05023_N_F_J_001`
+  (full list in the JSON); the flood result's provenance includes the
+  declared display granule
+  `NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001`.
+- **`search_nisar_granules` budget goes up from 1.2 s to 3.24 s.** The earlier
+  1.2 s came from the warm p95 with the cold call excluded (below). The
+  agreed method keeps the cold call, and the linear p95 over 10 samples
+  interpolates toward it. Effect: the first live search on a cold connection
+  no longer trips the breaker; a stuck search waits up to 3.24 s before the
+  cache answers.
+- `--apply-budgets` was not used: it rewrites the `breaker_budgets_s` block
+  without its comments. Values were copied by hand, rounded up to 0.01 s.
+
+The two sections below are the earlier manual timings (cache wrapper
+included, cold call excluded). They are kept as history; the config uses the
+runner values above.
 
 ## Credential state (read-only check)
 
