@@ -9,7 +9,7 @@ verified_by: "codex (fetched 2026-11-15), pending EstebanOchoaedos spot-check"
 supersedes: null
 ---
 
-The quote is the error Earth Engine returned to the La Mojana HAND fetch on 2026-11-14 (reports/mojana.md first draft, measured), not text from the docs page. Categorical layers (connected components, classes, masks) must therefore skip resample() rather than ask for "nearest". To verify: read the allowed modes on the apidocs page and quote them.
+The front-matter quote is from the linked Earth Engine API documentation. The La Mojana HAND fetch separately returned the measured error below on 2026-11-14 (see the first draft of reports/mojana.md). Categorical layers (connected components, classes, masks) must therefore skip resample() rather than ask for "nearest".
 
 The original measured error message was `Image.resample: Invalid interpolation mode: nearest.`; the front-matter quote now contains documentation text.
 
