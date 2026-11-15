@@ -68,7 +68,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | NISAR discovery gate (search script and saved catalog) | live | #23, #52 | [Gate report](reports/gate.md) |
 | Real-data cache builder — COGs + Zarr v3 + provenance manifest (3 AOIs) | cached | #30, #78 | [Builder brief](briefs/feat/data-cache-builder.md) |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
-| Quake damage proxy (track 11; C-pass statistics withheld until the freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
+| Quake damage proxy (tracks 11 and 47; C/K statistics sealed until the pre-registration freeze, [deviation 1](validation/README.md#deviations)) | cached | #31, #64, #111 | [reports/quake_dpm.md](reports/quake_dpm.md) |
 | Release staging and cache download | live; team draft pre-release `cache-2026-11-15` (3 AOIs, 122,697,992 bytes; C-pair coherence and `quake/` withheld); public `make fetch-cache` after the release is published | #42, #67 | [issue #22 instructions](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/22) |
 | Public-readiness audit (secrets, licensing, public basics) | live — READY, 0 blockers (3 fix-before-public, 3 notes) | #46, #83 | [reports/public-readiness.md](reports/public-readiness.md) |
 | MCP servers (`mcp-nisar-asf` :8001, `mcp-gee-fusion` :8002) with cache_guard | live transport (SSE, request-bound cache fallback); hazard tools import per call; `analyze_flood_inundation` errors until rewired to the La Mojana pipeline | #20, #103 | [auth note](docs/kb/earthaccess-netrc-vs-bearer-token.md) |
@@ -76,7 +76,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | LangGraph orchestrator + ES/EN bulletin | planned | #11, #51 | pending |
 | LangSmith tracing of agent runs (project `surface-tango`) | wired; off until `LANGSMITH_API_KEY` is set | #95 | `agents/tracing.py` |
 | Pre-registration and power check | power check recorded: **scorecard uninformative** (0 verified barrio labels); freeze pending (#26, #86) | #25, #102 | [validation/README.md](validation/README.md) |
-| First-aid ranking and scorecard | offline scoring functions merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #96 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
+| First-aid ranking and scorecard | offline scoring functions and MCP wrappers merged; real-data scorecard is a documented null (uninformative ground truth) | #18, #32, #35, #96, #110 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Neighborhood ground truth | researched; no complete barrio damage dataset; candidate boundaries not adopted | #24, #97 | [Source review and gaps](reports/ground_truth.md) |
 | Aburrá landslide noise-floor test | cached: **no motion detected above 9.105 mm (17 pairs, provisional)**; keep-rule calibrated against a sign-flip null | #33 | [reports/aburra.md](reports/aburra.md) |
 | La Mojana open water per date (HH, 90 m, track 47 frame 5, 10 usable dates) | cached | #34 | [reports/mojana.md](reports/mojana.md) |
