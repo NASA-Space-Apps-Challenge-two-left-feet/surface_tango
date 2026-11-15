@@ -4,8 +4,8 @@ Commit this file, filled in, **before** anyone views co-event (C-pair) coherence
 
 | Field | Value |
 |---|---|
-| `config/preregistered.yaml` hash (`git hash-object`) | `56b29a0` (draft; the freeze records the frozen hash, #26) |
-| Commit of this file | _pending (recorded at freeze, #26)_ |
+| `config/preregistered.yaml` hash (`git hash-object`) | `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438` *(frozen, #26)* — `config.py` `preregistered_hash` and `git hash-object` agree. |
+| Commit of this file | Frozen 2026-11-15 (#26 freeze PR; squash commit on `main`). `config/preregistered.yaml` `status: frozen`; never edited after. |
 | Ground-truth source (name, date, URL) | **Uninformative.** No complete barrio-level damage-assessment dataset was verified for Pereira, Armenia or Manizales. Public damage reports and boundary candidates were located but none adopted as labels. Source register: `reports/ground_truth.md` (#24, inspected 2026-11-14). |
 | Barrio polygons source | Candidates located (official/IGAC boundaries, `reports/ground_truth_armenia_boundaries.md`); **none adopted** — official adoption, event-date validity and unit identity unresolved (#24). |
 | Expected evaluable units / positives / prevalence / k (power check, D11) | **Not computable — scorecard uninformative.** 0 verified evaluable units and 0 damage labels, so positives, prevalence and k are undefined. No damage labels, prevalence, evaluated-unit count, precision or ranking were produced (`reports/ground_truth.md`). Unreported/unvisited barrios remain **unknown**, not undamaged. |
@@ -34,6 +34,7 @@ Every change to `config/preregistered.yaml` after blob `8d91f1df0d53c394f22e65a7
 |---|---|
 | Added `landslide.noise_floor: {min_pairs: 2, require_sign_agreement: true}` | The landslide honesty test (design doc, Hazard 1) needs these keys for `noise_floor_verdict` (#72). Both values are the design doc's rule ("the sign agrees across two independent pairs"). Landslide only: no quake or flood parameter changes, and none depends on C-pair coherence. |
 | Filled `quake.pairs` (tracks 11 and 47) with the R/C/K GUNW IDs | The IDs come straight from the hour-2 gate (`nisar_colombia_granules_2026.json` → `quake_triplets`, #23); no threshold, weight, k-rule or informative-gate value changed (#86). Blob after this change: `56b29a0`. The pairs are identifiers, not fitted parameters; the DPM run (#111) selected the same track-11 triplet before this file recorded it. |
+| Set `status: frozen` and filled `ground_truth_source` (name/date/url) with the uninformative record | The freeze (#26). `ground_truth_source` is non-null because the loader refuses a frozen config with nulls; the honest value is "none verified — scorecard uninformative" (#24/#25), pointing at `reports/ground_truth.md`, not a damage dataset. No threshold, weight, k-rule, informative-gate or pair value changed. Final frozen blob (`git hash-object` = `config.py` `preregistered_hash`): `b4f9cb89910e78fa7ad9fd53a2a4b3fca437b438`. |
 
 ## Deviations
 

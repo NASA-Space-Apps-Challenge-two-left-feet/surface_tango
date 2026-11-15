@@ -349,8 +349,8 @@ def test_preregistered_thresholds_load_frozen_values():
     assert thr["built_up_min_footprint_fraction"] == pytest.approx(0.50)
     assert thr["non_built_max_footprint_fraction"] == pytest.approx(0.10)
     assert thr["min_built_up_pixels_per_unit"] == 20
-    assert thr["status"] == "draft"
-    assert thr["is_frozen"] is False
+    assert thr["status"] == "frozen"  # pre-registration frozen in #26
+    assert thr["is_frozen"] is True
     assert len(thr["prereg_sha1"]) == 40  # loader's git-blob sha1 of the file
     assert PREREG_PATH.exists()
 
