@@ -1,0 +1,23 @@
+# gitleaks configuration: the default rules plus three narrow, reviewed allowlists.
+# Each entry was triaged as a false positive on 2026-11-15
+# (gitleaks 8.30.1, `gitleaks git --log-opts="--all" --redact .`, 20 findings, 0 real).
+# Do not widen these: a new finding anywhere else must be triaged, not allowlisted.
+
+title = "surface_tango gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Vendored tool manifest: every value is a SHA-256 checksum of a tracked .claude/ file (854/854 match the committed bytes)."
+paths = ['''^\.claude/gsd-file-manifest\.json$''']
+
+[[allowlists]]
+description = "detect-secrets baseline: its hashed_secret fields are detect-secrets' own fingerprints of reviewed false positives, not credentials."
+paths = ['''^\.secrets\.baseline$''']
+
+[[allowlists]]
+description = "Landslide config test: the flagged value is the AOI key name from config/bailasar.yaml, not a credential."
+condition = "AND"
+paths = ['''^tests/test_landslide\.py$''']
+regexes = ['''^1_aburra_medellin_bello$''']
