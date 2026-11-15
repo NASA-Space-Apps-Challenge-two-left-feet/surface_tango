@@ -1,8 +1,10 @@
 """Response posture for one AOI, read from evidence envelopes.
 
 This is the decision layer. It does not compute a new hazard number, a
-population, a building count, or an aid quantity. It copies fields the
-#122 envelopes already carry and maps them to an evidence-state light.
+population, a building count, a land-use weight, or an aid quantity. It
+copies fields the #122 envelopes already carry and maps them to an
+evidence-state light. Building typology and land cover stay unavailable
+until those layers are on the envelope. No economic multiplier is applied.
 
 Lights, highest rank first:
 
@@ -120,6 +122,8 @@ def decision_config(ops: dict[str, Any]) -> dict[str, Any]:
         "board_note",
         "chips",
         "damage_level",
+        "buildings",
+        "land_cover",
         "response_packages",
         "doctrine",
         "not_a",
@@ -142,6 +146,14 @@ def decision_config(ops: dict[str, Any]) -> dict[str, Any]:
             raise DecisionConfigError(f"decision.product_kind.{domain} is incomplete")
         if domain not in raw["damage_level"]:
             raise DecisionConfigError(f"decision.damage_level.{domain} is missing")
+    for block in ("buildings", "land_cover"):
+        table = raw[block]
+        if not isinstance(table, dict):
+            raise DecisionConfigError(f"decision.{block} must map each domain to a reason")
+        for key in (*raw["domains"], "mixed"):
+            reason = table.get(key)
+            if not isinstance(reason, str) or not reason.strip():
+                raise DecisionConfigError(f"decision.{block}.{key} is missing")
     return raw
 
 
@@ -570,6 +582,30 @@ def _damage_level(domain: str | None, cfg: dict[str, Any]) -> dict[str, str]:
     return {"availability": "unavailable", "label": "Not classified", "reason": reason}
 
 
+def _reason_for(table: dict[str, str], domain: str | None) -> str:
+    key = domain if domain in table else "mixed"
+    return table[key]
+
+
+def _buildings(domain: str | None, cfg: dict[str, Any]) -> dict[str, str]:
+    """Typology and amount stay unavailable. This does not invent a count."""
+    return {
+        "availability": "unavailable",
+        "typology": "unavailable",
+        "amount": "unavailable",
+        "reason": _reason_for(cfg["buildings"], domain),
+    }
+
+
+def _land_cover(domain: str | None, cfg: dict[str, Any]) -> dict[str, str]:
+    """No class areas and no economic weight. A multiplier needs a staged layer."""
+    return {
+        "availability": "unavailable",
+        "economic_weight": "unavailable",
+        "reason": _reason_for(cfg["land_cover"], domain),
+    }
+
+
 def _response_package(
     domain: str | None, action_id: str, cfg: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -643,6 +679,8 @@ def decide(
         "lights_applicable": product_kind == "landslide_ews",
         "chip": _chip(product_kind, extent, posture_label, state, cfg),
         "damage_level": _damage_level(domain, cfg),
+        "buildings": _buildings(domain, cfg),
+        "land_cover": _land_cover(domain, cfg),
         "response_package": _response_package(domain, action["id"], cfg),
         "posture": posture,
         "posture_label": posture_label,

@@ -113,6 +113,10 @@
     parent.append(row);
   }
 
+  function accountingText(block) {
+    return block && block.reason ? block.reason : "Unavailable";
+  }
+
   function revealCard() {
     const panel = document.querySelector('[aria-label="Story map"]');
     if (panel) panel.scrollTop = 0;
@@ -148,6 +152,12 @@
     const facts = el("dl", "dec-facts");
     addFact(facts, "Extent", extentText(product.magnitude && product.magnitude.extent));
     addFact(facts, "Damage level", damageText(product.damage_level));
+    if (product.product_kind === "quake_window_response") {
+      addFact(facts, "Buildings", accountingText(product.buildings));
+    }
+    if (product.product_kind === "flood_extent_response") {
+      addFact(facts, "Land cover and use", accountingText(product.land_cover));
+    }
     addFact(facts, "People and buildings", impactText(product.magnitude && product.magnitude.social_impact));
     addFact(facts, "Economic loss", impactText(product.magnitude && product.magnitude.economic_impact));
     body.append(facts);

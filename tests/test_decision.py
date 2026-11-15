@@ -120,6 +120,14 @@ def test_flood_uncalibrated_water_is_provisional_and_does_not_size_people():
     assert "not people flooded" in extent["label"]
     assert product["magnitude"]["social_impact"]["availability"] == "unavailable"
     assert product["magnitude"]["economic_impact"]["availability"] == "unavailable"
+    cover = product["land_cover"]
+    assert cover["availability"] == "unavailable"
+    assert cover["economic_weight"] == "unavailable"
+    assert "Agricultural, livestock, and vacant land are not counted." in cover["reason"]
+    assert "No economic multiplier is applied." in cover["reason"]
+    _walk_numbers(cover, "land_cover")
+    assert product["buildings"]["amount"] == "unavailable"
+    _walk_numbers(product["buildings"], "buildings")
     assert all(
         line["quantity"]["availability"] == "unavailable" for line in product["lines_of_effort"]
     )
@@ -171,6 +179,15 @@ def test_quake_uninformative_scorecard_is_a_window_not_affected_area():
     assert "value_ha" not in extent
     assert "not affected area" in extent["label"]
     assert product["posture"] != "deploy_assessment"
+    buildings = product["buildings"]
+    assert buildings["availability"] == "unavailable"
+    assert buildings["typology"] == "unavailable"
+    assert buildings["amount"] == "unavailable"
+    assert "damaged-building labels" in buildings["reason"]
+    assert "not assessed" in buildings["reason"]
+    _walk_numbers(buildings, "buildings")
+    assert product["land_cover"]["economic_weight"] == "unavailable"
+    _walk_numbers(product["land_cover"], "land_cover")
 
 
 def test_missing_envelope_is_not_assessed():
@@ -327,12 +344,16 @@ def test_staged_cache_does_not_dispatch():
     assert by_id["mojana"]["chip"] == "Open water"
     assert by_id["mojana"]["magnitude"]["extent"]["represents"] == "provisional_open_water"
     assert by_id["mojana"]["magnitude"]["social_impact"]["availability"] == "unavailable"
+    assert by_id["mojana"]["land_cover"]["economic_weight"] == "unavailable"
+    assert "No economic multiplier is applied." in by_id["mojana"]["land_cover"]["reason"]
     assert by_id["aburra"]["posture"] == "monitor"
     assert by_id["aburra"]["lights_applicable"] is True
     assert by_id["aburra"]["clearance"] is False
     assert by_id["eje_cafetero"]["posture"] == "not_assessed"
     assert by_id["eje_cafetero"]["lights_applicable"] is False
     assert by_id["eje_cafetero"]["chip"] == "Analyzed window"
+    assert by_id["eje_cafetero"]["buildings"]["typology"] == "unavailable"
+    assert by_id["eje_cafetero"]["buildings"]["amount"] == "unavailable"
     quake = next(row for row in by_id["eje_cafetero"]["hazards"] if row["domain"] == "earthquake")
     assert "value_ha" not in json.dumps(quake["extent"])
     assert by_id["la_picacha"]["state"] == "not cached"

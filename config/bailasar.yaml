@@ -188,6 +188,18 @@ decision:
     flood: "Damage level is not classified. Open water is an extent. Change area is withheld or uncalibrated, so this product does not name a damage class."
     earthquake: "No damage class. The scorecard does not support a loss color, and pixel counts are not affected hectares."
     landslide: "The light is an early-warning state. It is not a mapped damage area."
+  # Typology and counts stay unavailable until a footprint layer and labels are on the envelope.
+  buildings:
+    flood: "No building footprint layer is on the flood envelope. Typology and the number of affected buildings are not assessed."
+    earthquake: "VIDA footprint coverage on the quake cube is a built-up mask, not a typology. No damaged-building labels are on the envelope. Typology and the number of affected buildings are not assessed."
+    landslide: "No building footprint layer is on the landslide envelope. Typology and the number of affected buildings are not assessed."
+    mixed: "Building typology and the number of affected buildings are not assessed on this board."
+  # Agricultural and livestock cover would change the response only with a staged layer and a frozen weight.
+  land_cover:
+    flood: "ESA WorldCover is on the quake cube as a vegetation and water mask. It is not sampled on this flood envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    earthquake: "No land-cover or land-use layer is on the earthquake envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    landslide: "No land-cover or land-use layer is on the landslide envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    mixed: "Land cover and use are not assessed on this board. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
   response_packages:
     flood:
       - id: water
