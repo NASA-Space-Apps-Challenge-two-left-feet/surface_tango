@@ -12,11 +12,17 @@ import rioxarray
 from fastmcp import FastMCP
 from google.cloud import storage
 
+from mcp_servers import scoring_tools
 from mcp_servers.cache_guard import run_server, with_offline_zarr_fallback
 
 mcp = FastMCP(name="nisar-asf-subsetter")
 
 GCS_BUCKET = os.environ.get("GCS_NISAR_BUCKET", "spaceapps-medellin-nisar")
+
+# Scoring wrappers over validation.scoring (plan 03-06, #35): get_earthquake_pair_set (design:
+# mcp-nisar-asf), rank_first_aid_barrios, score_against_baseline. Pure logic + frozen config,
+# no GEE/ASF call; co-located here because this server imports without Earth Engine credentials.
+scoring_tools.register(mcp)
 
 
 def _upload_cog_to_gcs(da, local_path: str, blob_name: str) -> str:
