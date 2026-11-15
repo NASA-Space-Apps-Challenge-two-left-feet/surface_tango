@@ -13,6 +13,36 @@ const storyPanels = [
 const comparisonLabels = ["Sentinel-2 optical", "Sentinel-1 C-band", "NISAR L-band"];
 const quakeLabels = ["Sentinel-2 post-event optical", "NISAR pre-event coherence", "NISAR co-event coherence loss"];
 const chapterAreas = { landslide: "aburra", earthquake: "eje_cafetero", flood: "mojana" };
+
+// Chapter-transition curtain: the two-left-feet caminata plays between chapters
+// (brand motion motif). Title + measured-free subtitle only; no numbers here.
+const chapterTitles = {
+  flood: ["La Mojana floods", "NISAR L-band · the headline"],
+  landslide: ["Aburra landslides", "InSAR coherence · noise floor"],
+  earthquake: ["Eje Cafetero earthquake", "co-event coherence loss"],
+  synthesis: ["Cross-hazard synthesis", "one coordinated tango"],
+};
+let feetTransitionTimer = null;
+function playFeetTransition(chapter) {
+  const overlay = document.getElementById("feet-transition");
+  if (!overlay) return;
+  const [title, sub] = chapterTitles[chapter] ?? ["surface tango", ""];
+  const labelEl = document.getElementById("feet-transition-label");
+  if (labelEl) {
+    labelEl.textContent = title;
+    const subEl = document.createElement("span");
+    subEl.className = "feet-sub";
+    subEl.textContent = sub;
+    labelEl.appendChild(subEl);
+  }
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  overlay.classList.add("feet-transition-on");
+  clearTimeout(feetTransitionTimer);
+  feetTransitionTimer = setTimeout(
+    () => overlay.classList.remove("feet-transition-on"),
+    reduce ? 450 : 1100,
+  );
+}
 const pendingResults = {
   landslide: "The Aburrá noise-floor verdict is unavailable.",
   earthquake: "The quake coverage decision is pending.",
@@ -303,6 +333,7 @@ async function openStoryChapter(chapter) {
   const request = new AbortController();
   storyRequest = request;
   activeStory = chapter;
+  playFeetTransition(chapter);
   ++currentInspection;
   physicsInspector.style.display = "none";
   maps.forEach(map => map.resize());

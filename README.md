@@ -22,14 +22,16 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 [![raster stack](https://img.shields.io/badge/raster%20stack-Zarr%20v3%20%C2%B7%20COGs-0F766E)](scripts/build_cache.py)
 [![FastAPI](https://img.shields.io/badge/FastAPI-mission%20control-009688?logo=fastapi&logoColor=white)](app.py)
 <br>
-[![hour-2 gate](https://img.shields.io/badge/hour--2%20gate-251%20NISAR%20granules-0F766E)](reports/gate.md)
-[![real-data cache](https://img.shields.io/badge/real--data%20cache-3%20AOIs%20%C2%B7%2047%20bands-0F766E)](briefs/feat/data-cache-builder.md)
-[![offline tests](https://img.shields.io/badge/offline%20tests-180%20passing-0F766E)](reports/tests.md)
-[![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-9333EA)](reports/gate.md)
-[![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-D97706)](validation/ALLOWLIST.md)
-[![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%202%20deviations-2563EB)](validation/README.md#deviations)
+[![hour-2 gate](https://img.shields.io/badge/hour--2%20gate-251%20NISAR%20granules-1B3FD6)](reports/gate.md)
+[![real-data cache](https://img.shields.io/badge/real--data%20cache-3%20AOIs%20%C2%B7%2047%20bands-1B3FD6)](briefs/feat/data-cache-builder.md)
+[![offline tests](https://img.shields.io/badge/offline%20tests-180%20passing-1B3FD6)](reports/tests.md)
+[![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-1B3FD6)](reports/gate.md)
+[![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-1B3FD6)](validation/ALLOWLIST.md)
+[![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%202%20deviations-F04A23)](validation/README.md#deviations)
 
 <sub>Team **two left feet** · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia · private until the submission · agency names are attribution, never endorsement or logos</sub>
+
+<sub>_Two left feet, one coordinated surface tango_ — 🔵 blue is the first pass, 🔴 vermilion the second · [brand guidelines](docs/brand/brand-guidelines.md)</sub>
 
 </div>
 
@@ -416,6 +418,8 @@ Pending team decision.
 ## Team — two left feet
 
 The team and project names play on our challenge, *Dancing with the SARs*: we tango across Earth's surface with radar, and we do it as a team with two left feet.
+
+**Brand & design.** The team brand is [`docs/brand/brand-guidelines.md`](docs/brand/brand-guidelines.md) and it governs everything we publish — UI, reports, slides, video and badges. Palette: **blue `#1B3FD6`** (the first pass) · **vermilion `#F04A23`** (the second / highlight) · ink `#121212` · paper · grey `#5A5A5A`; typography Jost + Libre Caslon Text (Poppins then system fallbacks). Scientific colour scales stay scientific — brand colours live only on frames, labels and annotations, never on the data. The motion signature is the **two left feet dancing the tango basic** (slow-slow-quick-quick-slow): two long forward strides then a tight side-and-close, each foot (blue / vermilion) leaving its own fading trace. It is the loading, chapter-transition and intro animation across the app (`static/index.html`, `static/story-map.js`); feet rest under `prefers-reduced-motion`. No NASA logos, flags or identifiers, and no likeness of minors, appear anywhere.
 
 | Team member | Lane |
 |---|---|
