@@ -17,10 +17,11 @@ This file is the canonical source of repository standards. `CLAUDE.md` imports i
 | `validation/scoring.py`, `validation/ALLOWLIST.md` | Scoring (Maru816) | Ranking, precision@k, Wilson, block bootstrap, beats rule |
 | `mcp_servers/` (live GEE/ASF tools) | Cloud tools (Jack4Codes) | Tool timing, pair set, ranking/scoring tools |
 | `mcp_servers/cache_guard.py`, transport, `agents/`, `validation/event_facts.json` | Agents/MCP (alicealanapineda-byte) | SSE servers, cache_guard, LangGraph, bulletin |
-| `tests/fixtures/`, cache release, `README.md`, `docs/kb/` verification | Cloud checks + docs (EstebanOchoaedos) | Real-tile checks, release assets, KB, README |
+| `tests/fixtures/`, cache release, `README.md` structure, `docs/kb/` verification | Cloud checks + docs (EstebanOchoaedos) | Real-tile checks, release assets, KB, README |
 | `static/`, `app.py`, `video/` | Frontend + video (SaritaRpo) | Mission control, slider, story map, 30 s video |
 | `tests/test_<area>.py` | Owner of `<area>` | Each lane owns its own test files |
 | `docs/kb/` | Everyone (append) | Living knowledge base (see below) |
+| `README.md` sections your change affects | Everyone (update) | Kept current as tasks land (see below) |
 | `status/<lane>.md` | Each lane | Short status, updated before every sync |
 | `briefs/<branch>.md` | Orchestrator | One brief per branch |
 | `local_cache/` | — | Real-data cache. **Never in git** |
@@ -175,12 +176,26 @@ Every fact the code or the pitch relies on lives as a short note, not in someone
 - Measured results go in `reports/` (with the command and IDs), not in the KB.
 - Sync the KB to gbrain after merges (`/sync-gbrain`), so every agent session can search it.
 
+## README kept current
+
+The README is what the team, new teammates and the judges read first. It must describe `main` as it is now, not the plan.
+- **Update it in the same PR** when a task changes any of these:
+  - how to set up or run the project (a command, a `make` target, a new `.env` key, a port);
+  - what works: a hazard pipeline, an MCP tool, a UI panel or the video moves to live, cached, not cached or dropped;
+  - a measured result (link the `reports/` file; the evidence rule applies, so no number without its command, IDs and denominator);
+  - the architecture, the scope (an item dropped or moved to TODO) or the AI tools used.
+- **Status table.** The README keeps one table: component · state (live · cached · not cached · planned · dropped) · issue/PR · report. The PR that completes or changes a component updates its row (add the table if it is missing).
+- **Any lane may edit the README sections its change affects.** EstebanOchoaedos owns the structure and the wording pass; don't reorganise it in a feature PR.
+- **Remove what is no longer true** in the same PR: dropped features, stale claims, numbers without a source. Never leave the README promising something `main` doesn't do.
+- **The orchestrator checks it** at review (a PR that should have touched the README and didn't is sent back), and after each batch of merges does a README pass in its own `docs/readme-...` PR.
+- A README-only PR is docs-only, so it costs no Actions minutes.
+
 ## Orchestrator and executors
 
 - **One Claude session is the orchestrator.**
   - It owns this file, `config/preregistered.yaml` after freeze, CI and the plan.
   - It writes `briefs/<branch>.md` for each branch (Goal · Issue · Files you may touch · Out of scope · Steps · Acceptance · Outward actions needing approval · If blocked).
-  - It reviews each PR against its brief, and merges.
+  - It reviews each PR against its brief (including the README rule), and merges.
 - **Executors** (teammates' agents, Codex, Antigravity, OpenCode, Grok):
   - They read only `AGENTS.md` and their brief, touch only the listed files, and run the acceptance commands.
   - They update `status/<lane>.md` and open the PR.
