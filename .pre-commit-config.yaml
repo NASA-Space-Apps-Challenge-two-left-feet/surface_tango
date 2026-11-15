@@ -14,7 +14,9 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^(\.claude/|docs/baseline/unapplied_patches/)
       - id: end-of-file-fixer
+        exclude: ^(\.claude/|docs/baseline/unapplied_patches/)
       - id: check-yaml
         args: [--unsafe]
       - id: check-json
@@ -35,7 +37,7 @@ repos:
     hooks:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
-        exclude: (\.lock|\.csv|\.parquet|\.pdf|\.tif|\.zarr/.*)$
+        exclude: (^\.claude/|\.lock$|\.csv$|\.parquet$|\.pdf$|\.tif$|\.zarr/.*$)
 
   # === Sync with trunk ===
   # Blocks a commit on a branch that is behind origin/main; fix with `make sync`.
