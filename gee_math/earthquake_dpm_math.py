@@ -44,6 +44,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import yaml
@@ -221,7 +222,8 @@ def evaluate_units(
     Units absent from stats (zero valid built-up pixels) count as excluded too,
     so every rasterized unit is either evaluated or explicitly excluded."""
     ids = sorted(all_unit_ids) if all_unit_ids is not None else sorted(stats)
-    evaluated, excluded = [], []
+    evaluated: list[int] = []
+    excluded: list[int] = []
     for uid in ids:
         n_px = stats.get(uid, {}).get("n_px", 0)
         (evaluated if n_px >= min_built_up_pixels else excluded).append(uid)
@@ -1029,7 +1031,7 @@ def fetch_units(window: dict, aoi: list[float], asset: str | None, name_prop: st
             err.append(f"{a}: {exc}")
     if used_asset is None:
         raise RuntimeError(f"no unit asset reachable: {err}")
-    features = info["features"]
+    features = cast(dict, info)["features"]
     if not features:
         raise RuntimeError(f"no unit polygons in the AOI from {used_asset}")
     props0 = features[0]["properties"]

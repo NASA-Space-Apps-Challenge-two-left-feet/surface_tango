@@ -110,7 +110,7 @@ def select_quake_triplet(gunw: list[dict], track: int) -> dict:
     dated = [(date.fromisoformat(g["date_1"]), date.fromisoformat(g["date_2"]), g) for g in pairs]
     co = [x for x in dated if x[0] < EVENT_DATE <= x[1]]
     pre = sorted([x for x in dated if x[1] < EVENT_DATE], key=lambda x: x[1])
-    out = {"track": track, "R": None, "C": None, "K": None, "baseline_days": {}}
+    out: dict = {"track": track, "R": None, "C": None, "K": None, "baseline_days": {}}
     if co:
         out["C"] = co[0][2]["scene_name"]
         out["baseline_days"]["C"] = (co[0][1] - co[0][0]).days
