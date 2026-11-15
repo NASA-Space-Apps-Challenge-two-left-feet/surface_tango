@@ -13,47 +13,91 @@
   <!-- Deck.gl standalone bundle -->
   <script src="/assets/deck.gl.js"></script>
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #090d16; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+    @font-face { font-family: 'Jost'; src: url('/assets/jost-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Jost'; src: url('/assets/jost-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+    @font-face { font-family: 'Libre Caslon Text'; src: url('/assets/caslon-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Libre Caslon Text'; src: url('/assets/caslon-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+    :root {
+      --brand-blue: #1B3FD6;      /* the first pass */
+      --brand-vermilion: #F04A23; /* the second pass */
+      --brand-ink: #121212;
+      --brand-paper: #FFFFFF;
+      --brand-grey: #5A5A5A;
+    }
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--brand-ink); color: var(--brand-paper); font-family: 'Jost', 'Poppins', system-ui, sans-serif; }
     .map-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     .curtain-handle {
-      position: absolute; top: 0; bottom: 0; width: 3px; background: #38bdf8;
-      cursor: ew-resize; z-index: 30; box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+      position: absolute; top: 0; bottom: 0; width: 3px; background: var(--brand-vermilion);
+      cursor: ew-resize; z-index: 30; box-shadow: 0 0 12px rgba(240, 74, 35, 0.7);
     }
     .curtain-pill {
       position: absolute; top: 50%; transform: translate(-50%, -50%);
-      background: #0f172a; border: 2px solid #38bdf8; color: #38bdf8;
+      background: var(--brand-ink); border: 2px solid var(--brand-vermilion); color: var(--brand-paper);
       padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
       white-space: nowrap; user-select: none;
     }
+    /* two-feet stepping loader (brand motion motif) */
+    .feet-loader { display: inline-block; height: 22px; width: 44px; }
+    .feet-loader .foot { opacity: 0; }
+    .feet-loader .foot-blue { animation: footstep-blue 1.6s ease-in-out infinite; }
+    .feet-loader .foot-vermilion { animation: footstep-vermilion 1.6s ease-in-out infinite; }
+    @keyframes footstep-blue {
+      0%, 20% { opacity: 0; transform: translateY(6px); }
+      30%, 70% { opacity: 1; transform: translateY(0); }
+      80%, 100% { opacity: 0; }
+    }
+    @keyframes footstep-vermilion {
+      0%, 45% { opacity: 0; transform: translate(8px, 8px); }
+      55%, 95% { opacity: 1; transform: translate(8px, 0); }
+      100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .feet-loader .foot-blue { animation: none; opacity: 1; }
+      .feet-loader .foot-vermilion { animation: none; opacity: 1; }
+    }
     .flood-date { display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
       gap: 4px; background: transparent; border: 0; padding: 0; cursor: pointer; }
-    .flood-date-bar { width: 100%; max-width: 26px; background: #35c4b5; border-radius: 2px 2px 0 0; opacity: 0.65; }
-    .flood-date-label { font-size: 9px; color: #8a93a6; letter-spacing: 0.02em; }
+    .flood-date-bar { width: 100%; max-width: 26px; background: var(--brand-vermilion); border-radius: 2px 2px 0 0; opacity: 0.65; }
+    .flood-date-label { font-size: 9px; color: var(--brand-grey); letter-spacing: 0.02em; }
     .flood-date:hover .flood-date-bar { opacity: 1; }
-    .flood-date-active .flood-date-bar { opacity: 1; box-shadow: 0 0 8px rgba(53, 196, 181, 0.8); }
-    .flood-date-active .flood-date-label { color: #35c4b5; font-weight: 700; }
+    .flood-date-active .flood-date-bar { opacity: 1; box-shadow: 0 0 8px rgba(240, 74, 35, 0.9); }
+    .flood-date-active .flood-date-label { color: var(--brand-vermilion); font-weight: 700; }
+    .verdict-stamp { font-size: 10px; letter-spacing: 0.2em; color: var(--brand-vermilion); font-weight: 700; }
+    .verdict-number { font-size: 28px; font-weight: 700; color: var(--brand-paper); font-family: ui-monospace, monospace; }
+    .verdict-text { font-family: 'Libre Caslon Text', Georgia, serif; font-size: 11px; color: #d4d4d4; line-height: 1.5; }
+    .verdict-provenance, .verdict-source { font-size: 10px; color: var(--brand-grey); }
+  </style>
   </style>
 </head>
 <body class="flex flex-col h-screen">
 
   <!-- Top Mission Control Bar -->
-  <header class="h-14 bg-slate-950/90 border-b border-slate-800 px-5 flex items-center justify-between z-40">
+  <header class="h-14 bg-[#121212] border-b border-[#2a2a2a] px-5 flex items-center justify-between z-40">
     <div class="flex items-center gap-3">
-      <span class="h-3 w-3 rounded-full bg-cyan-400 animate-pulse"></span>
-      <h1 class="font-bold tracking-wider text-sm uppercase text-cyan-400">
-        Dancing with the SARs <span class="text-slate-400 font-normal">| NISAR L-Band Multi-Agent Observatory — Colombia</span>
+      <svg width="30" height="22" viewBox="0 0 60 44" aria-hidden="true">
+        <g class="foot foot-blue">
+          <ellipse cx="18" cy="14" rx="7" ry="13" transform="rotate(8 18 14)" fill="#1B3FD6"/>
+          <circle cx="21" cy="31" r="6" fill="#1B3FD6"/>
+        </g>
+        <g class="foot foot-vermilion">
+          <ellipse cx="37" cy="9" rx="7" ry="13" transform="rotate(8 37 9)" fill="#F04A23"/>
+          <circle cx="40" cy="26" r="6" fill="#F04A23"/>
+        </g>
+      </svg>
+      <h1 class="font-semibold tracking-wide text-sm lowercase" style="font-weight:600; color:#FFFFFF;">
+        two left feet <span style="color:#5A5A5A; font-weight:500;">· dancing with the sars · NISAR L-band multi-agent observatory — colombia</span>
       </h1>
     </div>
 
     <div class="flex items-center gap-3">
       <!-- Active Hazard Layer Selector for Panel 3 (NISAR L-band) -->
       <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-800 text-xs">
-        <button onclick="switchNisarDomain('landslide')" id="btn-landslide" class="px-3 py-1 rounded bg-cyan-600 text-white font-semibold">Landslide (GUNW)</button>
+        <button onclick="switchNisarDomain('landslide')" id="btn-landslide" class="px-3 py-1 rounded bg-[#F04A23] text-white font-semibold">Landslide (GUNW)</button>
         <button onclick="switchNisarDomain('flood')" id="btn-flood" class="px-3 py-1 rounded text-slate-400 hover:text-white">Flood (GCOV HH/HV)</button>
         <button onclick="switchNisarDomain('earthquake')" id="btn-earthquake" class="px-3 py-1 rounded text-slate-400 hover:text-white">Seismic DPM (GUNW)</button>
       </div>
 
-      <button onclick="openLiveView(); startMultiAgentStream()" id="run-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition">
+      <button onclick="openLiveView(); startMultiAgentStream()" id="run-btn" class="bg-[#F04A23] hover:bg-[#ff5a35] text-white font-semibold text-xs px-4 py-2 rounded-lg transition">
         Launch Multi-Agent NISAR Scan
       </button>
     </div>
@@ -63,40 +107,40 @@
   <div class="flex-1 flex relative overflow-hidden">
 
     <!-- Left Sidebar: Live LangGraph DAG Status & Cascading Synthesis Bulletin -->
-    <aside class="w-80 bg-slate-950/95 border-r border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto z-40">
+    <aside class="w-80 bg-[#121212] border-r border-[#2a2a2a] p-4 flex flex-col gap-4 overflow-y-auto z-40">
       <div>
         <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">LangGraph + MCP Agent Telemetry</h2>
         <div id="agent-status-list" class="space-y-2 text-xs">
-          <div id="node-nisar_ingestion" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+          <div id="node-nisar_ingestion" class="p-2.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] flex justify-between items-center">
             <span>1. NISAR S3/COG Ingestion MCP</span><span class="text-slate-500">IDLE</span>
           </div>
-          <div id="node-landslide_agent" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+          <div id="node-landslide_agent" class="p-2.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] flex justify-between items-center">
             <span>2a. Landslide Agent (GUNW+FABDEM)</span><span class="text-slate-500">IDLE</span>
           </div>
-          <div id="node-flood_agent" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+          <div id="node-flood_agent" class="p-2.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] flex justify-between items-center">
             <span>2b. Flood Agent (GCOV Double-Bounce)</span><span class="text-slate-500">IDLE</span>
           </div>
-          <div id="node-earthquake_agent" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+          <div id="node-earthquake_agent" class="p-2.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] flex justify-between items-center">
             <span>2c. Seismic DPM Agent (VIDA+WorldPop)</span><span class="text-slate-500">IDLE</span>
           </div>
-          <div id="node-cross_hazard_synthesis" class="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
+          <div id="node-cross_hazard_synthesis" class="p-2.5 rounded bg-[#1a1a1a] border border-[#2a2a2a] flex justify-between items-center">
             <span>3. Cross-Hazard Synthesis Agent</span><span class="text-slate-500">IDLE</span>
           </div>
         </div>
       </div>
 
       <!-- Cascading Multi-Hazard Bulletin (Spanish + English) -->
-      <div class="flex-1 flex flex-col border-t border-slate-800 pt-3">
+      <div class="flex-1 flex flex-col border-t border-[#2a2a2a] pt-3">
         <div class="flex items-center justify-between mb-2">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400">Cascading Risk Bulletin</h2>
-          <span id="si-badge" class="text-xs text-amber-300" hidden>SI-Assisted Analytics</span>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-[#F04A23]">Cascading Risk Bulletin</h2>
+          <span id="si-badge" class="text-xs text-[#F04A23]" hidden>SI-Assisted Analytics</span>
           <div class="flex gap-1 text-[10px]">
-            <button onclick="setLang('es')" id="lang-es" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">ES</button>
+            <button onclick="setLang('es')" id="lang-es" class="px-2 py-0.5 rounded bg-[#F04A23]/20 text-[#F04A23] border border-[#F04A23]/40">ES</button>
             <button onclick="setLang('en')" id="lang-en" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">EN</button>
           </div>
         </div>
         <p id="serving-model" class="text-[10px] text-slate-500 mb-1 truncate" hidden></p>
-        <div id="bulletin-box" class="bg-slate-900/90 border border-slate-800 rounded-lg p-3 text-xs leading-relaxed text-slate-300 flex-1 overflow-y-auto">
+        <div id="bulletin-box" class="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 text-xs leading-relaxed text-slate-300 flex-1 overflow-y-auto">
           Click <b>Launch Multi-Agent NISAR Scan</b> or select a 3D anomaly column on the map to inspect cascading physical hazards across the Aburrá Valley.
         </div>
       </div>
@@ -128,9 +172,9 @@
         </div>
       </section>
       <div class="absolute bottom-3 inset-x-3 z-20 grid grid-cols-3 gap-2 text-xs" aria-live="polite">
-        <p id="optical-status" class="bg-slate-950/90 p-2 rounded">Not cached · Sentinel-2 · Launch scan to load.</p>
-        <p id="cband-status" class="bg-slate-950/90 p-2 rounded">Not cached · Sentinel-1 · Launch scan to load.</p>
-        <p id="nisar-status" class="bg-slate-950/90 p-2 rounded">Not cached · NISAR · Launch scan to load.</p>
+        <p id="optical-status" class="bg-[#0d0d0d] p-2 rounded">Not cached · Sentinel-2 · Launch scan to load.</p>
+        <p id="cband-status" class="bg-[#0d0d0d] p-2 rounded">Not cached · Sentinel-1 · Launch scan to load.</p>
+        <p id="nisar-status" class="bg-[#0d0d0d] p-2 rounded">Not cached · NISAR · Launch scan to load.</p>
       </div>
 
       <!-- Measured La Mojana open-water timeline (flood chapter) -->
@@ -140,21 +184,13 @@
       </div>
 
       <!-- Aburrá calibrated null verdict card (landslide chapter) -->
-      <div id="verdict-card" class="absolute top-14 right-3 z-20 w-80 bg-slate-950/95 border-2 border-amber-400/70 rounded-xl p-4" hidden aria-label="Aburra verdict">
-        <style>
-          .verdict-stamp { font-size: 10px; letter-spacing: 0.2em; color: #f5a623; font-weight: 700; }
-          .verdict-number { font-size: 28px; font-weight: 700; color: #35c4b5; font-family: 'IBM Plex Mono', monospace; }
-          .verdict-text { font-size: 11px; color: #cbd5e1; line-height: 1.5; }
-          .verdict-provenance { font-size: 10px; color: #8a93a6; }
-          .verdict-source { font-size: 9px; color: #475569; }
-        </style>
-      </div>
+      <div id="verdict-card" class="absolute top-14 right-3 z-20 w-80 bg-[#121212]/95 border-2 border-[#F04A23]/80 rounded-xl p-4" hidden aria-label="Aburra verdict"></div>
 
       <!-- Top Floating Sensor Badges -->
-      <div class="absolute top-3 left-4 z-20 bg-slate-950/85 border border-slate-700 px-3 py-1 rounded text-xs font-semibold text-sky-300 pointer-events-none">
+      <div class="absolute top-3 left-4 z-20 bg-[#121212] border border-[#2a2a2a] px-3 py-1 rounded text-xs font-semibold text-sky-300 pointer-events-none">
         <span id="optical-label">Sentinel-2 optical</span>
       </div>
-      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-slate-950/85 border border-slate-700 px-3 py-1 rounded text-xs font-semibold text-indigo-300 pointer-events-none">
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-[#121212] border border-[#2a2a2a] px-3 py-1 rounded text-xs font-semibold text-indigo-300 pointer-events-none">
         <span id="cband-label">Sentinel-1 C-band</span>
       </div>
       <div class="absolute top-3 right-4 z-20 bg-slate-950/85 border border-cyan-500/60 px-3 py-1 rounded text-xs font-semibold text-cyan-300 pointer-events-none">
@@ -173,34 +209,34 @@
     </main>
 
     <!-- Right Sidebar: Interactive Radar Physics Inspector -->
-    <aside id="physics-inspector" class="w-96 bg-slate-950/95 border-l border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto z-40">
+    <aside id="physics-inspector" class="w-96 bg-[#121212] border-l border-[#2a2a2a] p-4 flex flex-col gap-4 overflow-y-auto z-40">
       <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider text-cyan-400">Radar Physics Inspector</h2>
+        <h2 class="text-xs font-bold uppercase tracking-wider text-white">Radar Physics Inspector</h2>
         <p class="text-[11px] text-slate-400 mt-0.5">Physical drivers of surface roughness ($\sigma^0/\gamma^0$), dielectric constant ($\varepsilon_r$), & phase ($\Delta\phi$)</p>
       </div>
 
       <!-- Dynamic SVG Radar Scattering Diagram -->
-      <div id="physics-svg-container" class="bg-slate-900 border border-slate-800 rounded-xl p-3 h-52 flex items-center justify-center">
+      <div id="physics-svg-container" class="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 h-52 flex items-center justify-center">
         <!-- Populated dynamically by renderPhysicsDiagram() -->
       </div>
 
       <!-- Quantitative Telemetry Card -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2 text-xs">
+      <div class="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 space-y-2 text-xs">
         <div class="flex justify-between">
           <span class="text-slate-400">Active Hazard Regime:</span>
-          <span id="insp-domain" class="font-bold text-cyan-300 uppercase">LANDSLIDE (GUNW)</span>
+          <span id="insp-domain" class="font-bold text-[#F04A23] uppercase">LANDSLIDE (GUNW)</span>
         </div>
         <div class="flex justify-between">
           <span class="text-slate-400">Alert Level:</span>
           <span id="insp-alert" class="px-2 py-0.5 rounded font-bold">Unavailable</span>
         </div>
-        <div class="border-t border-slate-800 pt-2">
+        <div class="border-t border-[#2a2a2a] pt-2">
           <span class="text-slate-400 block mb-1">Physical Mechanism Hypothesis:</span>
           <p id="insp-driver" class="text-slate-200 leading-relaxed">
             No report loaded.
           </p>
         </div>
-        <div class="border-t border-slate-800 pt-2">
+        <div class="border-t border-[#2a2a2a] pt-2">
           <span class="text-slate-400 block mb-1">GEE Zonal Metrics:</span>
           <pre id="insp-metrics" class="bg-slate-950 p-2 rounded text-[11px] text-emerald-400 overflow-x-auto">No metrics loaded.</pre>
         </div>
@@ -527,7 +563,7 @@
       domains.forEach(d => {
         const btn = document.getElementById(`btn-${d}`);
         btn.className = d === domain
-          ? "px-3 py-1 rounded bg-cyan-600 text-white font-semibold"
+          ? "px-3 py-1 rounded bg-[#F04A23] text-white font-semibold"
           : "px-3 py-1 rounded text-slate-400 hover:text-white";
       });
       inspectHazardDomain(domain);
@@ -568,7 +604,7 @@
 
     function startMultiAgentStream() {
       const btn = document.getElementById("run-btn");
-      btn.textContent = "Streaming MCP + GEE DAG...";
+      btn.innerHTML = '<span class="feet-loader"><svg viewBox="0 0 60 44" width="30" height="22"><g class="foot foot-blue"><ellipse cx="18" cy="14" rx="7" ry="13" transform="rotate(8 18 14)" fill="#FFFFFF"/><circle cx="21" cy="31" r="6" fill="#FFFFFF"/></g><g class="foot foot-vermilion"><ellipse cx="37" cy="9" rx="7" ry="13" transform="rotate(8 37 9)" fill="#F04A23"/><circle cx="40" cy="26" r="6" fill="#F04A23"/></g></svg>&nbsp;scanning…';
       btn.disabled = true;
 
       const unfinishedNodes = new Set([
