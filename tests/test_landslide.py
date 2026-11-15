@@ -1,11 +1,22 @@
 """Allow-listed pure-logic known-answer tests using hand-written arrays only."""
 
+import importlib.util
 from copy import deepcopy
+from pathlib import Path
+from types import MappingProxyType
 
 import numpy as np
 import pytest
 
-from gee_math.landslide_insar_math import hklsi, noise_floor_verdict, project_los_to_downslope
+from bailasar.config import ConfigError
+from gee_math.landslide_insar_math import (
+    LANDSLIDE_PARAM_KEYS,
+    compute_landslide_insar_kinematics,
+    hklsi,
+    missing_landslide_params,
+    noise_floor_verdict,
+    project_los_to_downslope,
+)
 
 PARAMS = {
     "coherence_min": 0.35,
@@ -163,8 +174,6 @@ def test_projection_requires_scene_geometry():
 
 
 def test_missing_landslide_params_lists_every_absent_key():
-    from gee_math.landslide_insar_math import missing_landslide_params
-
     params = deepcopy(PARAMS)
     del params["noise_floor"]
     assert missing_landslide_params(params) == [
@@ -172,3 +181,92 @@ def test_missing_landslide_params_lists_every_absent_key():
         "noise_floor.require_sign_agreement",
     ]
     assert missing_landslide_params(PARAMS) == []
+
+
+def _freeze_mapping(params):
+    return MappingProxyType(
+        {
+            key: _freeze_mapping(value) if isinstance(value, dict) else value
+            for key, value in params.items()
+        }
+    )
+
+
+def test_landslide_rules_accept_shared_loader_mapping_types():
+    params = _freeze_mapping(PARAMS)
+    assert missing_landslide_params(params) == []
+    result = noise_floor_verdict([[6.0], [8.0]], [[3.0, -3.0], [4.0, -4.0]], params)
+    np.testing.assert_array_equal(result["kept_rate"], [7.0])
+
+
+def test_pipeline_missing_params_raises_with_every_missing_key():
+    with pytest.raises(KeyError) as exc:
+        compute_landslide_insar_kinematics(
+            gunw_unw_gcs="",
+            gunw_iono_gcs=None,
+            gunw_coh_gcs="",
+            gunw_conncomp_gcs="",
+            aoi=None,
+            rain_start_date="",
+            rain_end_date="",
+            temporal_baseline_days=None,
+            params={},
+        )
+    assert exc.value.args == (
+        "Missing required landslide parameters (add a landslide: section to "
+        f"config/preregistered.yaml): {', '.join(LANDSLIDE_PARAM_KEYS)}",
+    )
+
+
+@pytest.fixture
+def gee_fusion_tools(monkeypatch):
+    """Load tool bodies without initializing Earth Engine or reading the cache."""
+    from fastmcp import FastMCP
+
+    from gee_math import earthquake_dpm_math, ee_session
+    from mcp_servers import cache_guard
+
+    monkeypatch.setattr(ee_session, "init_ee", lambda: None)
+    # The unrelated earthquake tool entry point is not implemented on this branch.
+    monkeypatch.setattr(
+        earthquake_dpm_math,
+        "compute_earthquake_dpm_and_rupture",
+        lambda **kwargs: pytest.fail("Earthquake processing must not run in config tests"),
+        raising=False,
+    )
+    monkeypatch.setattr(FastMCP, "tool", lambda self, function: function)
+    monkeypatch.setattr(
+        cache_guard, "with_offline_zarr_fallback", lambda **kwargs: lambda function: function
+    )
+    source = Path(__file__).resolve().parents[1] / "mcp_servers/gee_fusion_mcp.py"
+    spec = importlib.util.spec_from_file_location("_gee_fusion_config_tests", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("error_type", [ConfigError, KeyError])
+def test_landslide_tool_absent_section_reports_all_keys(gee_fusion_tools, monkeypatch, error_type):
+    def absent_section(section):
+        assert section == "landslide"
+        raise error_type("no landslide section")
+
+    monkeypatch.setattr(gee_fusion_tools, "load_params", absent_section)
+    result = gee_fusion_tools.analyze_landslide_kinematics("", "", "", "", [], "", "", None)
+    assert result == {
+        "status": "error",
+        "reason": "landslide params missing from config/preregistered.yaml",
+        "missing_keys": LANDSLIDE_PARAM_KEYS,
+    }
+
+
+def test_landslide_tool_partial_section_reports_all_missing_keys(gee_fusion_tools, monkeypatch):
+    params = deepcopy(PARAMS)
+    del params["noise_floor"]
+    monkeypatch.setattr(gee_fusion_tools, "load_params", lambda section: _freeze_mapping(params))
+    result = gee_fusion_tools.analyze_landslide_kinematics("", "", "", "", [], "", "", None)
+    assert result["status"] == "error"
+    assert result["missing_keys"] == [
+        "noise_floor.min_pairs",
+        "noise_floor.require_sign_agreement",
+    ]

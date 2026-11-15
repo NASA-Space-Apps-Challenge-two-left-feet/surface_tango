@@ -4,6 +4,7 @@ from typing import Any
 import ee
 from fastmcp import FastMCP
 
+from bailasar.config import ConfigError
 from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
 from gee_math.earthquake_dpm_math import compute_earthquake_dpm_and_rupture
 from gee_math.ee_session import init_ee
@@ -97,7 +98,7 @@ def analyze_landslide_kinematics(
     # Frozen parameters only: read the landslide: section of config/preregistered.yaml.
     try:
         params = load_params("landslide")
-    except KeyError:
+    except (ConfigError, KeyError):
         params = {}
     missing = missing_landslide_params(params)
     if missing:

@@ -25,10 +25,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from bailasar.config import get_config
 
 FLOOD_THRESHOLD_KEYS = [
     "open_water_abs_hh_db",
@@ -39,19 +40,10 @@ FLOOD_THRESHOLD_KEYS = [
 ]
 NO_BASELINE_REASON = "no acceptable dry baseline"
 
-_PREREGISTERED = Path(__file__).resolve().parents[1] / "config" / "preregistered.yaml"
 
-
-# TODO(01-02): replace with src/bailasar/config.py loader
-def load_params(section: str) -> dict[str, Any]:
-    """Return one section of config/preregistered.yaml (the frozen parameters)."""
-    import yaml
-
-    with _PREREGISTERED.open(encoding="utf-8") as fh:
-        cfg = yaml.safe_load(fh)
-    if section not in cfg:
-        raise KeyError(f"section {section!r} not found in {_PREREGISTERED.name}")
-    return cfg[section]
+def load_params(section: str) -> Mapping[str, Any]:
+    """Read a preregistered section through the shared loader; propagate ConfigError."""
+    return get_config().prereg(section)
 
 
 def _p(params: Mapping[str, Any], key: str) -> float:

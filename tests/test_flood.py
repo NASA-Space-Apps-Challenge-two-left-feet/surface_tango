@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from bailasar.config import ConfigError, get_config
 from gee_math import flood_polarimetric_math as fl
 
 # Same values as the flood: section of config/preregistered.yaml, passed explicitly so the
@@ -188,8 +189,14 @@ def test_missing_param_raises():
 
 def test_load_params_reads_preregistered_flood_section():
     params = fl.load_params("flood")
+    assert params is get_config().prereg("flood")
     for key in [*fl.FLOOD_THRESHOLD_KEYS, "no_baseline_relative_gap"]:
         assert key in params
+
+
+def test_load_params_missing_section_raises_config_error():
+    with pytest.raises(ConfigError, match="no key 'missing_section'"):
+        fl.load_params("missing_section")
 
 
 def test_module_has_no_literal_thresholds():

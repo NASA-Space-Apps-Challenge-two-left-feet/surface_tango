@@ -1,6 +1,7 @@
 """Offline landslide rules and an Earth Engine pipeline with uncalibrated HKLSI."""
 
 import math
+from collections.abc import Mapping
 
 import numpy as np
 
@@ -8,8 +9,8 @@ import numpy as np
 NISAR_L_BAND_WAVELENGTH_MM = 240.0
 DAYS_PER_YEAR = 365.25
 
-# TODO(01-02): read these from config/preregistered.yaml via src/bailasar/config.py
-# once the keys exist (Jack4Codes owns config/). Until then callers pass `params`.
+# Callers read the preregistered landslide section through bailasar.config.
+# Jack4Codes owns config/; absent keys are reported without supplying defaults.
 LANDSLIDE_PARAM_KEYS = [
     "coherence_min",
     "stable_slope_max_deg",
@@ -33,7 +34,7 @@ def _require(params, dotted_key):
     """Read a required nested parameter, naming the full key on failure."""
     value = params
     for key in dotted_key.split("."):
-        if not isinstance(value, dict) or key not in value:
+        if not isinstance(value, Mapping) or key not in value:
             raise KeyError(f"Missing required landslide parameter: {dotted_key}")
         value = value[key]
     return value
@@ -142,7 +143,7 @@ def compute_landslide_insar_kinematics(
     rain_start_date: str,
     rain_end_date: str,
     temporal_baseline_days: float,
-    params: dict,
+    params: Mapping,
 ):
     """Compute signed downslope velocity and uncalibrated HKLSI from real layers.
 
