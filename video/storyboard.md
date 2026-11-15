@@ -1,64 +1,37 @@
-# BailaSAR submission storyboard
+# Surface Tango submission storyboard
 
-Storyboard for #39. The shot order and capture instructions are ready. Bracketed fields are reserved for approved footage, wording, or decisions.
+## Locked cut for #39
 
-## Cut approval
+**La Mojana, Colombia. NISAR mapped provisional absolute open water.** The hour-4 power check selected this headline and LEONOB2014 ratified it. The earthquake scorecard was uninformative because verified barrio damage labels were unavailable. See the [headline decision](../validation/README.md#power-check-and-headline-plan-02-03-25).
 
-| Decision | Fill after approval |
-|---|---|
-| Selected headline | [Earthquake, La Mojana, or coverage] |
-| Approved wording for the outcome | [Measured result or documented null] |
-| Headline decision from LEONOB2014 | [Decision link or entry in validation/README.md] |
-| Evidence from the science lane | [Report path and source IDs] |
-| Submission and recording time in Bogotá | [Deadline D] and [D−6 h] |
-
-## Shot selection
-
-| Time in cut | Frame | Earthquake headline | La Mojana headline | Coverage headline |
-|---|---|---|---|---|
-| 0–4 s | [Event and headline card] | Show the approved event facts for the Eje Cafetero earthquake. | Introduce the La Mojana event and the approved comparison period. | Name the areas and time span covered by the discovery result. |
-| 4–10 s | [Curtain slider capture] | Reveal post-event Sentinel-2 optical, NISAR pre-event coherence, then co-event coherence loss. | Compare Sentinel-2 optical, Sentinel-1 C-band, and NISAR L-band for the same area. | Compare the available panels for Aburrá and La Mojana and show the coverage decision where a layer is missing. |
-| 10–20 s | [Map and evidence capture] | Show the damage proxy and ranked barrios from the scoring output. Describe the ranking as a first-aid triage input. | Show the flood classes and the approved comparison with Sentinel-1. | Show the documented availability of the required granules or polarizations for each area. |
-| 20–27 s | [Measured outcome or documented null] | Show the scorecard, intervals and one documented miss where available. Carry the approved uninformative or no-improvement verdict if applicable. | Show flooded vegetation extent and sensitivity when a valid baseline exists. Otherwise show only approved absolute water extent and the no-valid-dry-baseline statement. | Read the approved coverage or null statement and identify the missing input. |
-| 27–30 s | [Credits card] | Team, data sources and SI-assisted disclosure. | Team, data sources and SI-assisted disclosure. | Team, data sources and SI-assisted disclosure. |
-
-## Evidence to insert before locking the cut
-
-| Slot | Approved source |
-|---|---|
-| Headline and map sequence | Hour-4 decision in `validation/README.md` and the discovery gate report |
-| Earthquake event facts | `validation/event_facts.json` after the team verifies its USGS and SGC references |
-| Earthquake scorecard and shown miss | Approved quake scorecard and first-aid ranking in `reports/` |
-| Flood extent, date and sensitivity | Approved La Mojana report and its source granule IDs |
-| Coverage or null wording | Approved gate or hazard report |
-
-For each measured claim, record the source report, command, scene or granule IDs, denominator, and applicable interval alongside the selected frame. Use the final values and units from the source. The shot times are editing targets. The Spanish voice-over and English subtitles should follow the same approved outcome.
+Use the **La Mojana floods** chapter in mission control. Keep **PROVISIONAL** visible over the radar evidence and outcome card. The headline uses 17 June. The staged Sentinel context is from 28 June, and the separate Sentinel-1 comparison is from 11 July. Keep those dates visible so each shot has a clear evidence source.
 
 ## Recording copy
 
-Fill this sheet with the selected shots and exact text after approval. Use the same outcome in the map, voice-over, and subtitles.
+Shot times are editing targets. Spanish voice-over and English subtitles describe the same outcome. Bracketed items are the frames to capture in #43.
 
-| Time in cut | Approved frame or asset | Exact on-screen text | Evidence reference |
-|---|---|---|---|
-| 0–4 s | [Event card] | [Headline and event facts] | [Event facts and gate] |
-| 4–10 s | [Slider take] | [Approved layer labels] | [Scene IDs and map view] |
-| 10–20 s | [Map take] | [Ranking, classes, or coverage] | [Report and source IDs] |
-| 20–27 s | [Outcome card] | [Measured result with units and interval, or documented null] | [Outcome report] |
-| 27–30 s | [Credits card] | [Team, sources, SI-assisted disclosure] | [Credit list] |
+| Time | Frame | Exact on-screen copy | Spanish voice-over | English subtitles |
+|---|---|---|---|---|
+| 0–4 s | [Record title card] | La Mojana, Colombia · Agua abierta observada con NISAR | En La Mojana, observamos agua abierta con radar. | In La Mojana, we mapped open water with radar. |
+| 4–10 s | [Record the synchronized curtain slider] | Sentinel-2 óptico y Sentinel-1 banda C · 28 jun 2026. NISAR banda L · 17 jun 2026 · PROVISIONAL. | Las escenas Sentinel dan contexto. NISAR muestra el agua abierta. | The Sentinel scenes give context. NISAR shows the open water. |
+| 10–15 s | [Record the NISAR water mask] | 17 jun 2026 · 4 487 ha (medido, redondeado) · 5 539 de 197 758 píxeles válidos · PROVISIONAL. | NISAR delimitó el agua abierta de junio. | NISAR mapped June open water. |
+| 15–21 s | [Record a separate July comparison card] | 11 jul 2026 · 3 351 de 4 946 píxeles de agua abierta NISAR con datos Sentinel-1 válidos, omitidos por el umbral de Sentinel-1 (medido, umbral sin calibrar) · PROVISIONAL. | En julio, el umbral de Sentinel uno omitió parte del agua. | In July, the Sentinel-1 threshold missed some of the open water. |
+| 21–27 s | [Record the outcome card] | Agua abierta absoluta · 2 799–6 726 ha (sensibilidad al umbral, medido, redondeado) · Umbrales sin calibrar · Sin cambio de inundación validado · PROVISIONAL. | El rango depende del umbral. La referencia seca no permite medir cambios. | The range depends on the threshold. The dry reference cannot support a change estimate. |
+| 27–30 s | [Record credits card] | Surface Tango · Two Left Feet · NISAR / ASF DAAC · Copernicus Sentinel-1/2 · SI-Assisted Analytics | — | — |
 
-## Direction for the capture
+The nominal value and sensitivity range are rounded on screen. The range describes how the measured extent varies with the uncalibrated thresholds. Use plain text credits and the SI disclosure card. Do not show logos or identifiable people.
 
-- **Event card.** Start on a static card. Use the approved place name and headline as the first line. Hold the map reveal until the card has been read.
-- **Curtain.** Start with the comparison dividers visible. Drag across the same area so the layers remain aligned, then hold on the layer that supports the headline.
-- **Evidence.** Hold on the ranked barrios, flood layer, or coverage panel long enough to read its labels. Use the approved null or coverage screen if the gate disallows a measured map for the selected headline.
-- **Outcome.** Show one readable result card. For a measured outcome, include the unit, comparison or denominator, and applicable interval. For a null outcome, show the approved wording and name the missing input or evidence limit.
-- **Credits.** Reserve the final shot for team, data credits, and the SI-assisted disclosure. Use text credits to fit the available time.
+## Evidence for the capture
 
-Before capture, confirm that each shot in the recording copy has an approval or evidence reference. Keep every unresolved frame marked as a placeholder in the worksheet.
+| Claim or shot | Source and provenance |
+|---|---|
+| 17 June NISAR absolute open water | [La Mojana report, Absolute open water and Sensitivity](../reports/mojana.md). `uv run python -m gee_math.flood_polarimetric_math`, AOI `3_la_mojana_caregato`. GCOV granule `NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001`. Nominal 5,539 of 197,758 valid pixels. Sensitivity endpoints 3,455 and 8,304 positive pixels on the same date. |
+| 11 July comparison card | [La Mojana report, Sentinel-1 comparison](../reports/mojana.md#sentinel-1-comparison), same command. GCOV granule `NISAR_L2_PR_GCOV_025_047_A_005_4005_DHDH_A_20260711T103905_20260711T103939_P05023_N_F_J_001`. Sentinel-1 IW GRD composite from 14 scenes within ±6 days, as documented in the report. Denominator 4,946 NISAR open-water pixels with finite Sentinel-1 VV. The miss count uses the report's uncalibrated comparison cut. |
+| 28 June Sentinel curtain | `local_cache/mojana/tiles/manifest.json`, generated by `scripts/prestage_tiles.py --aoi mojana`. Use the manifest-selected least-cloudy Sentinel-2 mosaic and nearest-date Sentinel-1 IW GRD VV mosaic. Their scene IDs and selection rules are in the manifest. The curtain frames are context imagery, distinct from the July composite used to measure misses. |
 
 ## Capture handoff for #43
 
-1. Confirm the submission deadline in Bogotá time and calculate the recording time at D−6 h.
-2. Select the approved headline column and replace each placeholder with its approved frame or narration cue.
-3. Rehearse the sequence in mission control with the approved cache, gate statements and story output. Use the coverage frame wherever the gate reports unavailable data.
-4. Capture the slider, ranking or coverage frame, outcome and credits locally. Review the entire cut for readability, provenance and correct panel states before passing the capture to the editor.
+1. Confirm [the submission deadline](https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango/issues/29) and the D−6 h capture start in Bogotá time. Both times remain pending.
+2. Stage the released cache and prepare the story display with `uv run python static/prepare_story_cache.py --cache-dir <shared-cache-root>` once #37 is available. Rehearse the La Mojana chapter with network access disabled.
+3. Record the title, curtain, and measured water mask. Show the dated July comparison as its own card after the June map. Keep the valid Sentinel-1 denominator visible in the card or its evidence caption.
+4. Record the outcome and credits, then check the 30-second cut for readable dates, units, denominators, caveats, and matching subtitles. Use this locked cut for the headline and evidence. Log the chosen takes in the [recording run sheet](recording-run-sheet.md#capture).
