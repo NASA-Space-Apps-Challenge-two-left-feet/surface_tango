@@ -1,19 +1,18 @@
 # mcp_servers/gee_fusion_mcp.py
+import sys
+from pathlib import Path
 from typing import Any
+
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import ee
 from fastmcp import FastMCP
 
-from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
-from gee_math.earthquake_dpm_math import compute_earthquake_dpm_and_rupture
 from gee_math.ee_session import init_ee
-from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
-from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
-from mcp_servers.cache_guard import with_offline_zarr_fallback
+from mcp_servers.cache_guard import run_server, with_offline_zarr_fallback
 
 mcp = FastMCP(name="gee-hazard-fusion-engine")
-
-init_ee()  # ADC identity + GCP_PROJECT_ID (gee_math/ee_session.py)
 
 
 def _extract_zonal_stats_and_hotspot(
@@ -75,7 +74,7 @@ def _extract_zonal_stats_and_hotspot(
 
 
 @mcp.tool
-@with_offline_zarr_fallback(timeout_sec=1.8)
+@with_offline_zarr_fallback()
 def analyze_landslide_kinematics(
     gunw_unw_gcs: str,
     gunw_iono_gcs: str,
@@ -91,9 +90,14 @@ def analyze_landslide_kinematics(
     Removes equatorial ionospheric & stratified tropospheric phase delays, projects L-band LOS
     displacement onto the 3D bare-earth FABDEM steepest downslope vector, and couples with 15-day CHIRPS rain.
     """
+    init_ee()
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE mathematical expression graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.landslide_insar_math import compute_landslide_insar_kinematics
+
     landslide_stack = compute_landslide_insar_kinematics(
         gunw_unw_gcs=gunw_unw_gcs,
         gunw_iono_gcs=gunw_iono_gcs,
@@ -169,7 +173,7 @@ def analyze_landslide_kinematics(
 
 
 @mcp.tool
-@with_offline_zarr_fallback(timeout_sec=1.8)
+@with_offline_zarr_fallback()
 def analyze_flood_inundation(
     gcov_hhhh_pre_gcs: str,
     gcov_hvhv_pre_gcs: str,
@@ -184,9 +188,14 @@ def analyze_flood_inundation(
     Decomposes NISAR L2 GCOV polarimetric covariance into Specular Open-Water Flooding (Class 1)
     and Sub-Canopy Dihedral Double-Bounce Flooding (Class 2), returning flooded hectares and percentiles.
     """
+    init_ee()
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE polarimetric decomposition graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.flood_polarimetric_math import compute_flood_scattering_decomposition
+
     flood_stack = compute_flood_scattering_decomposition(
         gcov_hhhh_pre_gcs=gcov_hhhh_pre_gcs,
         gcov_hvhv_pre_gcs=gcov_hvhv_pre_gcs,
@@ -271,7 +280,7 @@ def analyze_flood_inundation(
 
 
 @mcp.tool
-@with_offline_zarr_fallback(timeout_sec=1.8)
+@with_offline_zarr_fallback()
 def analyze_earthquake_dpm(
     coh_pre_gcs: str,
     coh_coseismic_gcs: str,
@@ -284,6 +293,14 @@ def analyze_earthquake_dpm(
     Computes Z-score normalized ARIA Coherence Loss Damage Proxy Map (DPM), 3D fault rupture slip
     from NISAR L2 GOFF pixel offsets, and building/population exposure using VIDA & WorldPop.
     """
+    try:
+        from gee_math.earthquake_dpm_math import compute_earthquake_dpm_and_rupture
+    except ImportError:
+        return {
+            "state": "gate result",
+            "error": "quake pipeline adapter pending owner integration",
+        }
+    init_ee()
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE seismic DPM & fault offset graph
@@ -365,7 +382,7 @@ def analyze_earthquake_dpm(
 
 
 @mcp.tool
-@with_offline_zarr_fallback(timeout_sec=1.8)
+@with_offline_zarr_fallback()
 def analyze_biomass_disturbance(
     gcov_hhhh_gcs: str,
     gcov_hvhv_gcs: str,
@@ -378,9 +395,14 @@ def analyze_biomass_disturbance(
     Fuses NISAR L-band GCOV (HHHH, HVHV) with Sentinel-1 C-band (WFR_L/C), trains an in-situ GEE
     Gradient Boosted Regressor against GEDI L4A shots, and quantifies net carbon loss vs ESA CCI AGB v6.0.
     """
+    init_ee()
     aoi = ee.Geometry.Rectangle(bbox)
 
     # 1. Build the server-side GEE allometric GBDT & polarimetric index graph
+    # Imported per call: hazard modules change shape as lanes land (#98); a
+    # missing function becomes this tool's error envelope, never a startup crash.
+    from gee_math.biomass_polarimetric_math import compute_biomass_and_carbon_flux
+
     bio_stack = compute_biomass_and_carbon_flux(
         gcov_hhhh_gcs=gcov_hhhh_gcs,
         gcov_hvhv_gcs=gcov_hvhv_gcs,
@@ -468,4 +490,4 @@ def analyze_biomass_disturbance(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    run_server(mcp, "gee_fusion")

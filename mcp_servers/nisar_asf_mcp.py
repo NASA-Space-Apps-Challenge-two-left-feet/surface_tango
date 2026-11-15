@@ -1,11 +1,18 @@
 # mcp_servers/nisar_asf_mcp.py
 import os
+import sys
+from pathlib import Path
 from typing import Any
+
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import asf_search as asf
 import rioxarray
 from fastmcp import FastMCP
 from google.cloud import storage
+
+from mcp_servers.cache_guard import run_server, with_offline_zarr_fallback
 
 mcp = FastMCP(name="nisar-asf-subsetter")
 
@@ -28,6 +35,7 @@ def _upload_cog_to_gcs(da, local_path: str, blob_name: str) -> str:
 
 
 @mcp.tool
+@with_offline_zarr_fallback()
 def search_nisar_granules(
     bbox: list[float],
     start_date: str,
@@ -66,6 +74,7 @@ def search_nisar_granules(
 
 
 @mcp.tool
+@with_offline_zarr_fallback()
 def stage_nisar_gcov_to_gcs(
     https_url: str,
     scene_name: str,
@@ -91,6 +100,7 @@ def stage_nisar_gcov_to_gcs(
 
 
 @mcp.tool
+@with_offline_zarr_fallback()
 def stage_nisar_gunw_ionosphere_corrected_to_gcs(
     https_url: str,
     scene_name: str,
@@ -127,4 +137,4 @@ def stage_nisar_gunw_ionosphere_corrected_to_gcs(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    run_server(mcp, "nisar_asf")

@@ -1,6 +1,6 @@
 ---
 title: "USGS event us6000tjl2: magnitude 7.4 (mww), 4 km SSW of San José del Palmar, Colombia"
-status: verified
+status: superseded
 source: https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/us6000tjl2.geojson
 accessed: 2026-11-14
 quote: "M 7.4 - 4 km SSW of San José del Palmar, Colombia"
