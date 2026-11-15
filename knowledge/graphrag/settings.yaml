@@ -1,0 +1,139 @@
+### Surface Tango — landslide conceptual-grounding GraphRAG (Microsoft GraphRAG + Azure OpenAI).
+### Config + prompts are version-controlled here; all ingested text and the built index
+### live under local_cache/graphrag/ (git-ignored — see the "never commit external material"
+### rule in AGENTS.md; the SGC/POT docs are public official sources, cited by resolution, but
+### the derived index is not committed). Docs: https://microsoft.github.io/graphrag/config/yaml/
+
+models:
+  default_chat_model:
+    type: azure_openai_chat
+    auth_type: api_key
+    api_key: "${GRAPHRAG_API_KEY}"
+    api_base: "${GRAPHRAG_API_BASE}"
+    api_version: "${GRAPHRAG_API_VERSION}"
+    deployment_name: "${GRAPHRAG_CHAT_DEPLOYMENT}"
+    model: "${GRAPHRAG_CHAT_MODEL}"
+    model_supports_json: true
+    concurrent_requests: 10
+    async_mode: threaded
+    retry_strategy: exponential_backoff
+    max_retries: 10
+    tokens_per_minute: null
+    requests_per_minute: null
+  default_embedding_model:
+    type: azure_openai_embedding
+    auth_type: api_key
+    api_key: "${GRAPHRAG_API_KEY}"
+    api_base: "${GRAPHRAG_API_BASE}"
+    api_version: "${GRAPHRAG_API_VERSION}"
+    deployment_name: "${GRAPHRAG_EMBEDDING_DEPLOYMENT}"
+    model: "${GRAPHRAG_EMBEDDING_MODEL}"
+    concurrent_requests: 10
+    async_mode: threaded
+    retry_strategy: exponential_backoff
+    max_retries: 10
+    tokens_per_minute: null
+    requests_per_minute: null
+
+### Input: extracted text lives in the git-ignored local_cache (populated by ingest.py) ###
+input:
+  storage:
+    type: file
+    base_dir: "../../local_cache/graphrag/input"
+  file_type: text
+
+chunks:
+  size: 1000
+  overlap: 150
+  group_by_columns: [id]
+
+### Output / cache / logs / vector store — all git-ignored ###
+output:
+  type: file
+  base_dir: "../../local_cache/graphrag/output"
+
+cache:
+  type: file
+  base_dir: "../../local_cache/graphrag/cache"
+
+reporting:
+  type: file
+  base_dir: "../../local_cache/graphrag/logs"
+
+vector_store:
+  default_vector_store:
+    type: lancedb
+    db_uri: "../../local_cache/graphrag/output/lancedb"
+    container_name: default
+
+### Workflow ###
+embed_text:
+  model_id: default_embedding_model
+  vector_store_id: default_vector_store
+
+extract_graph:
+  model_id: default_chat_model
+  prompt: "prompts/extract_graph.txt"
+  # Domain-tuned entity types for landslide amenaza/vulnerabilidad/riesgo (SGC framework).
+  entity_types: [place, organization, hazard_factor, triggering_factor, exposed_element, risk_zone, mass_movement, methodology]
+  max_gleanings: 1
+
+summarize_descriptions:
+  model_id: default_chat_model
+  prompt: "prompts/summarize_descriptions.txt"
+  max_length: 500
+
+extract_graph_nlp:
+  text_analyzer:
+    extractor_type: regex_english
+  async_mode: threaded
+
+cluster_graph:
+  max_cluster_size: 10
+
+extract_claims:
+  enabled: false
+  model_id: default_chat_model
+  prompt: "prompts/extract_claims.txt"
+  description: "Landslide hazard, vulnerability, and risk claims relevant to prioritizing AOIs."
+  max_gleanings: 1
+
+community_reports:
+  model_id: default_chat_model
+  graph_prompt: "prompts/community_report_graph.txt"
+  text_prompt: "prompts/community_report_text.txt"
+  max_length: 2000
+  max_input_length: 8000
+
+embed_graph:
+  enabled: false
+
+umap:
+  enabled: false
+
+snapshots:
+  graphml: true
+  embeddings: false
+
+### Query ###
+local_search:
+  chat_model_id: default_chat_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/local_search_system_prompt.txt"
+
+global_search:
+  chat_model_id: default_chat_model
+  map_prompt: "prompts/global_search_map_system_prompt.txt"
+  reduce_prompt: "prompts/global_search_reduce_system_prompt.txt"
+  knowledge_prompt: "prompts/global_search_knowledge_system_prompt.txt"
+
+drift_search:
+  chat_model_id: default_chat_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/drift_search_system_prompt.txt"
+  reduce_prompt: "prompts/drift_search_reduce_prompt.txt"
+
+basic_search:
+  chat_model_id: default_chat_model
+  embedding_model_id: default_embedding_model
+  prompt: "prompts/basic_search_system_prompt.txt"

@@ -26,6 +26,7 @@ dependencies = [
     "pyyaml",
     "osmnx",
     "pyarrow>=26.0.1",
+    "pymupdf>=2.1",
 ]
 
 [dependency-groups]

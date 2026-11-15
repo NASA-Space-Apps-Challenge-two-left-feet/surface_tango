@@ -1,0 +1,40 @@
+# Curated landslide-risk source corpus for the GraphRAG conceptual grounding.
+# Public official documents only (SGC methodology + Medellin POT detailed-risk resolutions),
+# cited by resolution number. The documents themselves are NOT committed (they live outside
+# the repo); only the derived index (git-ignored) and the citations here are kept.
+#
+# `aoi` marks a document that defines/prioritizes a Valle de Aburra landslide polygon.
+
+methodology:
+  - path: "~/Documents/Landslide_agentic/docs/guias_deslizamiento_col/Guia_nivel_detalle.pdf"
+    slug: sgc-guia-detalle
+    citation: "SGC (2016) Guia metodologica para estudios de amenaza, vulnerabilidad y riesgo por movimientos en masa — Escala Detallada. ISBN 978-958-99528-5-6."
+  - path: "~/Documents/Landslide_agentic/docs/guias_deslizamiento_col/Guia_25000.pdf"
+    slug: sgc-guia-25000
+    citation: "SGC Guia metodologica para estudios de amenaza por movimientos en masa, escala 1:25.000."
+
+studies:
+  - path: "~/Downloads/POT_Riesgo_Medellin/Estudio de riesgo de detalle Polígono La Picacha_Resolucion 202350105375 de 2023.pdf"
+    slug: la-picacha
+    aoi: "La Picacha"
+    citation: "Alcaldia de Medellin, Estudio de riesgo de detalle Poligono La Picacha, Resolucion 202350105375 de 2023."
+  - path: "~/Downloads/POT_Riesgo_Medellin/ESTUDIO-DETALLE-PARQUE-POPULAR.pdf"
+    slug: parque-popular
+    aoi: "Parque Popular"
+    citation: "Alcaldia de Medellin, Estudio de detalle Parque Popular."
+  - path: "~/Downloads/POT_Riesgo_Medellin/Estudio de amenaza de detalle  por movimiento en masa_Carabineros_Resolucion 202350105991.pdf"
+    slug: carabineros
+    aoi: "Carabineros"
+    citation: "Alcaldia de Medellin, Estudio de amenaza de detalle por movimiento en masa Carabineros, Resolucion 202350105991."
+  - path: "~/Downloads/POT_Riesgo_Medellin/Estudio de detalle por movimiento en masa Parque Complex 2_Resolucion 202450021403.pdf"
+    slug: parque-complex-2
+    aoi: "Parque Complex 2"
+    citation: "Alcaldia de Medellin, Estudio de detalle por movimiento en masa Parque Complex 2, Resolucion 202450021403."
+  - path: "~/Downloads/POT_Riesgo_Medellin/Informe_Amenaza_Colegiatura-1.pdf"
+    slug: colegiatura
+    aoi: "Colegiatura"
+    citation: "Alcaldia de Medellin, Informe de amenaza Colegiatura."
+  - path: "~/Downloads/POT_Riesgo_Medellin/Estudios-de-riesgo-de-detalle-Resolucion-202250081537-DE-2022.pdf"
+    slug: zonas-condicion-riesgo-2022
+    aoi: "Zonas con condicion de riesgo (city-wide)"
+    citation: "Alcaldia de Medellin, Estudios de riesgo de detalle, Resolucion 202250081537 de 2022."

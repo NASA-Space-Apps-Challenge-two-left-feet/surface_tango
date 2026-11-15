@@ -9,6 +9,10 @@ aois:   # bboxes [W, S, E, N] in EPSG:4326 — set by the Data lane at the hour-
   # us6000tjl2 (San Jose del Palmar, Choco, -76.26/4.86, docs/kb/event-2026-08-10-earthquake.md).
   4_choco_epicenter_quake: [-76.70, 4.40, -75.95, 5.25]   # San Jose del Palmar / San Juan basin (epicenter; optical-blind)
   5_valle_del_cauca_quake: [-77.10, 3.30, -75.95, 4.95]   # Cali / Buenaventura / Cartago (west-Andes damage)
+  # Landslide detail AOIs (operational; NOT the frozen scorecard). Selected from Medellin POT
+  # detailed-risk prioritizations; bbox measured by reprojecting each study's MAGNA-SIRGAS origen
+  # Bogota (EPSG:3116) coordinates to EPSG:4326. See reports/landslide_aoi_selection.md.
+  6_la_picacha_landslide: [-75.6404, 6.2313, -75.6191, 6.2367]   # Comuna 16 Belen; riesgo alto no mitigable; Res. 202350105375/2023 (measured, 157 coords)
 mcp:
   transport: sse
   ports: {nisar_asf: 8001, gee_fusion: 8002}
