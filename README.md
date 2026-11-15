@@ -43,6 +43,8 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 - **The answer.** A multi-agent observatory over three cascading-disaster lanes — Aburrá Valley landslides, Eje Cafetero earthquake damage, La Mojana/Caregato flooding — where two FastMCP servers wrapped by a budgeted cache_guard do the geospatial computation, three LangGraph hazard agents interrogate them, and a synthesis agent writes an ES/EN bulletin whose every number came from a tool output or a sourced event constant. Every panel answers **live · cached · not cached · gate result · error** — never blank.
 - **The impact.** One honest, measured radar result understandable in a 30-second video; **a null verdict is a valid headline.** Pre-registered scoring compares the quake ranking against a population-only baseline, so the map has to beat geography itself to claim skill.
 
+> **🌀 Epicenter highlight (why L-band).** The M7.4 epicenter — San José del Palmar, Chocó (USGS us6000tjl2) — sits in one of Earth's cloudiest, most remote regions, where optical and C-band go blind. NISAR L-band **covers it**: *(measured)* 96 granules with co-event interferograms on three tracks (`reports/quake_extended_aois.md`). The thesis, demonstrated at the epicenter itself. La Mojana flood is the ratified video headline (#102); this is the earthquake chapter's hook.
+
 ## What the data says so far (hour-2 gate, measured)
 
 Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover_nisar_colombia.py` (ASF, anonymous, read-only). Full evidence: [reports/gate.md](reports/gate.md), saved catalog `nisar_colombia_granules_2026.json`.

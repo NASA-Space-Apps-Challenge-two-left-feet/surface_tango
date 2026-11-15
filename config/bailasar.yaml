@@ -4,6 +4,11 @@ aois:   # bboxes [W, S, E, N] in EPSG:4326 — set by the Data lane at the hour-
   1_aburra_medellin_bello: [-75.70, 6.12, -75.42, 6.45]   # Medellín, Bello, Copacabana (hour-2 gate)
   2_eje_cafetero_quake: [-75.85, 4.40, -75.40, 5.15]   # Pereira, Armenia, Manizales (hour-2 gate)
   3_la_mojana_caregato: [-75.40, 7.90, -74.20, 9.20]   # La Mojana incl. Caregato (hour-2 gate)
+  # Additional quake coverage (operational; NOT part of the frozen scorecard, which stays
+  # 2_eje_cafetero_quake). Grounded in public geography + the USGS-verified epicenter
+  # us6000tjl2 (San Jose del Palmar, Choco, -76.26/4.86, docs/kb/event-2026-08-10-earthquake.md).
+  4_choco_epicenter_quake: [-76.70, 4.40, -75.95, 5.25]   # San Jose del Palmar / San Juan basin (epicenter; optical-blind)
+  5_valle_del_cauca_quake: [-77.10, 3.30, -75.95, 4.95]   # Cali / Buenaventura / Cartago (west-Andes damage)
 mcp:
   transport: sse
   ports: {nisar_asf: 8001, gee_fusion: 8002}
