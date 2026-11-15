@@ -11,7 +11,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-FAB040?logo=pre-commit&logoColor=white)](.pre-commit-config.yaml)
 [![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![uv](https://img.shields.io/badge/uv-managed-DE5FE9)](https://docs.astral.sh/uv/)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 <br>
@@ -24,7 +24,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 <br>
 [![hour-2 gate](https://img.shields.io/badge/hour--2%20gate-251%20NISAR%20granules-0F766E)](reports/gate.md)
 [![real-data cache](https://img.shields.io/badge/real--data%20cache-3%20AOIs%20%C2%B7%2047%20bands-0F766E)](briefs/feat/data-cache-builder.md)
-[![offline tests](https://img.shields.io/badge/offline%20tests-57%20passing-0F766E)](tests/)
+[![offline tests](https://img.shields.io/badge/offline%20tests-90%20passing-0F766E)](tests/)
 [![NISAR stream](https://img.shields.io/badge/NISAR%20stream-provisional%20P05023-9333EA)](reports/gate.md)
 [![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-D97706)](validation/ALLOWLIST.md)
 [![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%20hashed-2563EB)](validation/README.md)
@@ -87,7 +87,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 
 ## Architecture
 
-Software architecture as merged on `main` — what runs today. Grey dotted boxes are not built yet.
+Software architecture as merged on `main` — what runs today. Grey dotted boxes are planned or not built yet, per the Status table.
 
 ```mermaid
 flowchart LR
@@ -97,38 +97,39 @@ flowchart LR
         PUB["OSM hospitals & roads ·<br/>published damage reports"]
     end
     subgraph SERVERS["Two FastMCP servers · SSE"]
-        M1["mcp-nisar-asf :8001<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
-        M2["mcp-gee-fusion :8002<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
+        M1["mcp-nisar-asf :8001 (planned)<br/>search_nisar_granules (anonymous)<br/>stage GCOV/GUNW COGs to GCS"]
+        M2["mcp-gee-fusion :8002 (planned)<br/>analyze_landslide_kinematics ·<br/>analyze_earthquake_dpm · analyze_flood_inundation<br/>ranking · scoring"]
     end
-    GUARD["cache_guard (mcp_servers/cache_guard.py)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
+    GUARD["cache_guard (mcp_servers/cache_guard.py) (planned)<br/>per-tool budget · timeout → real pre-staged<br/>tiles + provenance · uncached → explicit error"]
     subgraph GRAPH["LangGraph · agents/"]
-        IN["nisar_ingestion"]
-        L["landslide_agent"]
-        Q["earthquake_agent"]
-        F["flood_agent"]
-        S["cross_hazard_synthesis<br/>ES/EN bulletin · {placeholders}<br/>SI-Assisted badge"]
+        IN["nisar_ingestion (planned)"]
+        L["landslide_agent (planned)"]
+        Q["earthquake_agent (planned)"]
+        F["flood_agent (planned)"]
+        S["cross_hazard_synthesis (planned)<br/>ES/EN bulletin · {placeholders}<br/>SI-Assisted badge"]
     end
     subgraph CACHE["local_cache/&lt;aoi&gt;/ · never in git"]
         ZARR[("cogs/*.tif · Zarr v3 cube<br/>manifest.json: per-band granule IDs,<br/>status, finite ratios")]
         TILES["tiles/ S1+S2 curtain XYZ PNGs<br/>transparent outside AOI and no-data"]
         PAIRS["pairs/ curated scene pairs"]
     end
-    UI["app.py FastAPI :8000<br/>MapLibre mission control<br/>panels: live · cached · not cached ·<br/>gate result · error"]
-    VIDEO["video/ 30-second submission"]
+    UI["app.py FastAPI :8000 (not cached)<br/>MapLibre mission control<br/>panels: live · cached · not cached ·<br/>gate result · error"]
+    VIDEO["video/ 30-second submission (planned)"]
 
-    NISAR --> M1
-    GEE --> M2
-    M1 --- GUARD
-    M2 --- GUARD
-    GUARD <--> ZARR & TILES & PAIRS
-    IN --> L & Q & F
-    L & Q & F <-->|budgeted tool calls| GUARD
-    L & Q & F --> S
-    S --> UI
+    NISAR -.-> M1
+    GEE -.-> M2
+    M1 -.- GUARD
+    M2 -.- GUARD
+    GUARD <-.-> ZARR & TILES & PAIRS
+    IN -.-> L & Q & F
+    L & Q & F <-.->|budgeted tool calls| GUARD
+    L & Q & F -.-> S
+    S -.-> UI
     PUB -.-> S
-    UI --> VIDEO
+    UI -.-> VIDEO
     LIVE["live-mode SSE serving of both servers<br/>E2E offline demo"]:::pending -.-> UI
-    classDef pending fill:#eee,stroke:#999,color:#666
+    class M1,M2,GUARD,IN,L,Q,F,S,UI,VIDEO pending
+    classDef pending fill:#eee,stroke:#999,color:#666,stroke-dasharray:5 5
 ```
 
 - **Agents route, tools compute:** numeric bulletin content comes only from deterministic tool outputs or sourced event constants in [validation/event_facts.json](validation/event_facts.json). LLM text interpolates `{placeholders}`.
@@ -164,14 +165,16 @@ flowchart TB
     CHIRPS["CHIRPS Daily · published weeks late"] -.->|"late-2026 windows return 0 images<br/>band recorded 'missing', never synthesized"| BUILD
     BUILD --> CACHE[("local_cache/&lt;aoi&gt;/<br/>cogs/*.tif · &lt;aoi&gt;_sar_cube.zarr · manifest.json<br/>per-band: granule ID or 'missing',<br/>finite pixel count & ratio · build 2026-11-14")]
     CACHE --> TILES["scripts/prestage_tiles.py (#65)<br/>rule-selected Sentinel-1 + Sentinel-2 XYZ PNGs<br/>(COPERNICUS/S2_SR_HARMONIZED)<br/>transparent outside AOI and where no data"]
-    GUARD["mcp_servers/cache_guard.py<br/>per-tool budget · provenance on fallback"] --> AGENTS
-    CACHE --> GUARD
-    TILES --> GUARD
-    AGENTS["LangGraph hazard agents (#33 landslide · #31 quake · #34 flood)<br/>tool calls only — agents never produce numbers"] --> SYNTH["cross_hazard_synthesis (#11)<br/>ES/EN bulletin · {placeholders} from tool outputs<br/>+ validation/event_facts.json · SI-Assisted badge"]
-    SYNTH --> UI["app.py mission control + story map<br/>panel states never blank"]
-    UI --> VIDEO["video/ 30-second submission · every number sourced"]
+    GUARD["mcp_servers/cache_guard.py (planned)<br/>per-tool budget · provenance on fallback"] -.-> AGENTS
+    CACHE -.-> GUARD
+    TILES -.-> GUARD
+    AGENTS["LangGraph hazard agents (#33 landslide · #31 quake · #34 flood) (planned)<br/>tool calls only — agents never produce numbers"] -.-> SYNTH["cross_hazard_synthesis (#11) (planned)<br/>ES/EN bulletin · {placeholders} from tool outputs<br/>+ validation/event_facts.json · SI-Assisted badge"]
+    SYNTH -.-> UI["app.py mission control + story map (not cached)<br/>panel states never blank"]
+    UI -.-> VIDEO["video/ 30-second submission (planned) · every number sourced"]
     OUT["dropped from scope: biomass agent · GOFF rupture ·<br/>split-spectrum ionosphere · S-band fusion · /math-lab"]:::dropped -.-> AGENTS
     classDef dropped fill:#eee,stroke:#999,color:#666
+    class GUARD,AGENTS,SYNTH,UI,VIDEO pending
+    classDef pending fill:#eee,stroke:#999,color:#666,stroke-dasharray:5 5
 ```
 
 The cache as a three-zone lakehouse on a laptop, generated by [`scripts/diagrams/lakehouse.py`](scripts/diagrams/lakehouse.py) with `make diagrams`:
@@ -189,15 +192,16 @@ How a run flows through the graph and the cache_guard's three outcomes (sequence
 ```mermaid
 sequenceDiagram
     autonumber
-    participant ING as nisar_ingestion
-    participant LS as landslide_agent
-    participant EQ as earthquake_agent
-    participant FL as flood_agent
-    participant GUARD as cache_guard
-    participant ASF as mcp-nisar-asf (SSE 8001)
-    participant GEE as mcp-gee-fusion (SSE 8002)
-    participant SYN as cross_hazard_synthesis
+    participant ING as nisar_ingestion (planned)
+    participant LS as landslide_agent (planned)
+    participant EQ as earthquake_agent (planned)
+    participant FL as flood_agent (planned)
+    participant GUARD as cache_guard (planned)
+    participant ASF as mcp-nisar-asf (SSE 8001) (planned)
+    participant GEE as mcp-gee-fusion (SSE 8002) (planned)
+    participant SYN as cross_hazard_synthesis (planned)
 
+    Note over ING,SYN: planned — not wired on main yet (see Status table)
     ING->>ING: read gate catalog + event facts (no LLM numbers)
     par three hazards in parallel
         ING->>LS: Aburrá pairs · FABDEM slope · noise-floor check
@@ -232,7 +236,7 @@ sequenceDiagram
 ## Results
 
 - **Hour-2 gate** *(measured)*: [reports/gate.md](reports/gate.md) — 251 granules, quake triplets on both tracks, C-baseline mismatch recorded.
-- **Real-data cache** *(measured, 2026-11-14 21:18–21:22 Bogotá)*: [builder brief](briefs/feat/data-cache-builder.md) — Eje 45 MB / 15 bands, Aburrá 36 MB / 16, Mojana 30 MB / 16; every band carries a granule ID or `missing` (CHIRPS ×3 missing: publication lag; Eje `gcov_hvhv_post` missing: post-event GCOV is single-pol).
+- **Real-data cache** *(measured)*: [builder brief](briefs/feat/data-cache-builder.md) — Eje 45 MB / 15 bands, Aburrá 36 MB / 16, Mojana 30 MB / 16; every band carries a granule ID or `missing` (CHIRPS ×3 missing: publication lag; Eje `gcov_hvhv_post` missing: post-event GCOV is single-pol).
 - **Curtain tiles** *(measured)*: `local_cache/<aoi>/tiles/manifest.json` — rule-selected S1/S2 scenes per AOI (#65).
 - Quake scorecard, Aburrá noise floor (null valid), Mojana classes, offline demo and tool-latency p95: **pending** — see the Status table.
 
@@ -321,9 +325,18 @@ The repository is `surface_tango` (project **Surface Tango**, team *two left fee
 | `docs/kb/` | living knowledge base (one verified note per fact) |
 | `reports/` | measured results with commands and source IDs |
 | `briefs/`, `status/` | per-branch briefs; per-lane status |
-| `tests/` | offline suite (57 passing, measured 2026-11-15) |
+| `tests/` | offline suite (90 passing, measured 2026-11-15 with `uv run pytest -q -m "not network and not cache"`) |
 | `local_cache/` | real-data cache — **never in git** |
 | `video/` | storyboard, run sheet, 30-second submission |
+
+## Development workflow
+
+- **Trunk-based:** `main` is always demo-able; one task per short-lived branch (`<type>/<lane>-<slug>`), one PR per branch, squash-merged when the gate is green. Never commit on `main`.
+- **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
+- **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
+- **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).
+- **Pre-registration:** frozen parameters live only in `config/preregistered.yaml`; its hash is recorded in `validation/README.md`. Co-event (C-pair) coherence is not viewed before the freeze commit.
+- **README + diagrams in the same PR** as the change they depict (see "Diagrams kept current in the README" in AGENTS.md).
 
 ## Data sources and citations
 
@@ -341,15 +354,8 @@ Only public inputs. Cached outputs must retain source granule or scene IDs and p
 | ESA CCI AGB | ESA Climate Change Initiative | Biomass context (band cached; agent dropped) |
 | OpenStreetMap | OSM contributors | Hospitals, roads (extract provenance required) |
 | Published damage reports | Issuing public agency, per [validation/README.md](validation/README.md) | Independent damage labels for scoring |
-
-## Development workflow
-
-- **Trunk-based:** `main` is always demo-able; one task per short-lived branch (`<type>/<lane>-<slug>`), one PR per branch, squash-merged when the gate is green. Never commit on `main`.
-- **Worktrees:** every branch lives in its own worktree (`make worktree BRANCH=…`); the main checkout is read-only. `make sync` before every commit and push.
-- **Quality gate:** `make ci` locally identical to CI; Actions runs only on ready code PRs (gated by `BAILASAR_ACTIONS_CI`, minutes are scarce). Hooks are never bypassed (`--no-verify` forbidden).
-- **Conventional Commits** enforced by commitizen; agent-written code is credited (`Co-Authored-By:`).
-- **Pre-registration:** frozen parameters live only in `config/preregistered.yaml`; its hash is recorded in `validation/README.md`. Co-event (C-pair) coherence is not viewed before the freeze commit.
-- **README + diagrams in the same PR** as the change they depict (see "Diagrams kept current in the README" in AGENTS.md).
+| USGS event [us6000tjl2](https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2) | U.S. Geological Survey (USGS) | Event constants for the 2026-08-10 earthquake (status unverified; see [validation/event_facts.json](validation/event_facts.json) and [docs/kb/event-2026-08-10-earthquake.md](docs/kb/event-2026-08-10-earthquake.md)) |
+| SGC [event summary](https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen) | Servicio Geológico Colombiano (SGC) | National bulletin for the same event (pending: page returned HTTP 403 on 2026-11-14, see [docs/kb/event-2026-08-10-earthquake-v2.md](docs/kb/event-2026-08-10-earthquake-v2.md)) |
 
 ## Knowledge base and verification
 
