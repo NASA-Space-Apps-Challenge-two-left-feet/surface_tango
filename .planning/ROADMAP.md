@@ -16,7 +16,7 @@ Plans inside a phase run in parallel waves. Each plan is one branch, one worktre
 - [ ] **Phase 1: Foundation (h0–h2)** — trunk ready; config loader; logic tests; SSE servers + cache_guard; tile server + panel states
 - [ ] **Phase 2: Data gate and pre-registration (h2–h4)** — real granules, pairs, budgets, ground truth, power check, frozen config, headline, verified KB facts
 - [ ] **Phase 3: Science and stack (h4–h14)** — cache, quake DPM, scorecard, Aburrá, La Mojana, MCP tools, agents + bulletin, slider + story
-- [ ] **Phase 4: Integration and freeze (h14–D−8h)** — real-tile pipeline checks, storyboard, offline walkthrough, math-lab, cache release prep
+- [ ] **Phase 4: Integration and freeze (h14–D−8h)** — real-tile pipeline checks, storyboard, offline walkthrough, cache release prep
 - [ ] **Phase 5: Submission (D−8h–D)** — record and edit the video, go public, release, README and project page
 
 ## Phase Details
@@ -89,19 +89,18 @@ Plans:
 ### Phase 4: Integration and freeze (h14–D−8h)
 **Goal**: The demo runs offline end to end from real data, and the video script is locked to the true outcome.
 **Depends on**: Phase 3
-**Requirements**: QUAKE-04, VID-01, VID-02, UI-05, DATA-03
+**Requirements**: QUAKE-04, VID-01, VID-02, DATA-03
 **Success Criteria** (what must be TRUE):
   1. Pipeline checks pass on fixtures cut from real cached tiles
   2. The storyboard uses only numbers from `reports/` and `validation/`
   3. `make pitch` with the network off renders every demo view with the right panel states
   4. `make fetch-cache` works from a fresh clone (release asset staged, not published)
-**Plans**: 5 plans
+**Plans**: 4 plans (04-04 math-lab dropped: out of scope)
 
 Plans:
 - [ ] 04-01: Real-tile fixture pipeline checks for quake, landslide and flood — **EstebanOchoaedos** — `tests/fixtures/`, `tests/test_pipeline_*.py`
 - [ ] 04-02: Lock the storyboard to the hour-4 headline and the measured outcome; mark placeholder frames — **SaritaRpo** — `video/storyboard.md`
 - [ ] 04-03: Offline `make pitch` walkthrough checklist with the network disabled — **Maru816** — `tests/e2e_pitch.md`
-- [ ] 04-04: Math-lab corrections (modules 1–5); first cut if time runs short — **SaritaRpo** — `static/mathlab/`
 - [ ] 04-05: Cache release assets (split <2 GB, provenance manifest) and `make fetch-cache`; staged, not published — **EstebanOchoaedos** — `Makefile` (cache targets), `scripts/fetch_cache.sh`
 
 ### Phase 5: Submission (D−8h–D)
@@ -131,7 +130,7 @@ Cloud rule: GEE processing and GCP buckets/VMs are worked only by LEONOB2014, Ja
 | EstebanOchoaedos (module prep, KB, cloud cache checks, README) | 01-04 | 02-05 | — | 04-01, 04-05 | 05-03 | 5 |
 | Maru816 (scoring, ground truth, VO) | 01-03 | 02-02 | 03-03 | 04-03 | 05-02 | 5 |
 | alicealanapineda-byte (MCP offline, agents, bulletin, schedule) | 01-05, 01-06 | 02-07 | 03-07 | — | — | 4 |
-| SaritaRpo (UI, video) | 01-07 | — | 03-08 | 04-02, 04-04 | 05-01 | 5 |
+| SaritaRpo (UI, video) | 01-07 | — | 03-08 | 04-02 | 05-01 | 4 |
 
 ## Progress
 
@@ -140,5 +139,5 @@ Cloud rule: GEE processing and GCP buckets/VMs are worked only by LEONOB2014, Ja
 | 1. Foundation | 0/7 | Not started | - |
 | 2. Data gate | 0/7 | Not started | - |
 | 3. Science and stack | 0/8 | Not started | - |
-| 4. Integration and freeze | 0/5 | Not started | - |
+| 4. Integration and freeze | 0/4 | Not started | - |
 | 5. Submission | 0/4 | Not started | - |

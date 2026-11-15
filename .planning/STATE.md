@@ -4,7 +4,7 @@ status: planning
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 31
+  total_plans: 30
   completed_plans: 2
   percent: 6
 ---
@@ -38,7 +38,7 @@ Decisions are logged in the PROJECT.md Key Decisions table (D1–D17 of the desi
 
 - Owner: record the submission deadline D (plan 02-07)
 - Agents in flight (branches feat/data-*; handoffs in briefs/feat/; orchestrator reviews before merge): quake DPM #31 (opencode GLM-5.3), Aburrá InSAR #33 (grok), La Mojana flood #34 (grok2), cache builder #30 (antigravity), Sentinel tiles #30 (unassigned)
-- Math-lab blocker for #41 (SaritaRpo): #55 import Gemini artifact (needs owner export) and #56 rebuild fallback in static/mathlab-rebuild/, both in Antigravity
+- Math-lab dropped from scope (experimental learning artifact, not deployment): #41, #55, #56 closed as not planned
 
 ### Blockers/Concerns
 

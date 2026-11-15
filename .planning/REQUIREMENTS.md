@@ -58,7 +58,6 @@
 - [ ] **UI-02**: Five panel states (live, cached, not cached, gate result, error); never blank
 - [ ] **UI-03**: Curtain slider in two configs (Aburrá/La Mojana: S2/S1/NISAR; quake: post-event S2 / pre coherence / co-event loss + ranked columns)
 - [ ] **UI-04**: Story map Ch1–Ch4 resequenced, with no fabricated numbers; labels PROVISIONAL / cached / SI badge; no NASA logos
-- [ ] **UI-05**: Math-lab corrections (modules 1–5); first cut if time runs short
 
 ### Video and submission (VID, SUB)
 - [ ] **VID-01**: Storyboard locked to the hour-4 headline; every on-screen number comes from `validation/` output
@@ -90,6 +89,7 @@
 | Streamable HTTP MCP | Owner kept SSE (D4) |
 | Agent-free render path for the video | Owner kept the agent stack (D17) |
 | Bulletin prose LLM eval | Optional, not approved |
+| Math-lab (former UI-05) | Experimental learning artifact from the Gemini chat, not part of the deployment (owner, 2026-11-14) |
 
 ## Traceability
 
@@ -98,12 +98,12 @@
 | GATE-01, GATE-02, CFG-01, SCORE-04, MCP-01, MCP-02, UI-01, UI-02, BULL-01 | Phase 1 | Pending |
 | GATE-03, GATE-04, GATE-05, GATE-06, GATE-07, CFG-02, KB-01, KB-02, SUB-01 | Phase 2 | Pending |
 | DATA-01, DATA-02, QUAKE-01, QUAKE-02, QUAKE-03, SCORE-01, SCORE-02, SCORE-03, SLIDE-01, SLIDE-02, FLOOD-01, FLOOD-02, MCP-03, AGENT-01, BULL-02, UI-03, UI-04 | Phase 3 | Pending |
-| QUAKE-04, VID-01, VID-02, UI-05, DATA-03 | Phase 4 | Pending |
+| QUAKE-04, VID-01, VID-02, DATA-03 | Phase 4 | Pending |
 | VID-03, SUB-02, SUB-03 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 43 total
-- Mapped to phases: 43
+- v1 requirements: 42 total
+- Mapped to phases: 42
 - Unmapped: 0
 
 ---
