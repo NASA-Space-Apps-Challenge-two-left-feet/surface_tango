@@ -150,7 +150,7 @@ def test_model_adapter_returns_only_declared_language_templates():
     from agents.orchestrator import make_prose_provider
 
     class Model:
-        def with_structured_output(self, schema):
+        def with_structured_output(self, schema, **kwargs):
             self.schema = schema
             return self
 
@@ -259,17 +259,34 @@ def test_null_domain_payloads_stop_before_prose(tmp_path):
     assert result["final_bulletin"]["state"] == "not cached"
 
 
-def test_domain_gate_result_keeps_its_explanation():
+def test_domain_gate_result_keeps_its_explanation(tmp_path):
     class DomainGateTools(ContractTools):
         async def call(self, server, name, arguments):
             if name == "analyze_earthquake_dpm":
-                return {"state": "gate result", "data": {"status": "missing"}}
+                return {
+                    "state": "gate result",
+                    "reason": "no evaluated units",
+                    "data": {"status": "missing"},
+                }
             return await super().call(server, name, arguments)
 
+    async def prose(outputs, schema):
+        assert outputs["hazards"]["earthquake"]["state"] == "gate result"
+        return {"es": "Sismo sin señal.", "en": "No quake signal."}
+
     result = asyncio.run(
-        build_and_run_multi_hazard_graph(requests(), tool_client=DomainGateTools())
+        build_and_run_multi_hazard_graph(
+            requests(),
+            tool_client=DomainGateTools(),
+            prose_provider=prose,
+            cache=BulletinCache(tmp_path),
+            recipe="gate-carry",
+        )
     )
-    assert result["final_bulletin"] == {"state": "gate result", "data": {"status": "missing"}}
+    bulletin = result["final_bulletin"]
+    assert bulletin["state"] in {"live", "cached"}
+    assert bulletin["gates"]["earthquake"]["reason"] == "no evaluated units"
+    assert bulletin["badge"] == BADGE
 
 
 def test_explicit_scoring_operation_routes_without_rewriting_arguments():
@@ -287,10 +304,18 @@ def test_explicit_scoring_operation_routes_without_rewriting_arguments():
         "tool": "score_against_baseline",
         "arguments": {"dataset_id": "contract-only"},
     }
-    result = asyncio.run(build_and_run_multi_hazard_graph(state, tool_client=tools))
+
+    async def prose(*args):
+        return {"es": "Sin datos.", "en": "No data."}
+
+    result = asyncio.run(
+        build_and_run_multi_hazard_graph(
+            state, tool_client=tools, prose_provider=prose, recipe="scoring-gate"
+        )
+    )
     assert "score_against_baseline" in tools.calls
     assert "analyze_earthquake_dpm" not in tools.calls
-    assert result["final_bulletin"]["reason"] == "no_evaluated_units"
+    assert result["final_bulletin"]["gates"]["earthquake"]["reason"] == "no_evaluated_units"
 
 
 def test_structured_prose_uses_configured_fallback_after_provider_failure():
@@ -304,7 +329,7 @@ def test_structured_prose_uses_configured_fallback_after_provider_failure():
         def __init__(self, failing):
             self.failing = failing
 
-        def with_structured_output(self, schema):
+        def with_structured_output(self, schema, **kwargs):
             def invoke(messages):
                 attempts.append(self.failing)
                 if self.failing:

@@ -87,7 +87,7 @@ def test_legacy_model_change_cannot_reuse_previous_model_prose(tmp_path, monkeyp
         def __init__(self, *, model):
             pass
 
-        def with_structured_output(self, schema):
+        def with_structured_output(self, schema, **kwargs):
             self.schema = schema
             return self
 

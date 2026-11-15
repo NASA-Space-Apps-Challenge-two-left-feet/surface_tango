@@ -209,7 +209,7 @@ def test_configured_chain_is_lazy_and_offline_cache_tracks_its_recipe(tmp_path, 
     monkeypatch.setattr(llm, "load_llm_config", lambda: configuration)
 
     class Model:
-        def with_structured_output(self, schema):
+        def with_structured_output(self, schema, **kwargs):
             self.schema = schema
             return self
 

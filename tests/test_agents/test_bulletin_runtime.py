@@ -109,3 +109,82 @@ def test_provenance_change_invalidates_evidence_cache():
     first = {"tool": {"state": "live", "data": None, "provenance": {"source": "before"}}}
     second = {"tool": {"state": "cached", "data": None, "provenance": {"source": "after"}}}
     assert cache_key(first, {}, RECIPE) != cache_key(second, {}, RECIPE)
+
+
+def test_withheld_field_renders_not_available_never_a_fabricated_value():
+    # A withheld/sealed numeric slot is None: prose may not reference it.
+    outputs = {
+        "hazards": {
+            "flood": {
+                "state": "available",
+                "data": {"extent_ha": 100.0, "total_ha": None},
+            }
+        }
+    }
+    schema = {
+        "hazards.flood.data.extent_ha": Placeholder(
+            "hazards.flood.data.extent_ha",
+            unit="ha",
+            decimal_places=0,
+            evidence="measured",
+            denominator="pixels within the valid domain",
+            source="test fixture",
+        ),
+        "hazards.flood.data.total_ha": Placeholder(
+            "hazards.flood.data.total_ha",
+            unit="ha",
+            decimal_places=0,
+            evidence="measured",
+            denominator="union of class domains",
+            source="test fixture",
+        ),
+    }
+    with pytest.raises(BulletinContractError, match="missing observation"):
+        make_record(
+            {
+                "es": "Total {hazards.flood.data.total_ha} ha.",
+                "en": "Total {hazards.flood.data.total_ha} ha.",
+            },
+            outputs,
+            schema,
+            RECIPE,
+        )
+    # Honest static text without digits renders instead; no value is invented.
+    record = make_record(
+        {
+            "es": "Total inundado: no disponible.",
+            "en": "Total inundated: not available.",
+        },
+        outputs,
+        schema,
+        RECIPE,
+    )
+    served = serve_record(record, outputs, schema, RECIPE)
+    assert "no disponible" in served["citizen_story_es"]
+    assert "not available" in served["decision_maker_brief_en"]
+    assert "100" not in served["citizen_story_es"].replace("extent", "")
+
+
+def test_number_without_backing_tool_output_is_refused():
+    outputs = {"hazards": {"flood": {"data": {"extent_ha": 100.0}}}}
+    schema = {
+        "hazards.flood.data.extent_ha": Placeholder(
+            "hazards.flood.data.extent_ha",
+            unit="ha",
+            decimal_places=0,
+            evidence="measured",
+            denominator="pixels within the valid domain",
+            source="test fixture",
+        )
+    }
+    # A digit in literal prose has no tool backing.
+    with pytest.raises(BulletinContractError, match="number"):
+        make_record({"es": "M7.4", "en": "M7.4"}, outputs, schema, RECIPE)
+    # A placeholder that no tool output provides is missing, not defaulted.
+    with pytest.raises(BulletinContractError, match="placeholder"):
+        make_record(
+            {"es": "{hazards.flood.data.depth_km}", "en": "{hazards.flood.data.depth_km}"},
+            outputs,
+            schema,
+            RECIPE,
+        )
