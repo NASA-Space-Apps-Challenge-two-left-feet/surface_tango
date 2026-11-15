@@ -246,6 +246,13 @@ sequenceDiagram
 - **Curtain tiles** *(measured)*: `local_cache/<aoi>/tiles/manifest.json` — rule-selected S1/S2 scenes per AOI (#65).
 - **Tool latency** *(measured, n=10 per tool, owner run of `mcp_servers/tool_latency.py`)*: `search_nisar_granules` (p95 2.735 s incl. cold call → 3.24 s) and `analyze_flood_inundation` (p95 0.007 s → 0.51 s) are budgeted; the landslide and quake analysis tools and the staging tools still use the default pending measurement — see [reports/tool_latency.md](reports/tool_latency.md).
 - The quake scorecard is [uninformative](validation/README.md#power-check-and-headline-plan-02-03-25); Aburrá has a [calibrated null](reports/aburra.md#verdict); La Mojana's [change classes](reports/mojana.md#baseline) lack a valid dry baseline. The end-to-end offline demo remains pending.
+- **La Mojana headline** *(measured, PROVISIONAL)*: open water per date (e.g. 2026-06-17: 4,486.59 ha, 5,539/197,758 valid px) and the L-band-vs-C-band comparison — Sentinel-1 misses open water NISAR sees, per date with denominators and scene IDs ([reports/mojana.md](reports/mojana.md), [reports/mojana_lvsc.md](reports/mojana_lvsc.md)).
+- **Aburrá** *(measured, PROVISIONAL)*: no motion above 9.105 mm (17 pairs), double-calibrated (sign-flip null + stable-pixel false-positive) ([reports/aburra.md](reports/aburra.md)).
+- **Quake damage proxy** *(measured, PROVISIONAL)*: coherence-loss E_C−E_K under the frozen pairs, both tracks (track 11 CI includes zero; post-event control only); scorecard a documented null ([reports/quake_dpm.md](reports/quake_dpm.md), [reports/quake_dpm_interpretation.md](reports/quake_dpm_interpretation.md)).
+- **Epicenter coverage** *(measured)*: NISAR covers the optically-blind Chocó epicenter (96 granules, co-event on 3 tracks) and Valle del Cauca (192) ([reports/quake_extended_aois.md](reports/quake_extended_aois.md)).
+- **Live bilingual bulletin** *(evidence-traced)*: the LangGraph graph ran end to end producing the ES/EN cross-hazard bulletin, every number tied to a tool evidence field, SI-Assisted badge, withheld fields → "not available" ([reports/bulletin_demo.md](reports/bulletin_demo.md)).
+- **Cache release v2** *(measured, staged not published)*: `cache-2026-11-15-v2` — all AOIs with `hand_m`, the four evidence artifacts, verified ([reports/cache_release_v2.md](reports/cache_release_v2.md)).
+- **Go-public gate**: full-history secret scan green ([reports/full_history_secret_scan.md](reports/full_history_secret_scan.md)); license Apache-2.0.
 
 ## Quickstart
 
