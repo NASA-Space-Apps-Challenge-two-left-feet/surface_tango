@@ -5,6 +5,7 @@
 | `validation/scoring.py` (bootstrap functions) | seeded barrio-block resampling | statistical CI on measured data, seed in `config/preregistered.yaml` |
 | `tests/test_*.py` | small hand-written arrays with hand-computed expected values | known-answer logic tests (D15); never reach the app, cache or video |
 | `tests/test_cache_release.py` | tiny hand-written byte strings and known-answer manifest verifier cases | isolated temporary-directory tests only; never reach the app or distributed cache |
+| `tests/test_fetch_cache.py` | tiny literal bytes, in-memory HTTP responses and temporary staged releases | offline transport, packaging and rollback logic only; never reach the app or distributed cache |
 | `tests/test_cut_fixtures.py` | tiny literal arrays in temporary Zarr stores; sentinel-to-NaN and unchanged-value expectations, test-only source and Git labels | known-answer serialization and evidence checks confined to `tmp_path`; never use the real cache or produce observations |
 | `tests/test_pipeline_flood.py` | real La Mojana fixture arrays and validity masks only; no generated input arrays or expected measured counts | invariant checks on recorded observations; thresholds come from the frozen configuration and missing inputs skip |
 

@@ -263,6 +263,8 @@ make fetch-cache
 make pitch
 ```
 
+Without make (including Windows): `uv run python scripts/fetch_cache.py --repo <owner/repository> --tag <published-release-tag>`.
+
 **Currently blocked:** `make fetch-cache` downloads and verifies release assets (#67), but no submission release or downloadable cache has been published yet — the coordinates above are placeholders. `make pitch` selects the offline Compose profile at <http://localhost:8000>; end-to-end offline operation is pending, and the current Compose configuration expects local credential mount paths and invokes the cache warmer when its manifest is absent.
 
 ### Live mode (credentials required)
