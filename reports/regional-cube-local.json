@@ -1,0 +1,747 @@
+{
+  "measurement": "measured",
+  "environment": "local in-process; not a VM or network benchmark",
+  "command": "uv run python scripts/check_regional_cube.py --output reports/regional-cube-local.json",
+  "created_at": "2026-11-15T21:56:14.156635+00:00",
+  "regions": [
+    {
+      "aoi": "mojana",
+      "state": "cached",
+      "layers": [
+        {
+          "id": "change_class_2026-06-17",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.340017833004822,
+          "source_file": "mojana/change_class_2026-06-17.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+            ],
+            "date": "2026-06-17"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "change_class_2026-09-09",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.0745068340038415,
+          "source_file": "mojana/change_class_2026-09-09.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_030_047_A_005_4005_DHDH_A_20260909T103903_20260909T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-09-09"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-06-17",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08470437499636319,
+          "source_file": "mojana/water_extent_2026-06-17.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_023_047_A_005_4005_DHDH_A_20260617T103906_20260617T103941_P05023_F_F_J_001"
+            ],
+            "date": "2026-06-17"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-06-29",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.07831324999278877,
+          "source_file": "mojana/water_extent_2026-06-29.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_024_047_A_005_4005_DHDH_A_20260629T103906_20260629T103940_P05023_N_F_J_001"
+            ],
+            "date": "2026-06-29"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-07-11",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.07905158400535583,
+          "source_file": "mojana/water_extent_2026-07-11.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_025_047_A_005_4005_DHDH_A_20260711T103905_20260711T103939_P05023_N_F_J_001"
+            ],
+            "date": "2026-07-11"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-07-23",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08018099999753758,
+          "source_file": "mojana/water_extent_2026-07-23.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_026_047_A_005_4005_DHDH_A_20260723T103904_20260723T103939_P05023_N_F_J_001"
+            ],
+            "date": "2026-07-23"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-08-16",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.07938999999896623,
+          "source_file": "mojana/water_extent_2026-08-16.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_028_047_A_005_4005_DHDH_A_20260816T103903_20260816T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-08-16"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-08-28",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08036004198947921,
+          "source_file": "mojana/water_extent_2026-08-28.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_029_047_A_005_4005_DHDH_A_20260828T103903_20260828T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-08-28"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-09-09",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08003395900595933,
+          "source_file": "mojana/water_extent_2026-09-09.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_030_047_A_005_4005_DHDH_A_20260909T103903_20260909T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-09-09"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-09-21",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08319604200369213,
+          "source_file": "mojana/water_extent_2026-09-21.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_031_047_A_005_4005_DHDH_A_20260921T103903_20260921T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-09-21"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-10-03",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.0807958750083344,
+          "source_file": "mojana/water_extent_2026-10-03.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_032_047_A_005_4005_DHDH_A_20261003T103903_20261003T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-10-03"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-10-15",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.0816342500038445,
+          "source_file": "mojana/water_extent_2026-10-15.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001"
+            ],
+            "date": "2026-10-15"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "water_extent_2026-10-27",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.0722902090055868,
+          "source_file": "mojana/water_extent_2026-10-27.tif",
+          "provenance": {
+            "source_ids": [
+              "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001"
+            ],
+            "date": "2026-10-27"
+          },
+          "pixels": 2352129
+        },
+        {
+          "id": "agb_mgha",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.12465270799293648,
+          "source_file": "mojana/cogs/mojana_agb_mgha.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/ESA/ESA_CCI_AGB",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_C",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.061574209001264535,
+          "source_file": "mojana/cogs/mojana_coherence_C.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_R",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08485187499900348,
+          "source_file": "mojana/cogs/mojana_coherence_R.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_coseismic",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.060144667004351504,
+          "source_file": "mojana/cogs/mojana_coherence_coseismic.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_post",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.06249995800317265,
+          "source_file": "mojana/cogs/mojana_gcov_hhhh_post.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.05986100000154693,
+          "source_file": "mojana/cogs/mojana_gcov_hhhh_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hvhv_post",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.061616624996531755,
+          "source_file": "mojana/cogs/mojana_gcov_hvhv_post.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hvhv_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.06222604200593196,
+          "source_file": "mojana/cogs/mojana_gcov_hvhv_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_033_047_A_005_4005_DHDH_A_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_coherence",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.05754058399179485,
+          "source_file": "mojana/cogs/mojana_gunw_coherence.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_conncomp",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.06190920798690058,
+          "source_file": "mojana/cogs/mojana_gunw_conncomp.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_ionosphere",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.0594103330076905,
+          "source_file": "mojana/cogs/mojana_gunw_ionosphere.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_phase_corr",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.06490195800142828,
+          "source_file": "mojana/cogs/mojana_gunw_phase_corr.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "hand_m",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.12792116600030567,
+          "source_file": "mojana/cogs/mojana_hand_m.tif",
+          "provenance": {
+            "source_id": "GEE MERIT/Hydro/v1_0_1 band hnd version v1_0_1 grid EPSG:4326 512x512",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "los_disp_mm",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.058355417000711896,
+          "source_file": "mojana/cogs/mojana_los_disp_mm.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "slope_deg",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.14080095899407752,
+          "source_file": "mojana/cogs/mojana_slope_deg.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/FABDEM",
+            "dates": null
+          },
+          "pixels": 262144
+        }
+      ],
+      "store_bytes": 3128798
+    },
+    {
+      "aoi": "aburra",
+      "state": "cached",
+      "layers": [
+        {
+          "id": "agb_mgha",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08745858300244436,
+          "source_file": "aburra/cogs/aburra_agb_mgha.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/ESA/ESA_CCI_AGB",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_C",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1508459590113489,
+          "source_file": "aburra/cogs/aburra_coherence_C.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_R",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.16184370800328907,
+          "source_file": "aburra/cogs/aburra_coherence_R.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_011_D_085_033_4000_SH_20260930T232837_20260930T232911_20261012T232837_20261012T232912_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_coseismic",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1527575829968555,
+          "source_file": "aburra/cogs/aburra_coherence_coseismic.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_post",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.09511429100530222,
+          "source_file": "aburra/cogs/aburra_gcov_hhhh_post.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.09707554199849255,
+          "source_file": "aburra/cogs/aburra_gcov_hhhh_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hvhv_post",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1122678329993505,
+          "source_file": "aburra/cogs/aburra_gcov_hvhv_post.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_047_A_005_4005_DHDH_A_20261027T103903_20261027T103938_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hvhv_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.11792866699397564,
+          "source_file": "aburra/cogs/aburra_gcov_hvhv_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_034_011_D_085_4005_DHDH_A_20261024T232837_20261024T232912_P05036_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_coherence",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.15902312500111293,
+          "source_file": "aburra/cogs/aburra_gunw_coherence.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_011_D_085_033_4000_SH_20260930T232837_20260930T232911_20261012T232837_20261012T232912_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_conncomp",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.08030687499558553,
+          "source_file": "aburra/cogs/aburra_gunw_conncomp.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_ionosphere",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1312646250007674,
+          "source_file": "aburra/cogs/aburra_gunw_ionosphere.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_phase_corr",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.16376183299871627,
+          "source_file": "aburra/cogs/aburra_gunw_phase_corr.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "los_disp_mm",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.17446879199997056,
+          "source_file": "aburra/cogs/aburra_los_disp_mm.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_032_047_A_005_033_4000_SH_20261003T103903_20261003T103937_20261015T103903_20261015T103937_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "slope_deg",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1554457089951029,
+          "source_file": "aburra/cogs/aburra_slope_deg.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/FABDEM",
+            "dates": null
+          },
+          "pixels": 262144
+        }
+      ],
+      "store_bytes": 11171798
+    },
+    {
+      "aoi": "la_picacha",
+      "state": "not cached",
+      "layers": [],
+      "store_bytes": 0
+    },
+    {
+      "aoi": "eje_cafetero",
+      "state": "cached",
+      "layers": [
+        {
+          "id": "agb_mgha",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1724090000061551,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_agb_mgha.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/ESA/ESA_CCI_AGB",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_C",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.18244754101033323,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_coherence_C.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001",
+            "dates": [
+              "2026-07-20",
+              "2026-08-13"
+            ]
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_K",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.17838608400779776,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_coherence_K.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_024_011_D_086_025_4000_SH_20260626T232913_20260626T232948_20260708T232913_20260708T232947_P05023_N_F_J_001",
+            "dates": [
+              "2026-06-26",
+              "2026-07-08"
+            ]
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_R",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.18195374999777414,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_coherence_R.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_025_011_D_086_026_4000_SH_20260708T232913_20260708T232947_20260720T232912_20260720T232946_P05023_N_F_J_001",
+            "dates": [
+              "2026-07-08",
+              "2026-07-20"
+            ]
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "coherence_coseismic",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.18824854199192487,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_coherence_coseismic.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001",
+            "dates": [
+              "2026-07-20",
+              "2026-08-13"
+            ]
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_post",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.13718787499237806,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gcov_hhhh_post.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_UR_GCOV_028_011_D_086_4005_SHSH_A_20260813T232911_20260813T232945_P05023_F_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hhhh_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.13913012499688193,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gcov_hhhh_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_026_011_D_086_4005_DHDH_A_20260720T232912_20260720T232946_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gcov_hvhv_pre",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.16276366599777248,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gcov_hvhv_pre.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GCOV_026_011_D_086_4005_DHDH_A_20260720T232912_20260720T232946_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_conncomp",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.11316287500085309,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gunw_conncomp.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_ionosphere",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.15615008400345687,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gunw_ionosphere.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "gunw_phase_corr",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.18466945800173562,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_gunw_phase_corr.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "los_disp_mm",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.20889545799582265,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_los_disp_mm.tif",
+          "provenance": {
+            "source_id": "NISAR_L2_PR_GUNW_026_011_D_086_028_4000_SH_20260720T232912_20260720T232946_20260813T232911_20260813T232945_P05023_N_F_J_001 (ionosphere screen applied)",
+            "dates": null
+          },
+          "pixels": 262144
+        },
+        {
+          "id": "slope_deg",
+          "pixel_equality": true,
+          "preview_status": 200,
+          "elapsed_seconds": 0.1705160419951426,
+          "source_file": "eje_cafetero/cogs/eje_cafetero_slope_deg.tif",
+          "provenance": {
+            "source_id": "GEE projects/sat-io/open-datasets/FABDEM",
+            "dates": null
+          },
+          "pixels": 262144
+        }
+      ],
+      "store_bytes": 10267428
+    },
+    {
+      "aoi": "choco_epicenter",
+      "state": "not cached",
+      "layers": [],
+      "store_bytes": 0
+    },
+    {
+      "aoi": "valle_del_cauca",
+      "state": "not cached",
+      "layers": [],
+      "store_bytes": 0
+    }
+  ],
+  "errors": [],
+  "passed": true
+}

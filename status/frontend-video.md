@@ -1,5 +1,30 @@
 # Status: frontend-video
 
+## feat/regional-cube-explorer
+
+- Atlas redesign: georeferenced map, date selection, catalog search, opacity,
+  scientific legends and source-pixel inspection. Source arrays retain native grids;
+  only display images are reprojected. Builds publish complete stores atomically.
+- UI direction follows NASA Worldview's layer/time exploration and Pangeo's
+  labeled climate-array ecosystem. No climate-model datasets are claimed or added.
+- Browser interaction review remains pending; API/native-pixel checks run locally.
+
+- Added `make cube` with an explicit socket-permission/port diagnostic and
+  `make cube-check` to verify every packaged layer without starting a server.
+- Full local evaluation is recorded in `reports/regional-cube-local.json`;
+  source pixel equality and preview responses passed for all packaged layers.
+- Integration decision and VM acceptance checklist:
+  `docs/deploy/regional-cube-integration.md`. Recommendation is conditional on
+  VM and browser acceptance. Local Docker access and VM HTTP probing were
+  unavailable in this execution environment; no deployment was performed.
+
+- Added `/cube` and `/api/cube` for a native-grid regional Zarr explorer.
+- Offline packaging reads extracted GeoTIFFs and records source references,
+  CRS, grid, valid-pixel denominators and related evidence artifacts. Missing or
+  withheld manifest bands are excluded. Source caches are preserved.
+- Deployment integration uses the existing application and cache mount;
+  remote deployment is pending review. Temporal masks remain separate layers.
+
 _Last update: 2026-11-15 (UTC−5)_
 
 ## feat/nisar-lband-primary

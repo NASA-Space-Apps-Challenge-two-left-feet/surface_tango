@@ -4,6 +4,30 @@
 
 ### A NISAR L-band multi-agent observatory for cascading disasters in Colombia
 
+Atlas regional cube dashboard: open `/cube` in the running application. It provides
+a georeferenced MapLibre map, searchable layer catalog, available-date navigation,
+scientific legends, opacity controls, shareable region/layer URLs, and a native-pixel
+inspector. Cached Sentinel imagery supplies optional geographic context. All browser
+assets are served locally. Package existing
+extracted rasters with `uv run python scripts/build_regional_cube.py --aoi mojana`
+(also `aburra` and `eje_cafetero`). This creates a separate
+`local_cache/regional-cubes/<aoi>.zarr` store, leaving science inputs intact.
+Each raster retains its native grid, CRS, nodata and source references; dated
+masks remain individually selectable observations. The explorer shows layer
+previews, measured valid-pixel denominators, ranges and a downloadable catalog.
+Related JSON and Parquet evidence is indexed by reference, not rasterized.
+Mount the same `local_cache` directory in the deployed container to serve it.
+The command refuses to overwrite a store and publishes new stores only after a
+successful build. This explorer does not yet
+provide time-stack alignment, multiscale pyramids, arbitrary region extraction,
+or cloud object-store hosting.
+
+Run `make cube` locally, or `make cube-check` for a complete pixel-equality and
+preview check without a listening server. The agent sandbox may prohibit binding
+local ports; the launcher reports that failure explicitly. Cloud integration
+readiness and the deployment checklist are in
+[the cube integration review](docs/deploy/regional-cube-integration.md).
+
 **Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
 Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
 NISAR L-band data, with a ranked first-aid answer and no number without a source?**
