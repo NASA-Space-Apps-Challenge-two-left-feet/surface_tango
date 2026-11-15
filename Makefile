@@ -47,7 +47,7 @@ up: ## Boot full stack in LIVE mode (GEE + NASA S3 + cache_guard circuit breaker
 	@echo "🚀 Live Mission Control running at http://localhost:8000"
 
 pitch: ## Boot full stack in PITCH mode (offline: local Zarr v3 cache + hashed LLM cache)
-	OFFLINE_DEMO_MODE=1 $(COMPOSE) --profile pitch up -d
+	OFFLINE_DEMO_MODE=1 $(COMPOSE) --profile pitch up --build -d
 	@echo "⚡ Pitch Mode Active (Air-Gapped Zarr v3 + Cached LLM) at http://localhost:8000"
 
 prewarm: ## Force rebuild of the Antioquia Zarr v3 Data Cube and local COGs
