@@ -20,17 +20,19 @@ from typing import cast
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "docs" / "diagrams" / "lakehouse.svg"
 FONT = "Inter, 'Segoe UI', Helvetica, Arial, sans-serif"
-W, H = 1520, 980
+W, H = 1520, 975
+TOP = 110  # header band height; the body is drawn below it so nothing covers the legend
 
 # Measured. Sources: reports/gate.md (hour-2 gate, 251 granules), cache manifests 2026-11-14
-# (eje 45 MB/15 bands, aburra 36/16, mojana 30/16), `du -sh local_cache` (quake 291 MB),
-# reports/aburra.md on its branch (noise floor 9.105 mm, 17 pairs, provisional).
+# (eje 45 MB/15 bands, aburra 36/16, mojana 30/16), `du -sh local_cache/quake` (584 MB,
+# 2026-11-15), reports/aburra.md (#109: no motion above 9.105 mm, 17 pairs, provisional),
+# reports/mojana.md (#98), reports/quake_dpm.md (#111).
 GATE = {"gunw": 107, "gcov": 130, "goff": 14, "crid": "P05023", "total": 251}
 AOIS = [
     ("eje_cafetero", "45 MB · 15 bands · cube + COGs", True),
     ("aburra", "36 MB · 16 bands · + tiles/ S1+S2", True),
     ("mojana", "30 MB · 16 bands · dual-pol HH/HV", True),
-    ("quake", "291 MB on disk · track 11 triplets", False),
+    ("quake", "584 MB · tracks 11 + 47 · C/K sealed", True),
 ]
 BUCKET = "bailasar-cache-472605"
 
@@ -228,7 +230,7 @@ def build() -> str:
     silver = [
         node(
             890,
-            70 + 90 * i,
+            120 + 90 * i,
             260,
             name,
             [sub],
@@ -240,7 +242,7 @@ def build() -> str:
     silver.append(
         node(
             890,
-            430,
+            480,
             260,
             "tiles/ + pairs/",
             ["S1+S2 curtains, triplets", "provenance per file"],
@@ -250,7 +252,7 @@ def build() -> str:
     silver.append(
         node(
             890,
-            550,
+            570,
             260,
             "eje gcov_hvhv_post missing",
             ["post-event GCOV single-pol SHSH"],
@@ -265,30 +267,28 @@ def build() -> str:
             1290,
             210,
             360,
-            "landslide noise floor · branch under review",
+            "Aburrá: no motion above 9.105 mm",
             [
-                "9.105 mm · 17 pairs · provisional · provenance per pixel",
+                "17 pairs · sign-flip-calibrated · provisional (#109)",
             ],
             "doc",
-            look="pending",
         ),
         node(
             1290,
             300,
             360,
-            "flood open-water extents · branch under review",
+            "La Mojana open water per date · headline",
             [
-                "dual-pol classes · bounded reads",
+                "HH 90 m · change classes degenerate (#98)",
             ],
             "doc",
-            look="pending",
         ),
         node(
             1290,
             390,
             360,
-            "mission-control panels",
-            ["awaiting first merged report"],
+            "mission control · staged tiles (#105)",
+            ["story chapters pending (#37)"],
             "screen",
             look="pending",
         ),
@@ -306,7 +306,7 @@ def build() -> str:
     release = [
         node(
             170,
-            740,
+            766,
             260,
             "GCS · " + BUCKET,
             ["make stage-cache → upload", "make fetch-cache → verify"],
@@ -314,38 +314,38 @@ def build() -> str:
         ),
         node(
             620,
-            740,
+            766,
             280,
             "README measured stickers",
             ["link the reports above · no unmeasured claims"],
             "doc",
         ),
-        node(1090, 740, 240, "video/ 30-second spot", ["every number sourced"], "doc"),
+        node(1090, 766, 240, "video/ 30-second spot", ["every number sourced"], "doc"),
     ]
 
     flows = [
         flow([(250, 150), (295, 150)], "pipeline"),
-        flow([(250, 330), (280, 330), (280, 70), (560, 70), (560, 108)], "pipeline"),
+        flow([(250, 330), (280, 330), (280, 46), (690, 46), (690, 108)], "pipeline"),
         flow([(500, 150), (520, 150)], "pipeline"),
         flow([(470, 150), (490, 150)], "pipeline"),
-        flow([(710, 150), (760, 150)], "pipeline"),
+        flow([(710, 150), (740, 150), (740, 120), (760, 120)], "pipeline"),
         flow([(710, 290), (740, 290), (740, 210), (760, 210)], "pipeline"),
         flow([(710, 430), (740, 430), (740, 300), (760, 300)], "pipeline"),
-        flow([(1020, 150), (1110, 150)], "pipeline"),
-        flow([(1020, 240), (1110, 240)], "pipeline"),
-        flow([(1020, 330), (1110, 330)], "pipeline"),
-        flow([(1020, 420), (1110, 420)], "pipeline"),
-        flow([(890, 640), (890, 666), (170, 666), (170, 696)], "publish"),
-        flow([(300, 740), (480, 740)], "publish"),
-        flow([(760, 740), (970, 740)], "publish"),
-        flow([(1290, 155), (1290, 660), (620, 660), (620, 684)], "control"),
+        flow([(1020, 120), (1110, 120)], "pipeline"),
+        flow([(1020, 210), (1110, 210)], "pipeline"),
+        flow([(1020, 300), (1110, 300)], "pipeline"),
+        flow([(1020, 390), (1110, 390)], "pipeline"),
+        flow([(890, 600), (890, 690), (170, 690), (170, 736)], "publish"),
+        flow([(300, 766), (480, 766)], "publish"),
+        flow([(760, 766), (970, 766)], "publish"),
+        flow([(1470, 120), (1494, 120), (1494, 680), (620, 680), (620, 742)], "control"),
     ]
     labels = [
         halo(180, 108, "catalog the window · read-only", FLOW["pipeline"][0], 9.5),
         halo(615, 520, "bronze: byte-honest references", "#B45309", 9.5),
         halo(890, 620, "silver: curated per AOI · 47 bands total", "#475569", 9.5),
         halo(1290, 560, "gold: measured or honestly pending", "#CA8A04", 9.5),
-        halo(560, 660, "manifest provenance → badges cite reports", FLOW["control"][0], 9.5),
+        halo(980, 680, "manifest provenance → badges cite reports", FLOW["control"][0], 9.5),
     ]
 
     legend = []
@@ -419,12 +419,14 @@ def build() -> str:
         "analyses, frozen and pre-registered, land once as manifests, get curated per AOI, and "
         "serve measured verdicts. What is missing is recorded, never fabricated.</text>",
         *legend,
+        f'<g transform="translate(0,{TOP})">',
         *body,
+        "</g>",
         f'<text x="24" y="{H - 14}" font-size="10" fill="{MUTED}">generated by '
         "scripts/diagrams/lakehouse.py · make diagrams · numbers: reports/gate.md "
         f"({GATE['total']} granules · {GATE['crid']}) · cache manifests 2026-11-14 "
-        "(45 · 36 · 30 MB / 15 · 16 · 16 bands) · du -sh local_cache (quake 291 MB) · "
-        "reports/aburra.md on its branch</text>",
+        "(45 · 36 · 30 MB / 15 · 16 · 16 bands) · du -sh local_cache/quake 584 MB · "
+        "reports/aburra.md · mojana.md · quake_dpm.md</text>",
         "</svg>",
     ]
     return "\n".join(parts) + "\n"
