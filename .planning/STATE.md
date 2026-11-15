@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 1 of 5 (Foundation) and 2 of 5 (Data gate) in parallel
 Plan: 01-01 done (#16); 02-01 done (#23, reports/gate.md); 03-01 code merged (#78, review fixes included); diagrams current (#89)
-Status: claude-home orchestrating (goal mode while the owner is away). Snapshot refreshed 2026-11-15 ~05:25 UTC.
-Since ~05:00 UTC, all squash-merged into main:
+Status: claude-home orchestrating (goal mode while the owner is away). Snapshot refreshed 2026-11-15 05:18 UTC (the previous "~05:25" was an estimate; it was written at about 05:05).
+Since ~04:45 UTC, all squash-merged into main:
 - **Sarita:** #105 mission control loads the staged tiles.
 - **Fixes:** #106 flood timeout on Windows. #108 Esteban's type annotations.
 - **Esteban:** #107 his fixture harness core; #72/#73 closed as superseded (reasons on the PRs).
@@ -32,6 +32,8 @@ Since ~05:00 UTC, all squash-merged into main:
 - **#111 quake DPM v2** (opencode): both tracks, sealed C/K statistics, pyarrow, pluggable units; track 11 reproduces #64 exactly.
 - **#110 Jack's MCP scoring wrappers.**
 - #65 deep-reviewed (correct; window constant should move to config).
+- #113, #114: both README diagrams fixed (overlaps cleared, content current), reviewed as rendered images.
+- #115: the landslide module reads and verifies `landslide.noise_floor`. `VALLEY_FLOOR_MAX_SLOPE_DEG` (5.0) and `MIN_ABS_COS_XI` (0.2) are still code constants and should enter the pre-registration at the freeze (#26).
 
 #### Headline results now on main (all PROVISIONAL)
 - **La Mojana (headline, #102):** open water per date measured (e.g. 2026-06-17: 4,486.59 ha, 5,539 of 197,758 valid px). Sentinel-1 missed 3,351 of 4,946 NISAR open-water px on 2026-07-11. Change classes degenerate (reference date had 1 valid px).
@@ -43,7 +45,7 @@ Since ~05:00 UTC, all squash-merged into main:
 2. Alice: rewire `analyze_flood_inundation` (and `analyze_earthquake_dpm`, whose import target doesn't exist) to the merged modules.
 3. Sarita: #37 slider and story map on La Mojana; lock storyboard #39 to the ratified headline.
 4. Esteban: port the flood harness test to main's API on the `mojana` fixture (#38); open a PR for `docs/kb-quake-depth-usgs`.
-5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), re-stage the team release, fix the diagram layouts (scripts/diagrams/*.py), and port Esteban's landslide config keys onto the merged module.
+5. Orchestrator: rebuild the cache now that both hazard lanes merged (conncomp nearest-resampling, metric slope), then re-stage the team release. The diagram layouts (#113, #114) and the landslide prereg wiring (#115) are done.
 
 #### Agents
 grok, grok2 and opencode are idle (their lanes are merged). Antigravity is idle.
