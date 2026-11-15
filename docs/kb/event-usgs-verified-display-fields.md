@@ -1,6 +1,6 @@
 ---
 title: Verified display fields for USGS event us6000tjl2
-status: verified
+status: superseded
 source: https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson
 accessed: 2026-11-14
 quote: 'M 7.4 - 4 km SSW of San José del Palmar, Colombia'

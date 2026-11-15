@@ -22,4 +22,4 @@ One short note per fact or method the code, the UI or the pitch relies on. Rules
 | [event-2025-06-24-granizal](event-2025-06-24-granizal.md) | verified |
 | [method-coherence-decorrelation](method-coherence-decorrelation.md) | unverified |
 
-- [USGS verified display fields](event-usgs-verified-display-fields.md): supported event fields and explicitly withheld depth; supersedes the earlier earthquake event note. Its depth claim ("reconciliation remains pending") is superseded by [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md); its other fields stand.
+- [USGS verified display fields v2](event-usgs-verified-display-fields-v2.md): displayable event fields including depth 116 km (USGS estimate, rounded from 116.13 km); supersedes [event-usgs-verified-display-fields](event-usgs-verified-display-fields.md) (superseded, depth withheld).

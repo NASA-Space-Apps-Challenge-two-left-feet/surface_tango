@@ -21,6 +21,10 @@
       "depth_km": {
         "classification": "estimate",
         "unit": "km",
+        "label": "USGS estimate",
+        "denominator": "USGS event us6000tjl2, preferred origin",
+        "interval": null,
+        "display_rule": "depth_km = usgs_preferred_origin.value rounded half-up to whole km (decimal_places 0); never taken from another USGS product or from SGC",
         "usgs_preferred_origin": {
           "value": 116.13,
           "source": "https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson",
@@ -31,22 +35,18 @@
           "value": 105,
           "source": "https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen",
           "field": "Profundidad (status Manual)",
-          "kb_note": "docs/kb/event-2026-08-10-earthquake-sgc.md"
+          "kb_note": "docs/kb/event-2026-08-10-earthquake-sgc.md",
+          "use": "evidence only, not displayed"
         },
         "removed": "96 km had no primary source (added in 11242b8) and matches neither agency"
       }
-    }
-  },
-  "_pending_verification": {
-    "quake_2026_08_10": {
-      "depth_km": "Both agency depth estimates are verified in docs/kb (USGS preferred origin 116.13 km; SGC manual bulletin 105 km). BailaSAR will use the USGS value once the agents lane sets depth_km (tests/test_event_facts.py and a rounding rule); it is not displayed yet."
     }
   },
   "quake_2026_08_10": {
     "date": "2026-08-10",
     "magnitude_mw": 7.4,
     "magnitude_type": "mww",
-    "depth_km": null,
+    "depth_km": 116,
     "epicenter": "4 km SSW of San José del Palmar, Colombia",
     "sources": {
       "usgs_event_id": "us6000tjl2",
@@ -54,6 +54,6 @@
       "sgc_bulletin": "https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen"
     },
     "status": "verified",
-    "kb_note": "docs/kb/event-usgs-verified-display-fields.md"
+    "kb_note": "docs/kb/event-usgs-verified-display-fields-v2.md"
   }
 }
