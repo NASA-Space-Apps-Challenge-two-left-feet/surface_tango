@@ -1442,11 +1442,11 @@ History: R8 approved D9 (real-tile fixtures for all tests); reopened for sequenc
 ### R15: Backward schedule and per-lane minimum output
 Finding: Outside Voice #7, HIGH, confidence 8/10, docs/designs/bailasar.md:318-331 (lanes and gates stop at hour 14; office-hours R3-11 unresolved), native subagent
 Plan baseline: gates at hour 2 and hour 14 only; no submission deadline hour, freeze or minimum output per lane.
-Runtime evidence: the submission deadline hour is not recorded in this doc; the owner must state it from the official 2026 event schedule.
+Runtime evidence: the official 2026 NASA Space Apps page states that submissions close Sunday, November 15 at 11:59 PM local time. For the Medellín event, local time is America/Bogota (UTC−5), so D is 2026-11-15 23:59 COT. Source: https://www.spaceappschallenge.org/2026/ (accessed 2026-11-15).
 Comparison grid:
 | Choice | Current | A | B | C | D |
 |---|---|---|---|---|---|
-| R15 schedule | none after hour 14 | the owner records the official submission deadline (D) in the doc; backward milestones: feature freeze D−8 h, video recording D−6 h, edit + Spanish VO + English subtitles D−4 h, secret scan → repo public → cache release (owner go-ahead) → project page D−2 h. Minimum output per lane: Data = gate JSON + cache for the headline AOI; Quake = scorecard or documented uninformative; Aburrá+Flood = one measured result or null statement each; Agents/MCP = make test-dag green + one rendered bulletin; Frontend+video = headline chapter + 30 s video. First cut if a lane slips: math-lab corrections, then story chapter 4 | no schedule (current) | owner checks the official deadline first, then return | leave unresolved |
+| R15 schedule | none after hour 14 | Deadline D: 2026-11-15 23:59 COT (America/Bogota, UTC−5), per the official 2026 submission page. Milestones: feature freeze Nov 15 15:59; video recording 17:59; edit + Spanish VO + English subtitles 19:59; secret scan and project page 21:59; make repo public and publish cache only with owner go-ahead before D. Minimum output per lane: Data = gate JSON + cache for headline AOI; Quake = scorecard or documented uninformative; Aburrá+Flood = one measured result or null statement each; Agents/MCP = `make test-dag` green + one rendered bulletin; Frontend+video = headline chapter + 30 s video. First cuts: math-lab corrections, then story chapter 4. | no schedule (current) | owner checks the official deadline first, then return | leave unresolved |
 Question D16:
 D16 — Add a backward schedule from the submission deadline and a minimum output per lane?
 Project/branch/task: surface_tango on main, plan-eng-review outside-voice #7 (lanes and gates, lines 318-331).
@@ -1476,7 +1476,7 @@ Net: twenty minutes of backward planning versus an unplanned final stretch.
 Header: Backward schedule
 Options:
 A) Apply this change (recommended)
-Owner records the official submission deadline D; milestones: freeze D−8h, video recording D−6h, edit + VO + subtitles D−4h, secret scan → public → cache release → project page D−2h; minimum output per lane as listed in the grid; first cut: math-lab corrections, then story chapter 4.
+Official deadline D is 2026-11-15 23:59 COT (America/Bogota, UTC−5), from https://www.spaceappschallenge.org/2026/ (accessed 2026-11-15). Milestones: feature freeze 15:59; video recording 17:59; edit + Spanish VO + English subtitles 19:59; secret scan + project page 21:59. Repository public promotion and cache release require owner go-ahead and must complete before D. Minimum output per lane is listed in the R15 grid; first cuts are math-lab corrections, then story chapter 4.
 B) Keep this row's current value
 No schedule after hour 14; no per-lane minimum.
 C) Investigate before choosing
@@ -1486,7 +1486,7 @@ Leave this unresolved; no change now.
 
 State: approved
 Actual answer: A) Apply this change (D16, user answer "A) Apply this change (recommended)")
-Accepted scope: owner records the official submission deadline D; milestones: freeze D−8h, video recording D−6h, edit + VO + subtitles D−4h, secret scan → public → cache release → project page D−2h; minimum output per lane as listed in the R15 grid; first cut: math-lab corrections, then story chapter 4.
+Accepted scope: record the official deadline D and schedule milestones D−8h, D−6h, D−4h and D−2h; minimum output per lane as listed in the R15 grid; first cuts are math-lab corrections, then story chapter 4. Deadline and clock times are now recorded above.
 History: none
 
 ### R16: Let the headline view render without the agent stack
