@@ -31,7 +31,11 @@ owner credentials and bucket access.
 Earthquake domain requests may be ordinary DPM arguments or an object with
 `tool` and `arguments`. Approved selections are `analyze_earthquake_dpm`,
 `rank_first_aid_barrios` and `score_against_baseline`. Scoring receives a real
-staged `dataset_id`; MCP delegates numerical work to `validation/scoring.py`.
+staged `dataset_id` in the graph request contract. The scoring MCP wrappers are
+not registered on the `develop` base, and the wrappers currently on `main` accept
+ranking arrays or ordered labels rather than `dataset_id`. That contract must be
+reconciled before the graph can execute either scoring tool; routing tests use a
+stub server and do not demonstrate executable scoring integration.
 The other domains retain their approved hazard tools.
 
 For configured prose, set `llm` to `configured` and use the operational settings

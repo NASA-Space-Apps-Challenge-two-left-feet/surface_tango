@@ -26,6 +26,10 @@ connectivity or scientific results.
 - Data and scoring owners must stage real measurements, provenance, source-linked
   ground truth and geometry. Missing measurements must stay explicit nulls.
 - A cloud owner must complete measured-result parity and live tool integration.
+- Scoring integration is not executable on `develop`: its MCP tools are absent
+  there, and the versions on `main` accept arrays/labels rather than the graph's
+  `dataset_id` argument. The scoring/data owners must agree on a real staged
+  dataset contract, then register and test the matching wrappers.
 - The MCP staging layer must validate every GDAL redirect destination before
   fetching, in addition to the graph's ASF host and path validation.
 - With those inputs, run the graph through actual SSE servers, verify ES and EN

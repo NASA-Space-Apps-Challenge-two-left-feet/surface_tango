@@ -15,6 +15,9 @@ tests; no source granules apply).
 Issue #36 is still awaiting the committed frozen pair set/hash and owner-staged
 real measurements, ground truth and geometry. Live result parity and a real
 ES/EN end-to-end bulletin have not been demonstrated. GDAL redirect destinations
-still need validation in the MCP staging layer. The scoring MCP wrappers exist
-on `main` but are not yet present on `develop`. See
+still need validation in the MCP staging layer. Scoring is also not executable
+on `develop`: the MCP wrappers are absent there, and their implementation on
+`main` accepts ranking arrays/labels while the graph currently sends `dataset_id`.
+Align this contract and register the tools before claiming scoring integration.
+See
 [the integration handoff](../agents/INTEGRATION_HANDOFF.md).
