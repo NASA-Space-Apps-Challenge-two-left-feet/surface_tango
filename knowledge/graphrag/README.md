@@ -41,9 +41,13 @@ de 2022). ~8 docs, ~3.9 MB of extracted text.
    ```
    uv run python -m knowledge.graphrag.ingest
    ```
-3. **Build the graph** (Azure OpenAI does entity/relationship/community extraction):
+3. **Build the graph** (Azure OpenAI does entity/relationship/community extraction).
+   graphrag is installed as an **isolated `uv tool`** (`uv tool install graphrag==2.7.2`) —
+   it pins NumPy 2.x, which conflicts with this project's NumPy 1.26, so it must NOT
+   be a main dependency. Run its CLI directly:
    ```
-   uv run graphrag index --root knowledge/graphrag
+   uv tool install graphrag==2.7.2            # once
+   graphrag index --root knowledge/graphrag   # build (reads GRAPHRAG_* from .env)
    ```
 
 ## Query it (agent grounding)

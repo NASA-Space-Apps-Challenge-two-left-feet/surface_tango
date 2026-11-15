@@ -26,7 +26,6 @@ dependencies = [
     "pyyaml",
     "osmnx",
     "pyarrow>=26.0.1",
-    "graphrag>=2.7.2",
     "pymupdf>=2.1",
 ]
 

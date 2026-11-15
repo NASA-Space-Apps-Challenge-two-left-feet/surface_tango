@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 from pathlib import Path
 
@@ -46,14 +47,24 @@ def ground(question: str, method: str = "local") -> dict:
             "reason": (
                 "GraphRAG index not built yet. Set the GRAPHRAG_* Azure OpenAI keys in "
                 ".env, run `uv run python -m knowledge.graphrag.ingest`, then "
-                "`uv run graphrag index --root knowledge/graphrag`."
+                "`graphrag index --root knowledge/graphrag` (graphrag is an isolated "
+                "`uv tool` — it pins NumPy 2.x, which the main env does not)."
             ),
         }
+    # graphrag is installed as an isolated `uv tool` (own NumPy 2.x), on PATH as
+    # `graphrag`; it reads the GRAPHRAG_* vars from the environment. Load the repo
+    # .env so the subprocess has the Azure OpenAI credentials.
+    env = dict(os.environ)
+    env_file = HERE.parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("GRAPHRAG_") and "=" in line:
+                k, v = line.split("=", 1)
+                env[k] = v
     try:
         proc = subprocess.run(
             [
-                "uv",
-                "run",
                 "graphrag",
                 "query",
                 "--root",
@@ -66,6 +77,7 @@ def ground(question: str, method: str = "local") -> dict:
             capture_output=True,
             text=True,
             cwd=str(HERE.parent.parent),
+            env=env,
             timeout=300,
         )
     except subprocess.TimeoutExpired:
