@@ -76,7 +76,7 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | NISAR discovery gate (search script and saved catalog) | live | #23 | [Gate report](reports/gate.md) |
 | Pre-registration and power check (fields pending) | planned | #25 | pending |
 | Quake damage proxy (track 11; C-pass statistics withheld until the pre-registration freeze, see [deviation 1](validation/README.md#deviations)) | cached | #31, #64 | pending |
-| First-aid ranking and scorecard | planned | #32 | pending |
+| First-aid ranking and scorecard (offline logic implemented; real-data integration pending) | planned | #18, #32 | [Scoring API and fixtures](validation/ALLOWLIST.md) |
 | Aburrá landslide noise-floor test | planned | — | pending |
 | La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
 | Sentinel-1/2 curtain-slider tiles (3 AOIs, rule-selected scenes) | cached | #30, #65 | `local_cache/<aoi>/tiles/manifest.json` |
@@ -95,6 +95,10 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | ISRO S-band fusion (TODO; out of scope) | dropped | — | — |
 
 ## Results
+
+`validation/scoring.py` supplies tested offline scoring functions. Callers must
+provide approved frozen settings and accepted real observations. Passing logic
+tests does not establish a real-data scorecard or a radar advantage.
 
 See `reports/` — pending.
 
