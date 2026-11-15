@@ -40,9 +40,13 @@ def load_fixture(aoi, name):
 
 
 def require_fixture(aoi, name):
-    """Skip unavailable real data, but fail on corrupt evidence."""
+    """Skip unavailable real data, but fail on corrupt evidence.
+
+    A committed fixture (archive + sidecar, sha256-checked) is enough: the
+    local_cache it was cut from need not be present on this machine.
+    """
     archive, sidecar = fixture_paths(aoi, name)
-    if not (ROOT / "local_cache").is_dir() or not archive.is_file() or not sidecar.is_file():
+    if not archive.is_file() or not sidecar.is_file():
         pytest.skip("fixture not cut: run scripts/cut_fixtures.py ...")
     return load_fixture(aoi, name)
 
