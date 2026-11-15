@@ -100,7 +100,13 @@ def copy_intersecting_tiles(parent_tiles: Path, child_tiles: Path, bbox: list[fl
         return 0
     for source in parent_tiles.rglob("*.png"):
         parts = source.relative_to(parent_tiles).parts
-        if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
+        if (
+            len(parts) != 3
+            or source.name.startswith("._")
+            or not parts[0].isdigit()
+            or not parts[1].isdigit()
+            or not source.stem.isdigit()
+        ):
             continue
         z, x, y = int(parts[0]), int(parts[1]), int(source.stem)
         if not bboxes_intersect(tile_lonlat_bounds(z, x, y), bbox):
