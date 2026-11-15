@@ -9,23 +9,26 @@ committed only after a human reviews the arrays and their provenance.
 From the repository root, after a human builds or downloads the real cache, run:
 
 ```sh
-uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name flood --row 0 --col 0 --size 32 --vars gcov_hhhh_pre gcov_hvhv_pre gcov_hhhh_post gcov_hvhv_post
+uv run python scripts/cut_fixtures.py --aoi mojana --name flood --row 0 --col 0 --size 32 --vars gcov_hhhh_pre gcov_hvhv_pre gcov_hhhh_post gcov_hvhv_post hand_m
 uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name landslide --row 0 --col 0 --size 32 --vars los_disp_mm gunw_phase_corr gunw_coherence gunw_conncomp
-uv run python scripts/cut_fixtures.py --aoi eje_cafetero --name quake --row 0 --col 0 --size 32 --vars coherence_R coherence_C
 ```
 
 The unified cache builder (#78) uses short AOI names (`aburra`, `eje_cafetero`,
 `mojana`) and writes `local_cache/<aoi>/<aoi>_sar_cube.zarr`. Use `--aoi aburra`
-instead of `--aoi antioquia_aburra` in the flood and landslide examples for that
-builder. The cutter also accepts the legacy
+instead of `--aoi antioquia_aburra` in the landslide example for that
+builder. The flood tests load `tests/fixtures/mojana/flood.npz`, cut from
+`local_cache/mojana/mojana_sar_cube.zarr`. The cutter also accepts the legacy
 `local_cache/<aoi>/antioquia_sar_cube.zarr` layout if the current path is absent.
-Commands write `tests/fixtures/<aoi>/<name>.npz` and matching sidecars; the quake
-tests load `tests/fixtures/eje_cafetero/quake.npz`. The window arguments are
-example selections, not measured coverage or
+Commands write `tests/fixtures/<aoi>/<name>.npz` and matching sidecars.
+The window arguments are example selections, not measured coverage or
 an assurance of valid pixels. Inspect the real coverage and choose another window
 if the cutter reports an entirely NaN cut. Bounds are exclusive at row + size and
 col + size; the requested square must fit in every selected variable. Existing
 fixtures are never overwritten: use another name for a candidate cut.
+
+**Sealed earthquake data:** do not cut, load, or inspect an `eje_cafetero`
+fixture containing C-pair coherence before the pre-registration freeze (#26)
+and the committed `validation/README.md`. The flood workflow uses only La Mojana.
 
 Keep each `.npz` under 1 MB. The cutter enforces this limit, and the repository
 pre-commit hook blocks files over 1000 KB. Reduce the window or selected variables
@@ -55,18 +58,18 @@ and reviewed with their sidecars; do not edit the evidence by hand.
 The current cube permits provenance and SHA checks. It does not yet contain all
 inputs needed for the numerical invariants:
 
-- Flood rules require real `hh_db`, `delta_hh_db`, `delta_hv_hh_db`, and `hand_m`
-  layers on the same grid, with recorded provenance for each. Raw GCOV power is
-  not dB, and slope is not HAND. Rule tests skip until these layers are available.
-  If the cache owner adds these real derived layers, cut a candidate with:
-
-  ```sh
-  uv run python scripts/cut_fixtures.py --aoi antioquia_aburra --name flood-rules --row 0 --col 0 --size 32 --vars hh_db delta_hh_db delta_hv_hh_db hand_m
-  ```
-
-  After human review, use the candidate archive and sidecar as the `flood` fixture
-  together. The no-baseline test uses the recorded HH source identifier as its
-  observation label; the cut timestamp is not an acquisition date.
+- Flood checks use the public La Mojana API in
+  `gee_math/flood_polarimetric_math.py` (#98). The command above selects real
+  pre/post HH/HV linear GCOV power and HAND on the same grid, with provenance
+  for every layer. Tests convert power with `power_to_db`; non-positive or
+  non-finite power stays NaN. Absolute water counts exclude missing HH or HAND
+  and pixels outside the configured HAND domain. Change checks use separate
+  Class 1 and Class 2 validity masks; Class 2 additionally needs both HV inputs.
+  Rasters permit only the documented class codes and `CLASS_NODATA`.
+  A single real observation exercises the no-baseline path, where Class 2 counts,
+  denominators, and change rasters remain null, including sensitivity outputs.
+  Its recorded HH source identifier is an observation label, not an acquisition
+  date. Missing variables skip via `require_variables`; slope never replaces HAND.
 - Landslide rules first require the complete nested `landslide` section declared
   by `LANDSLIDE_PARAM_KEYS` in `config/preregistered.yaml`. Missing keys skip with
   `landslide keys not in config/preregistered.yaml yet`. Real independent rates
@@ -88,16 +91,20 @@ inputs needed for the numerical invariants:
   These checks use no expected measured results and never initialize Earth Engine.
 
 No thresholds or input layers are supplied by this harness. Flood parameters come
-from `load_params("flood")`; landslide parameters use the same frozen YAML loader.
+from `load_flood_thresholds("config/preregistered.yaml")`; landslide parameters
+use their frozen YAML loader.
 
 Reviewer commands (no fixtures needed for the first command):
 
 ```sh
 uv run pytest -q -m "not network and not cache"
-uv run pytest -q -m cache
+uv run pytest -q tests/test_pipeline_flood.py -m cache -rs
 uv run pre-commit run --all-files
 ```
 
-Every new test has the `cache` marker. With no cache or fixtures, cache tests skip
+Every flood pipeline test has the `cache` marker. With no cache or fixtures, cache tests skip
 cleanly, and the offline selection deselects them. The invariant checks use only
 loaded observations and their missing-data masks, never expected numeric results.
+`tests/test_cut_fixtures.py` runs offline without the `cache` marker. Its
+allowlisted literal arrays exist only in temporary Zarr stores and check evidence
+serialization, not hazard results.
