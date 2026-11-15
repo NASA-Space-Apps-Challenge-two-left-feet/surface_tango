@@ -1,15 +1,21 @@
 # app.py
 import asyncio
 import json
+import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import ee
-from fastapi import FastAPI, Query
+import numpy as np
+import xarray as xr
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from rasterio.io import MemoryFile
+from rasterio.transform import from_bounds
+from rasterio.warp import reproject
 
-from agents.orchestrator import create_compiled_multi_hazard_graph
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
 
@@ -22,15 +28,125 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-init_ee()  # ADC identity + GCP_PROJECT_ID (gee_math/ee_session.py)
+CACHE_ROOT = Path(
+    os.environ.get("BAILASAR_CACHE_DIR", Path(__file__).resolve().parent / "local_cache")
+)
+CACHE_DIR = CACHE_ROOT / "antioquia_aburra"
+TILE_CUBE = CACHE_DIR / "antioquia_sar_cube.zarr"
+TILE_MANIFEST = CACHE_DIR / "manifest.json"
+PANEL_GATE_RESULTS = CACHE_DIR / "gate-panel-results.json"
+STORY_RESULTS = CACHE_ROOT / "story-results.json"
+OFFLINE_ASSETS = CACHE_ROOT / "frontend-assets"
+ASSET_PATHS = {
+    "mission-control.css": "mission-control.css",
+    "maplibre-gl.css": "node_modules/maplibre-gl/dist/maplibre-gl.css",
+    "maplibre-gl.js": "node_modules/maplibre-gl/dist/maplibre-gl.js",
+    "deck.gl.js": "node_modules/deck.gl/dist.min.js",
+}
+HAZARD_DOMAINS = {"landslide", "flood", "earthquake"}
+LANDSLIDE_BAND = "los_disp_mm"
+
+
+@app.get("/assets/{name}")
+def frontend_asset(name: str):
+    if name not in ASSET_PATHS:
+        raise HTTPException(404, "Unknown frontend asset")
+    asset = OFFLINE_ASSETS / ASSET_PATHS[name]
+    if not asset.is_file():
+        raise HTTPException(404, "Frontend asset not staged")
+    return FileResponse(asset)
+
+
+@app.get("/api/story-results")
+def story_results():
+    if not STORY_RESULTS.is_file():
+        raise HTTPException(404, "Approved story results not staged")
+    return FileResponse(STORY_RESULTS, media_type="application/json")
+
+
+@app.get("/api/panel-gate/{domain}")
+def panel_gate(domain: str):
+    if domain not in HAZARD_DOMAINS:
+        raise HTTPException(404, "Unknown tile domain")
+    if not PANEL_GATE_RESULTS.is_file():
+        return Response(status_code=204)
+    results = json.loads(PANEL_GATE_RESULTS.read_text(encoding="utf-8"))
+    statement = results.get(domain)
+    if not isinstance(statement, str) or not statement.strip():
+        return Response(status_code=204)
+    return {"statement": statement.strip()}
+
+
+@app.get("/api/local-tiles/{domain}")
+def local_tile_status(domain: str):
+    if domain not in HAZARD_DOMAINS:
+        raise HTTPException(404, "Unknown tile domain")
+    if domain != "landslide":
+        # The baseline cube can reuse one granule or select an unapproved pair.
+        # Comparative products belong to the validated story tile inputs.
+        return {"state": "not cached"}
+    if TILE_CUBE.is_dir() and TILE_MANIFEST.is_file():
+        manifest = json.loads(TILE_MANIFEST.read_text(encoding="utf-8"))
+        source = manifest.get("nisar_granule_provenance", {}).get(LANDSLIDE_BAND)
+        if not isinstance(source, str) or source.strip().lower() in {"", "missing"}:
+            return {"state": "not cached"}
+        with xr.open_zarr(TILE_CUBE) as cube:
+            if LANDSLIDE_BAND in cube:
+                return {
+                    "state": "cached",
+                    "tile_url": f"/api/local-tiles/{domain}/{{z}}/{{x}}/{{y}}.png",
+                }
+    return {"state": "not cached"}
+
+
+@app.get("/api/local-tiles/{domain}/{z}/{x}/{y}.png")
+def serve_local_zarr_tile(domain: str, z: int, x: int, y: int):
+    if not 0 <= z <= 24 or not (0 <= x < 2**z and 0 <= y < 2**z):
+        raise HTTPException(404, "Invalid XYZ tile")
+    if local_tile_status(domain)["state"] != "cached":
+        raise HTTPException(404, "Tile data not cached")
+
+    # XYZ addresses divide the Web Mercator world into equal squares.
+    half_world = np.pi * 6378137
+    span = 2 * half_world / 2**z
+    left, top = -half_world + x * span, half_world - y * span
+    size = 256
+    transform = from_bounds(left, top - span, left + span, top, size, size)
+    bounds = json.loads(TILE_MANIFEST.read_text(encoding="utf-8"))["bbox"]
+    with xr.open_zarr(TILE_CUBE) as cube:
+        source = cube[LANDSLIDE_BAND].transpose("y", "x").values.astype(np.float32, copy=False)
+        values = np.full((size, size), np.nan, dtype=np.float32)
+        reproject(
+            source,
+            values,
+            src_transform=from_bounds(*bounds, source.shape[1], source.shape[0]),
+            src_crs="EPSG:4326",
+            src_nodata=np.nan,
+            dst_transform=transform,
+            dst_crs="EPSG:3857",
+            dst_nodata=np.nan,
+        )
+
+    # Color intensity is for display only. Preserve missing pixels in alpha.
+    rgba = np.zeros((4, size, size), dtype=np.uint8)
+    valid = np.isfinite(values)
+    signal = values[valid]
+    intensity = (np.arctan(np.abs(signal)) * (2 / np.pi) * 255).astype(np.uint8)
+    rgba[0, valid] = np.where(signal > 0, intensity, 0)
+    rgba[1, valid] = 80
+    rgba[2, valid] = np.where(signal <= 0, intensity, 0)
+    rgba[3, valid] = 255
+    with MemoryFile() as png:
+        with png.open(driver="PNG", width=size, height=size, count=4, dtype="uint8") as image:
+            image.write(rgba)
+        return Response(png.read(), media_type="image/png")
 
 
 def get_contextual_reference_tiles(bbox: list[float], start_date: str, end_date: str) -> dict:
     """
-    Generates Google Earth Engine XYZ tile URLs for Panel 1 (Sentinel-2 optical, showing cloud
-    cover) and Panel 2 (Sentinel-1 C-band 5.6 cm VV/VH, showing canopy attenuation) to contrast
-    with Panel 3 (NISAR L-band 24 cm).
+    Generate Earth Engine XYZ tile URLs for the Sentinel-2 and Sentinel-1 panels.
     """
+    init_ee()
     aoi = ee.Geometry.Rectangle(bbox)
 
     # Panel 1: Sentinel-2 optical RGB, cloudy scenes kept as served
@@ -73,8 +189,14 @@ async def stream_agent_dag_events(
 ) -> AsyncGenerator[str, None]:
     """Streams real-time LangGraph node completions and GEE tile URLs via SSE."""
     # 1. Immediately stream baseline Optical & C-band reference tiles for the 3-panel slider
-    ref_tiles = await asyncio.to_thread(get_contextual_reference_tiles, bbox, start_date, end_date)
-    yield f"event: reference_layers\ndata: {json.dumps(ref_tiles)}\n\n"
+    if os.environ.get("OFFLINE_DEMO_MODE") != "1":
+        try:
+            ref_tiles = await asyncio.to_thread(
+                get_contextual_reference_tiles, bbox, start_date, end_date
+            )
+            yield f"event: reference_layers\ndata: {json.dumps(ref_tiles)}\n\n"
+        except Exception:
+            yield "event: reference_error\ndata: {}\n\n"
 
     initial_state: MultiHazardGraphState = {
         "region_name": region_name,
@@ -86,9 +208,10 @@ async def stream_agent_dag_events(
         "final_bulletin": None,
     }
 
-    graph, mcp_client = await create_compiled_multi_hazard_graph()
-
     try:
+        from agents.orchestrator import create_compiled_multi_hazard_graph
+
+        graph, _mcp_client = await create_compiled_multi_hazard_graph()
         # 2. Stream each LangGraph node update as it finishes executing
         async for update in graph.astream(initial_state, stream_mode="updates"):
             for node_name, node_payload in update.items():
@@ -97,10 +220,10 @@ async def stream_agent_dag_events(
                     "payload": node_payload,
                 }
                 yield f"event: agent_update\ndata: {json.dumps(event_packet)}\n\n"
-    except Exception as exc:
-        yield f"event: error\ndata: {json.dumps({'detail': str(exc)})}\n\n"
-    finally:
-        yield f"event: complete\ndata: {json.dumps({'status': 'DAG_FINISHED'})}\n\n"
+    except Exception:
+        yield 'event: error\ndata: {"detail":"The hazard scan failed."}\n\n'
+        return
+    yield 'event: complete\ndata: {"status":"DAG_FINISHED"}\n\n'
 
 
 @app.get("/api/stream-hazards")
