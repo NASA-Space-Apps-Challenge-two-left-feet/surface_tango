@@ -271,6 +271,8 @@ def quake_artifact(aoi: str = "eje_cafetero", track: int = 11) -> dict | None:
             "run_prereg_status": prov.get("prereg_status"),
             "run_prereg_sha1": prov.get("prereg_sha1"),
             "baseline_mismatch": prov.get("baseline_mismatch"),
+            "control_K_timing": prov.get("control_K_timing"),
+            "pair_source": prov.get("pair_source"),
             "stream": "PR (provisional)",
         },
         "uncalibrated": [],

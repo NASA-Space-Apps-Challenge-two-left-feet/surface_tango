@@ -495,6 +495,60 @@ def discover_pairs(track: int, aoi: list[float]) -> dict[str, dict]:
     return {"C": c, "R": r, "K": k, "all": granules}
 
 
+def pairs_from_prereg(track: int) -> dict:
+    """R/C/K for a track from the frozen pre-registration (config/
+    preregistered.yaml → quake.pairs) — the operative source since #134/#131.
+    URLs, frame and flight direction are resolved from the gate catalog's
+    granule records; a frozen ID absent from the catalog is an error, never a
+    fallback to the old catalog K."""
+    cfg = load_config()
+    triplets = cfg.prereg("quake.pairs")
+    triplets = list(triplets) if isinstance(triplets, tuple) else [triplets]
+    entry = next(
+        (t for t in triplets if dict(t).get("track") == track),
+        None,
+    )
+    if entry is None:
+        raise RuntimeError(f"no frozen quake.pairs entry for track {track}")
+    catalog = json.loads(GATE_CATALOG_PATH.read_text(encoding="utf-8"))
+    records = {
+        g["scene_name"]: g
+        for g in catalog.get("aois", {}).get(QUAKE_AOI_NAME, {}).get("granules", [])
+    }
+    pairs: dict = {"C": None, "R": None, "K": None}
+    for role, key in (("C", "coevent_C"), ("R", "reference_R"), ("K", "control_K")):
+        granule_id = entry.get(key)
+        if not granule_id:
+            continue
+        rec = records.get(granule_id)
+        if rec is None:
+            raise RuntimeError(
+                f"frozen {key} {granule_id} is absent from the gate catalog records; "
+                "the catalog is evidence, not a substitute source"
+            )
+        ref_date, sec_date = _gunw_pair_dates(granule_id)
+        pairs[role] = {
+            "granule_id": granule_id,
+            "url": rec["url"],
+            "start_time": rec.get("start_time"),
+            "ref_date": ref_date,
+            "sec_date": sec_date,
+            "baseline_days": int(
+                _gunw_pair_dates(granule_id)[1]
+                and (
+                    datetime.strptime(sec_date, "%Y%m%d").date()
+                    - datetime.strptime(ref_date, "%Y%m%d").date()
+                ).days
+            ),
+            "frame": rec.get("frame"),
+            "flight_direction": rec.get("flight_direction"),
+        }
+    pairs["pair_source"] = "config/preregistered.yaml quake.pairs (frozen)"
+    pairs["control_K_timing"] = entry.get("control_K_timing")
+    pairs["baseline_mismatch"] = entry.get("baseline_mismatch")
+    return pairs
+
+
 def pairs_from_catalog(track: int, catalog_path: Path | None = None) -> dict | None:
     """R/C/K for a track from the hour-2 gate catalog — the gate's frozen
     choice (nisar_colombia_granules_2026.json → quake_triplets), with URLs,
@@ -561,32 +615,26 @@ def pairs_from_catalog(track: int, catalog_path: Path | None = None) -> dict | N
 
 
 def resolve_pairs(track: int, aoi: list[float]) -> tuple[dict, str]:
-    """Catalog first, discovery as the fallback, and a cross-check whenever
-    both are available: if a discovered pair differs from the gate catalog the
-    run fails with both IDs printed (a finding, never silently accepted)."""
-    pairs = pairs_from_catalog(track)
-    if pairs is not None:
-        discovered = None
-        try:
-            discovered = discover_pairs(track, aoi)
-        except Exception as exc:  # noqa: BLE001 - verification only; catalog stands
-            print(f"  [WARN] verification ASF discovery failed ({exc}); catalog pairs stand")
-        if discovered is not None:
-            for role in ("C", "R", "K"):
-                cat_id = pairs.get(role, {}).get("granule_id") if pairs.get(role) else None
-                dsc = discovered.get(role)
-                dsc_id = dsc["granule_id"] if dsc else None
-                if cat_id != dsc_id:
-                    raise RuntimeError(
-                        f"discovered {role} pair differs from the gate catalog on track "
-                        f"{track}: catalog={cat_id} discovered={dsc_id} — the gate's frozen "
-                        "choice and the current ASF index disagree; this is a finding"
-                    )
-            print("  verified: ASF discovery returns the same triplet (measured, read-only)")
-        return pairs, "catalog"
-    pairs = discover_pairs(track, aoi)
-    pairs["pair_source"] = "fallback: ASF discovery (no quake_triplets entry in the gate catalog)"
-    return pairs, "discovery-fallback"
+    """Frozen pre-registration first (the operative source since #134/#131),
+    the gate catalog as evidence, discovery as a cross-check for R and C only:
+    the frozen K is a deliberate re-choice (#131) and must not be compared to
+    the discovery rule."""
+    pairs = pairs_from_prereg(track)
+    discovered = None
+    try:
+        discovered = discover_pairs(track, aoi)
+    except Exception as exc:  # noqa: BLE001 - verification only; frozen pairs stand
+        print(f"  [WARN] verification ASF discovery failed ({exc}); frozen pairs stand")
+    if discovered is not None:
+        for role in ("C", "R"):
+            frozen_id = pairs.get(role, {}).get("granule_id")
+            dsc_id = discovered.get(role, {}).get("granule_id") if discovered.get(role) else None
+            if frozen_id != dsc_id:
+                print(
+                    f"  [WARN] discovered {role} pair {dsc_id} differs from the frozen "
+                    f"{frozen_id} — recorded as a finding; the frozen pair stands"
+                )
+    return pairs, "prereg"
 
 
 def _new_gunw_filesystem():
@@ -1237,10 +1285,18 @@ def main(argv: list[str] | None = None) -> int:
             "K(control)",
         )
         passes["K"]["summary"]["excluded_rows_public"] = passes["K"]["excluded_rows"]
-        passes["K"]["summary"]["baseline_mismatch_disclosed"] = (
-            f"control: K {pairs['K']['baseline_days']}d, R {pairs['R']['baseline_days']}d "
-            "(both pre-event, mismatch recorded)"
-        )
+        k_timing = pairs.get("control_K_timing", "pre_event")
+        if k_timing == "post_event":
+            passes["K"]["summary"]["baseline_mismatch_disclosed"] = (
+                f"control: K {pairs['K']['baseline_days']}d, R {pairs['R']['baseline_days']}d "
+                "(post-event control: residual demolition/debris/aftershock change is "
+                "expected; supports radar-vs-baseline only, never radar-beats-baseline)"
+            )
+        else:
+            passes["K"]["summary"]["baseline_mismatch_disclosed"] = (
+                f"control: K {pairs['K']['baseline_days']}d, R {pairs['R']['baseline_days']}d "
+                "(both pre-event, mismatch recorded)"
+            )
 
     print(
         "\nDPM results (computed and stored under local_cache/quake/; interpretation "
@@ -1329,6 +1385,7 @@ def main(argv: list[str] | None = None) -> int:
             if pairs[role]
         },
         "pair_source": pairs.get("pair_source", "ASF discovery"),
+        "control_K_timing": pairs.get("control_K_timing"),
         "pair_selection": pairs_source,
         "k_frame_note": k_frame_note,
         "missing_granules": missing_granules,
