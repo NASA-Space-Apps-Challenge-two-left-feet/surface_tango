@@ -50,3 +50,213 @@ llm:   # orchestrator chain, tried in order; entries without a key in .env are s
     - {provider: nebius, model: deepseek-ai/DeepSeek-V4-Pro-0813}
     - {provider: openrouter, model: moonshotai/kimi-k3.1-pro}        # last resort (limited credits)
     - {provider: openrouter, model: deepseek/deepseek-v4-pro-0813}
+
+# Evidence-state response posture. Not a fatality scale and not a hectare cutoff.
+# Rank is highest action first. A monitor light does not clear an unassessed AOI.
+# Doctrine strings order the response. They do not authorize a quantity.
+# Docs: docs/kb/decision-nrf-priorities.md, decision-community-lifelines.md, decision-not-pager.md.
+decision:
+  lights:
+    deploy_assessment: "Deploy assessment"
+    provisional: "Provisional"
+    not_assessed: "Not assessed"
+    monitor: "Monitor"
+  rank: [deploy_assessment, provisional, not_assessed, monitor]
+  rules:
+    dispatch_alerts: [RED, ORANGE]
+    monitor_outcomes: [no_motion]
+    scorecard_blocks_deploy: [uninformative]
+  actions:
+    no_dispatch:
+      label: "No dispatch"
+      detail: "No supported signal to size or send aid. Keep watching. This is not a safety clearance."
+    preposition_assessment:
+      label: "Preposition assessment"
+      detail: "Send assessment capacity only. Do not size commodity aid, people reached, or dollars from this product."
+    dispatch_life_safety:
+      label: "Dispatch life-safety assessment"
+      detail: "A configured red or orange alert is set on a product that is not marked uncalibrated. Dispatch life-safety assessment. Commodity quantities stay unavailable until exposure is measured."
+  light_action:
+    monitor: no_dispatch
+    not_assessed: preposition_assessment
+    provisional: preposition_assessment
+    deploy_assessment: dispatch_life_safety
+  priority_status:
+    no_dispatch: not_activated
+    preposition_assessment: assessment_only
+    dispatch_life_safety: dispatch_assessment
+  clearance: "A monitor light is not a safety clearance."
+  out_of_scope_reason: "Not the study hazard for this AOI. Absence is not a safety clearance."
+  lifeline_reason: "No service-status observation is on the evidence envelope. Check-first is where an assessment should look. It is not an impact."
+  numbers_policy: "Numbers on this card are copied from evidence envelopes. None are computed here. Missing exposure stays unavailable."
+  unavailable:
+    missing: "No evidence artifact for this hazard."
+    area: "No area with a denominator and a source is on the envelope."
+    social: "The evidence envelope has no population or building exposure."
+    economic: "No loss model or asset inventory is on the envelope. Aid is not sized in currency."
+    quantity: "Aid quantity is unavailable. Do not convert hectares or pixel counts into people or dollars."
+  extent_labels:
+    provisional_open_water: "Provisional open water, not people flooded"
+    change_area: "Change area, not people flooded"
+    open_water_flood: "Class 1 open-water change, uncalibrated proxy"
+    subcanopy_double_bounce_flood: "Class 2 double-bounce change, uncalibrated proxy"
+    analyzed_window: "Analyzed window, not affected area"
+    landslide_area: "Landslide footprint on the envelope, not a loss area"
+  doctrine:
+    source: "https://emilms.fema.gov/is_0703b/groups/89.html"
+    lifelines: "https://www.fema.gov/emergency-managers/practitioners/lifelines"
+    pager: "https://earthquake.usgs.gov/data/pager/background.php"
+    note: "NRF priorities order life safety, property and environment, incident stabilization, and community lifelines. They do not set hectare or loss triggers. This card is not a USGS PAGER alert and it does not assign FEMA lifeline colors."
+  not_a:
+    - "A USGS PAGER fatality or economic-loss alert"
+    - "A FEMA community-lifeline color"
+    - "A safety clearance"
+    - "A commodity, staffing, or dollar aid order"
+  priorities:
+    - id: life_safety
+      label: "Life safety"
+      detail: "Search, rescue, medical access, and immediate threats to the public and responders. Size only after an on-scene assessment."
+    - id: incident_stabilization
+      label: "Incident stabilization"
+      detail: "Keep the incident from spreading. Isolate secondary hazards such as an aftershock, a remobilized slide, or rising water."
+    - id: property_environment
+      label: "Property and the environment"
+      detail: "Record extent before cleanup. Uncalibrated hectares are not a damage or loss estimate."
+    - id: lifelines
+      label: "Basic human needs"
+      detail: "Stabilize community lifelines. Food, water, shelter, and medical care stay unquantified until exposure is measured."
+  lines_of_effort:
+    - id: situational
+      esf: "ESF #5"
+      label: "Information and planning"
+      detail: "This product is a situational assessment. It is not a mission assignment."
+    - id: search_rescue
+      esf: "ESF #9"
+      label: "Search and rescue"
+      detail: "Life-safety line. Quantity stays unavailable until an on-scene assessment."
+    - id: public_health
+      esf: "ESF #8"
+      label: "Public health and medical"
+      detail: "Medical care and public health. Quantity stays unavailable."
+    - id: mass_care
+      esf: "ESF #6"
+      label: "Mass care and shelter"
+      detail: "Shelter and human services. Do not size from open-water hectares."
+    - id: logistics
+      esf: "ESF #7"
+      label: "Logistics"
+      detail: "Movement of supplies. No commodity list is derived here."
+    - id: public_works
+      esf: "ESF #3"
+      label: "Public works and access"
+      detail: "Routes and engineering. A radar extent is not a road-closure order."
+  lifelines:
+    - {id: safety_security, label: "Safety and Security"}
+    - {id: food_hydration_shelter, label: "Food, Hydration, Shelter"}
+    - {id: health_and_medical, label: "Health and Medical"}
+    - {id: energy, label: "Energy"}
+    - {id: communications, label: "Communications"}
+    - {id: transportation, label: "Transportation"}
+    - {id: hazardous_materials, label: "Hazardous Materials"}
+    - {id: water_systems, label: "Water Systems"}
+  check_first:
+    flood: [safety_security, food_hydration_shelter, water_systems, transportation]
+    landslide: [safety_security, transportation, hazardous_materials]
+    earthquake: [safety_security, health_and_medical, transportation, communications]
+  hazard_notes:
+    flood: "Open water is a provisional extent. It is not a count of people flooded. Secondary hazard: rising water and cut-off communities."
+    landslide: "A no-motion verdict is not a clearance. Secondary hazard: rainfall can remobilize a slope. Area stays unavailable until a footprint is on the envelope."
+    earthquake: "An uninformative scorecard is not a damage map. Pixel counts are the analyzed window. Secondary hazards: aftershock and triggered landslides. Do not issue a fatality or loss color."
+  # The four lights are the landslide early-warning product only.
+  # Flood and earthquake use an extent or window, a damage statement, and a help list.
+  product_kind:
+    landslide: landslide_ews
+    flood: flood_extent_response
+    earthquake: quake_window_response
+  product_labels:
+    landslide_ews: "Landslide early-warning light"
+    flood_extent_response: "Flood extent and help"
+    quake_window_response: "Earthquake window and help"
+    mixed: "Three products, not one national light"
+  board_note: "Landslide areas use the early-warning light. Flood areas show open-water extent and a help list. Earthquake areas show the analyzed window and a help list. This board is not one national light."
+  chips:
+    flood_extent: "Open water"
+    flood_unavailable: "Extent unavailable"
+    quake_window: "Analyzed window"
+    not_cached: "Not cached"
+  damage_level:
+    flood: "Damage level is not classified. Open water is an extent. Change area is withheld or uncalibrated, so this product does not name a damage class."
+    earthquake: "No damage class. The scorecard does not support a loss color, and pixel counts are not affected hectares."
+    landslide: "The light is an early-warning state. It is not a mapped damage area."
+  # Typology and counts stay unavailable until a footprint layer and labels are on the envelope.
+  buildings:
+    flood: "No building footprint layer is on the flood envelope. Typology and the number of affected buildings are not assessed."
+    earthquake: "VIDA footprint coverage on the quake cube is a built-up mask, not a typology. No damaged-building labels are on the envelope. Typology and the number of affected buildings are not assessed."
+    landslide: "No building footprint layer is on the landslide envelope. Typology and the number of affected buildings are not assessed."
+    mixed: "Building typology and the number of affected buildings are not assessed on this board."
+  # Agricultural and livestock cover would change the response only with a staged layer and a frozen weight.
+  land_cover:
+    flood: "ESA WorldCover is on the quake cube as a vegetation and water mask. It is not sampled on this flood envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    earthquake: "No land-cover or land-use layer is on the earthquake envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    landslide: "No land-cover or land-use layer is on the landslide envelope. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+    mixed: "Land cover and use are not assessed on this board. Agricultural, livestock, and vacant land are not counted. No economic multiplier is applied."
+  response_packages:
+    flood:
+      - id: water
+        help: "Drinking water and sanitation"
+        look: "Where open water is mapped, check water systems and health. This card does not count people without water."
+      - id: access
+        help: "Access and evacuation"
+        look: "Check roads and communities that may be cut off. No access inventory is on the envelope."
+      - id: shelter
+        help: "Shelter and mass care"
+        look: "Shelter demand stays unavailable until population exposure is on the envelope."
+      - id: search
+        help: "Search and immediate life safety"
+        look: "Do not size search teams from hectares."
+    earthquake:
+      - id: search
+        help: "Search, medical access, and immediate life safety"
+        look: "An uninformative scorecard does not size a search."
+      - id: aftershock
+        help: "Aftershock and triggered landslides"
+        look: "Check slopes and lifelines. No secondary-impact layer is on this envelope."
+      - id: access
+        help: "Access and communications"
+        look: "No road or communications status is on the envelope."
+    landslide:
+      - id: slope
+        help: "Slope watch and access"
+        look: "A monitor light means no motion above the noise floor. Keep watching rainfall. Do not treat it as a stand-down."
+      - id: search
+        help: "Life-safety assessment"
+        look: "Send a life-safety assessment only when a red or orange alert is not marked uncalibrated. Commodity quantities stay unavailable."
+  domains: [flood, landslide, earthquake]
+  aois:
+    mojana:
+      label: "La Mojana / Caregato"
+      hazards: [flood]
+      primary: true
+    aburra:
+      label: "Aburrá Valley"
+      hazards: [landslide]
+      primary: true
+    la_picacha:
+      label: "La Picacha"
+      hazards: [landslide]
+      primary: false
+    eje_cafetero:
+      label: "Eje Cafetero"
+      hazards: [earthquake]
+      primary: true
+      quake_tracks: ["11", "47"]
+    choco_epicenter:
+      label: "Chocó epicenter"
+      hazards: [earthquake]
+      primary: false
+      quake_tracks: ["11", "47"]
+    valle_del_cauca:
+      label: "Valle del Cauca"
+      hazards: [earthquake]
+      primary: false
+      quake_tracks: ["11", "47"]

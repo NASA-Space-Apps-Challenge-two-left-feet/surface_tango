@@ -67,9 +67,10 @@
       frag.appendChild(group);
     }
     list.replaceChildren(frag);
+    window.dispatchEvent(new CustomEvent("bailasar-aois-ready"));
     list.addEventListener("click", (e) => {
       const btn = e.target.closest(".aoi-btn");
-      if (btn) selectAoi(btn.dataset.aoi, { focus: true });
+      if (btn) selectAoi(btn.dataset.aoi);
     });
   }
 
@@ -114,6 +115,7 @@
     opts = opts || {};
     const a = aoisById.get(id);
     if (!a) return;
+    window.__bailasarAoi = { id: id, hazard: a.hazard };
     const crossHazard = a.hazard !== currentHazard;
     currentAoiId = id;
     // Frame the DATA footprint (where NISAR actually covers), not the oversized
@@ -139,6 +141,7 @@
       b.setAttribute("aria-current", on ? "true" : "false");
       if (on && opts.focus) b.focus();
     });
+    window.dispatchEvent(new CustomEvent("bailasar-aoi", { detail: { id: id, hazard: a.hazard } }));
   }
 
   function step(delta) {
@@ -163,6 +166,7 @@
     });
   }
 
+  window.selectAoi = selectAoi;
   function boot() { initAoiNavigator(); wireControls(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

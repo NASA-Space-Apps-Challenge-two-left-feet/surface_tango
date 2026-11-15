@@ -76,7 +76,14 @@ async function loadLandslideVerdictCard() {
 
 // --- Measured La Mojana open-water timeline (flood chapter only) ---
 const floodTimeline = document.getElementById("flood-timeline");
-const floodTimelineState = { series: null, selected: "" };
+const floodTimelineState = { series: null, selected: "", legendText: "" };
+
+function showFloodLegend() {
+  const legend = document.getElementById("flood-legend");
+  if (!legend) return;
+  legend.textContent = floodTimelineState.legendText || "";
+  legend.hidden = !floodTimelineState.legendText;
+}
 
 function floodStatsReadout(date) {
   const entry = floodTimelineState.series?.dates?.find(item => item.date === date);
@@ -104,6 +111,7 @@ function selectFloodDate(date) {
     readout.textContent = `${date} · ${floodStatsReadout(date)} (measured)`;
     readout.hidden = false;
   }
+  showFloodLegend();
   document.querySelectorAll("#flood-timeline button").forEach(button => {
     button.classList.toggle("flood-date-active", button.dataset.date === date);
   });
@@ -124,6 +132,7 @@ async function loadFloodTimeline() {
     if (!series?.dates?.length || !bounds?.bounds) throw new Error("incomplete series");
     floodTimelineState.series = series;
     floodTimelineState.bounds = bounds.bounds;
+    floodTimelineState.legendText = typeof bounds.legend?.text === "string" ? bounds.legend.text : "";
     const rail = floodTimeline.querySelector("div");
     const max = Math.max(...series.dates.map(item => item.n_water));
     floodTimeline.hidden = false;
@@ -152,6 +161,8 @@ function hideFloodTimeline() {
   floodTimeline.hidden = true;
   const readout = document.getElementById("flood-readout");
   if (readout) readout.hidden = true;
+  const legend = document.getElementById("flood-legend");
+  if (legend) legend.hidden = true;
 }
 
 function hideVerdictCard() {
@@ -319,6 +330,7 @@ function openLiveView() {
   activeStory = "";
   chapterSelect.value = "";
   storyResult.hidden = true;
+  window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: "" } }));
   hideFloodTimeline();
   hideVerdictCard();
   physicsInspector.style.display = "";
@@ -339,6 +351,7 @@ async function openStoryChapter(chapter) {
   const request = new AbortController();
   storyRequest = request;
   activeStory = chapter;
+  window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: chapter } }));
   playFeetTransition(chapter);
   ++currentInspection;
   physicsInspector.style.display = "none";

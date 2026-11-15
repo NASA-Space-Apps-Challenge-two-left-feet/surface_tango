@@ -8,6 +8,8 @@
 | `tests/test_fetch_cache.py` | tiny literal bytes, in-memory HTTP responses and temporary staged releases | offline transport, packaging and rollback logic only; never reach the app or distributed cache |
 | `tests/test_cut_fixtures.py` | tiny literal arrays in temporary Zarr stores; sentinel-to-NaN and unchanged-value expectations, test-only source and Git labels | known-answer serialization and evidence checks confined to `tmp_path`; never use the real cache or produce observations |
 | `tests/test_pipeline_flood.py` | real La Mojana fixture arrays and validity masks only; no generated input arrays or expected measured counts | invariant checks on recorded observations; thresholds come from the frozen configuration and missing inputs skip |
+| `tests/test_decision.py` | hand-written envelopes: `value_ha` 10.0, `pixel_count` 1000, `valid_pixel_count` 1000, `pixel_area_m2` 100.0, quake windows 100 and 250 and 1000 valid pixels, a retained rate 80, a population value 10 | known-answer posture tests; the numbers are not observations and never enter the cache, a report, or the video |
+| `tests/test_flood_display.py` | one hand-written 5 by 5 mask and HAND grid. Scale 10. Low HAND 1 maps to RGB (26, 64, 133) alpha 140. High HAND 9 maps to (168, 203, 235) alpha 140. Border RGB (4, 30, 90) alpha 235. Missing HAND RGB (37, 99, 168) alpha 170. A false cell stays alpha 0 | known-answer display arithmetic for the open-water overlay. Not a depth survey and never a cache write |
 
 ## Issue #18: known-answer scoring fixtures
 

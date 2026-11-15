@@ -15,12 +15,16 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.transform import from_bounds
 from rasterio.warp import reproject
 
 from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
+from mcp_servers.decision import DecisionConfigError, product_for_aoi, roster
+from mcp_servers.flood_display import display_legend, paint_open_water
+from src.bailasar.config import get_config
 from video.report_facts import ReportFactError, load_pitch_facts
 
 app = FastAPI(title="Dancing with the SARs - NISAR Multi-Agent SSE API")
@@ -314,6 +318,27 @@ def bulletin():
     }
 
 
+@app.get("/api/decision")
+def decision_board():
+    """Evidence-state response postures for every configured AOI. No new numbers."""
+    try:
+        return roster(cache_root=CACHE_ROOT)
+    except DecisionConfigError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
+@app.get("/api/decision/{aoi}")
+def decision_aoi(aoi: str):
+    """One AOI's posture, copied from its own hazard envelopes."""
+    try:
+        product = product_for_aoi(aoi, cache_root=CACHE_ROOT)
+    except DecisionConfigError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    if product is None:
+        raise HTTPException(404, "Unknown AOI")
+    return product
+
+
 FLOOD_EVIDENCE = CACHE_ROOT / "mojana" / "flood_evidence.json"
 
 
@@ -359,20 +384,65 @@ def flood_series():
     return series
 
 
-@app.get("/api/flood-mask/{date}.png")
-def flood_mask(date: str):
-    """Render one date's measured water mask as an RGBA image overlay."""
+def _water_mask_path(date: str) -> Path:
     if not re.fullmatch(r"2026-\d{2}-\d{2}", date):
         raise HTTPException(404, "Invalid date")
     path = CACHE_ROOT / "mojana" / f"water_extent_{date}.tif"
     if not path.is_file():
         raise HTTPException(404, f"No water mask for {date}")
+    return path
+
+
+def _hand_on_water_grid(water_src) -> np.ndarray | None:
+    """Nearest-neighbor HAND on the water grid. Missing samples stay NaN.
+
+    The cache stores HAND on its own geographic grid. This display warp does
+    not fill gaps and does not treat height above drainage as water depth.
+    """
+    hand_path = CACHE_ROOT / "mojana" / "cogs" / "mojana_hand_m.tif"
+    if not hand_path.is_file():
+        return None
+    dest = np.full((water_src.height, water_src.width), np.nan, dtype=np.float32)
+    with rasterio.open(hand_path) as hand:
+        source = hand.read(1).astype(np.float32, copy=False)
+        nodata = hand.nodata
+        if nodata is not None and np.isfinite(nodata):
+            source = np.where(source == nodata, np.nan, source)
+        reproject(
+            source,
+            dest,
+            src_transform=hand.transform,
+            src_crs=hand.crs,
+            src_nodata=np.nan,
+            dst_transform=water_src.transform,
+            dst_crs=water_src.crs,
+            dst_nodata=np.nan,
+            resampling=Resampling.nearest,
+        )
+    return dest
+
+
+def _flood_legend() -> dict:
+    hand_path = CACHE_ROOT / "mojana" / "cogs" / "mojana_hand_m.tif"
+    return display_legend(
+        hand_cached=hand_path.is_file(),
+        hand_max_m=get_config().prereg("flood.hand_max_m"),
+    )
+
+
+@app.get("/api/flood-mask/{date}.png")
+def flood_mask(date: str):
+    """Render one date's measured water mask as a translucent blue overlay.
+
+    The edge is the mask. Interior color is MERIT HAND on wet pixels, not a
+    surveyed inundation depth. Every mask value of 1 stays visible.
+    """
+    path = _water_mask_path(date)
     with rasterio.open(path) as src:
         grid = src.read(1)
-    water = grid == 1
-    height, width = grid.shape
-    rgba = np.zeros((height, width, 4), dtype=np.uint8)
-    rgba[water] = [53, 196, 181, 200]
+        hand = _hand_on_water_grid(src)
+        height, width = src.height, src.width
+    rgba = paint_open_water(grid == 1, hand, get_config().prereg("flood.hand_max_m"))
     png = MemoryFile()
     with rasterio.open(
         png,
@@ -389,17 +459,13 @@ def flood_mask(date: str):
 
 @app.get("/api/flood-mask")
 def flood_mask_bounds(date: str = Query(...)):
-    """Bounds and pixel posting for one date's mask, for the image overlay."""
-    if not re.fullmatch(r"2026-\d{2}-\d{2}", date):
-        raise HTTPException(404, "Invalid date")
-    path = CACHE_ROOT / "mojana" / f"water_extent_{date}.tif"
-    if not path.is_file():
-        raise HTTPException(404, f"No water mask for {date}")
+    """Bounds and the legend for one date's mask. The legend text is copied as-is."""
+    path = _water_mask_path(date)
     with rasterio.open(path) as src:
         west, south, east, north = rasterio.warp.transform_bounds(
             src.crs, "EPSG:4326", *src.bounds, densify_pts=21
         )
-    return {"date": date, "bounds": [west, south, east, north]}
+    return {"date": date, "bounds": [west, south, east, north], "legend": _flood_legend()}
 
 
 LANDSLIDE_EVIDENCE = CACHE_ROOT / "aburra" / "landslide_evidence.json"
