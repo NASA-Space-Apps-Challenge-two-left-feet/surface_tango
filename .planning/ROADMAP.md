@@ -37,7 +37,7 @@ Plans:
 - [ ] 01-01: Merge baseline, `make setup`, `uv lock`, `.secrets.baseline`, hour-0 credential checks — **LEONOB2014** — `pyproject.toml`, `uv.lock`, `.secrets.baseline`, `scripts/check_credentials.py`
 - [ ] 01-02: Config loader for preregistered/operational YAML; remove hardcoded thresholds and AOIs — **Jack4Codes** — `config/`, `src/bailasar/config.py`, `tests/test_config.py`
 - [ ] 01-03: Known-answer tests and pure functions for ranking, precision@k, Wilson, block bootstrap, beats rule, informative gate — **Maru816** — `validation/scoring.py`, `validation/ALLOWLIST.md`, `tests/test_scoring.py`
-- [ ] 01-04: Wire landslide and flood modules to the config; logic tests for the flood no-baseline rule and the noise-floor rule — **EstebanOchoaedos** — `gee_math/landslide_insar_math.py`, `gee_math/flood_polarimetric_math.py`, `tests/test_flood.py`, `tests/test_landslide.py`
+- [x] ~~01-04: Wire landslide and flood modules to the config~~ — superseded by 03-04/03-05 agent branches (#19 closed) — **EstebanOchoaedos** — `gee_math/landslide_insar_math.py`, `gee_math/flood_polarimetric_math.py`, `tests/test_flood.py`, `tests/test_landslide.py`
 - [ ] 01-05: SSE transport on both servers; cache_guard provenance, the "not cached" error and per-tool budgets from config — **alicealanapineda-byte** — `mcp_servers/`, `tests/test_cache_guard.py`
 - [ ] 01-06: Bulletin allow-list, the placeholder schema and the `event_facts.json` structure — **alicealanapineda-byte** — `agents/bulletin.py`, `validation/event_facts.json`, `tests/test_bulletin.py`
 - [ ] 01-07: Apply the tile-server patch to `app.py`; five panel states in the UI; remove the biomass node from the UI graph — **SaritaRpo** — `app.py`, `static/`
@@ -127,7 +127,7 @@ Cloud rule: GEE processing and GCP buckets/VMs are worked only by LEONOB2014, Ja
 |---|---|---|---|---|---|---|
 | LEONOB2014 (orchestrator, data gate, hazard modeling) | 01-01 | 02-01 | 03-01, 03-02, 03-04, 03-05 | — | 05-04 | 7 |
 | Jack4Codes (config, pre-registration, cloud tools) | 01-02 | 02-03, 02-04, 02-06 | 03-06 | — | — | 5 (+ GCP setup #48) |
-| EstebanOchoaedos (module prep, KB, cloud cache checks, README) | 01-04 | 02-05 | — | 04-01, 04-05 | 05-03 | 5 |
+| EstebanOchoaedos (KB, cloud cache checks, README) | — | 02-05 | — | 04-01, 04-05 | 05-03 | 4 |
 | Maru816 (scoring, ground truth, VO) | 01-03 | 02-02 | 03-03 | 04-03 | 05-02 | 5 |
 | alicealanapineda-byte (MCP offline, agents, bulletin, schedule) | 01-05, 01-06 | 02-07 | 03-07 | — | — | 4 |
 | SaritaRpo (UI, video) | 01-07 | — | 03-08 | 04-02 | 05-01 | 4 |

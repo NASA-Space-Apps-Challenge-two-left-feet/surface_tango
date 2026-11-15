@@ -38,6 +38,8 @@ Decisions are logged in the PROJECT.md Key Decisions table (D1–D17 of the desi
 
 - Owner: record the submission deadline D (plan 02-07)
 - Agents in flight (branches feat/data-*; handoffs in briefs/feat/; orchestrator reviews before merge): quake DPM #31 (opencode GLM-5.3), Aburrá InSAR #33 (grok), La Mojana flood #34 (grok2), cache builder #30 (antigravity), Sentinel tiles #30 (unassigned)
+- Execution order: pinned issue #60 (label `now`). #19 superseded by the agent branches.
+- Fixed on main: gee_fusion MCP server rebuilt (#59), baseline lint cleared, formatter owns line length
 - Math-lab dropped from scope (experimental learning artifact, not deployment): #41, #55, #56 closed as not planned
 
 ### Blockers/Concerns
