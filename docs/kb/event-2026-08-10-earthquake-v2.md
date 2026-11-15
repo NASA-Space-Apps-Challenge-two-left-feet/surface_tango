@@ -10,6 +10,6 @@ supersedes: null
 ---
 
 The USGS event GeoJSON identifies event us6000tjl2, magnitude 7.4 (type mww) and the location quoted above. These are agency estimates, not BailaSAR measurements. This note verifies only the event ID, magnitude and location.
-Depth: 116.13 km, from the preferred origin product (`products.origin[0]`, source us) of https://earthquake.usgs.gov/fdsnws/event/1/query?eventid=us6000tjl2&format=geojson; the event page Origin tab (https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2) shows 116.1 km, read by EstebanOchoaedos on 2026-11-15. The depth note, with its quote, is [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md). The SGC manual bulletin gives 105 km ([event-2026-08-10-earthquake-sgc](event-2026-08-10-earthquake-sgc.md)). The 96 km figure used earlier had no source, matches neither agency and is not shown.
+Depth is unresolved. The 116.13 km in the response is the depth attached to the DYFI (felt reports) product, not the preferred origin, and the embedded products disagree, so it does not refute the 96 km in [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md). Read the preferred-origin depth on https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2 (it needs JavaScript) and the SGC summary https://www.sgc.gov.co/detalleevento/SGC2026pqqmro/resumen (HTTP 403 on 2026-11-14) before any depth is shown.
 
 Quote retrieved by Codex from the primary page on 2026-11-14; to be spot-checked by EstebanOchoaedos before merge.

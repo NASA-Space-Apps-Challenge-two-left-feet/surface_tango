@@ -39,7 +39,7 @@
   },
   "_pending_verification": {
     "quake_2026_08_10": {
-      "depth_km": "Both agency depths are verified in docs/kb (USGS preferred origin 116.13 km, used by BailaSAR; SGC manual bulletin 105 km). Promotion to a displayable field is pending the agents lane (tests/test_event_facts.py and a rounding rule)."
+      "depth_km": "Both agency depth estimates are verified in docs/kb (USGS preferred origin 116.13 km; SGC manual bulletin 105 km). BailaSAR will use the USGS value once the agents lane sets depth_km (tests/test_event_facts.py and a rounding rule); it is not displayed yet."
     }
   },
   "quake_2026_08_10": {

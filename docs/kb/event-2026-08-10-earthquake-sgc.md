@@ -10,4 +10,4 @@ supersedes: null
 ---
 
 The Servicio Geológico Colombiano (SGC) updated bulletin for event SGC2026pqqmro (agency SGC, status Manual) gives origin 2026-08-10 12:34:27 UTC, location 4.99°, -76.29°, depth 105 km and magnitude 7.4 (125 stations, RMS 1.3 s, gap 79°). EstebanOchoaedos read it on the page on 2026-11-15; the page returned HTTP 403 to automated fetches on 2026-11-14. These are agency estimates, not BailaSAR measurements.
-BailaSAR shows the USGS preferred-origin depth (116 km, [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md)); this SGC value is recorded for comparison. The two agencies use different station networks and velocity models, so their depths differ.
+BailaSAR will use the USGS preferred-origin estimate (116.13 km, [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md)) once the agents lane sets `depth_km` in `validation/event_facts.json`; no depth is displayed yet. This SGC value is recorded for comparison. The two agencies use different station networks and velocity models, so their depths differ.

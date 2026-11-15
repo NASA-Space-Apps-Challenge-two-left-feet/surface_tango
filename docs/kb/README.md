@@ -16,10 +16,10 @@ One short note per fact or method the code, the UI or the pitch relies on. Rules
 | [nisar-gunw-layers](nisar-gunw-layers.md) | verified |
 | [nisar-polarization-colombia](nisar-polarization-colombia.md) | unverified |
 | [nisar-sband-colombia](nisar-sband-colombia.md) | unverified |
-| [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md) | verified (USGS preferred-origin depth 116.13 km) |
+| [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md) | verified (USGS preferred-origin depth estimate 116.13 km; supersedes the depth claim of event-usgs-verified-display-fields) |
 | [event-2026-08-10-earthquake-sgc](event-2026-08-10-earthquake-sgc.md) | verified (SGC manual bulletin depth 105 km) |
 | [event-2026-08-10-earthquake-v2](event-2026-08-10-earthquake-v2.md) | superseded |
 | [event-2025-06-24-granizal](event-2025-06-24-granizal.md) | verified |
 | [method-coherence-decorrelation](method-coherence-decorrelation.md) | unverified |
 
-- [USGS verified display fields](event-usgs-verified-display-fields.md): supported event fields and explicitly withheld depth; supersedes the earlier earthquake event note.
+- [USGS verified display fields](event-usgs-verified-display-fields.md): supported event fields and explicitly withheld depth; supersedes the earlier earthquake event note. Its depth claim ("reconciliation remains pending") is superseded by [event-2026-08-10-earthquake](event-2026-08-10-earthquake.md); its other fields stand.
