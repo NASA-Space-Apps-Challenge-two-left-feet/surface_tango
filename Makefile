@@ -23,7 +23,7 @@ sync: ## Bring your branch up to date: rebase onto origin/main (fast-forward on 
 
 worktree: ## New worktree from the latest origin/main: make worktree BRANCH=feat/quake-dpm
 	@test -n "$(BRANCH)" || (echo "BRANCH is required, e.g. make worktree BRANCH=feat/quake-dpm" && exit 1)
-	scripts/new_worktree.sh "$(BRANCH)"
+	python3 scripts/new_worktree.py "$(BRANCH)"
 
 check: ## Every pre-commit hook on every file (identical to CI)
 	uv run pre-commit run --all-files
@@ -51,7 +51,7 @@ prewarm: ## Force rebuild of the Antioquia Zarr v3 Data Cube and local COGs
 	$(COMPOSE) run --rm cache-warmer python scripts/prewarm_antioquia_cache.py
 
 fetch-cache: ## Fetch and verify public cache assets (BAILASAR_REPO and BAILASAR_RELEASE_TAG required)
-	bash scripts/fetch_cache.sh $(CACHE_FETCH_ARGS)
+	uv run python scripts/fetch_cache.py $(CACHE_FETCH_ARGS)
 
 stage-cache: ## Stage cache assets locally (CACHE_RELEASE_ARGS must include --source-commit)
 	uv run python scripts/cache_release.py stage $(CACHE_RELEASE_ARGS)

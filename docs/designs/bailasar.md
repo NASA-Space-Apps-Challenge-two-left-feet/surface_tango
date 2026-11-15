@@ -120,7 +120,7 @@ surface_tango/
 ├── scripts/
 │   ├── discover_nisar_colombia.py            # CHANGE: add Eje Cafetero AOI; RUN IT (hour-2 gate)
 │   ├── prewarm_antioquia_cache.py            # CHANGE: DELETE the radar synthesizer; real granules only
-│   ├── watch_zarr_telemetry.py, tmux_mission_control.sh   # keep (cheap, demo-day visibility)
+│   ├── watch_zarr_telemetry.py, tmux_mission_control.py   # keep (cheap, demo-day visibility)
 ├── web/ (MapLibre + Deck.gl + story map + /math-lab)
 ├── config/bailasar.yaml                      # NEW (eng review R4): AOIs, thresholds, k, weights, pair IDs, breaker budgets
 └── validation/                               # NEW: README.md (pre-registration), scoring.py, ALLOWLIST.md, event_facts.json, scorecards

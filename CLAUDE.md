@@ -8,3 +8,4 @@
 - One task at a time in your own worktree. Never `git switch` the main checkout.
 - Run `make sync` at the start of a session and before every commit and push; if the `up-to-date-with-main` hook blocks a commit, run `make sync`, re-run the tests, then commit.
 - When a task lands, update the README in the same PR (the "README kept current" rule in AGENTS.md): setup/run steps, the Status table row, a link to the measured report. As orchestrator, send back PRs that skip it, and do a README pass after each batch of merges.
+- Write all code in Python (rule "Language: Python everywhere except the browser" in AGENTS.md). Earth Engine goes only through the Python API via `gee_math/ee_session.init_ee()`; JavaScript only for browser rendering in `static/`.
