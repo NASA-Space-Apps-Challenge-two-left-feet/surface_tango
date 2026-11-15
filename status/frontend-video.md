@@ -2,6 +2,15 @@
 
 ## feat/regional-cube-explorer
 
+- Added `make cube` with an explicit socket-permission/port diagnostic and
+  `make cube-check` to verify every packaged layer without starting a server.
+- Full local evaluation is recorded in `reports/regional-cube-local.json`;
+  source pixel equality and preview responses passed for all packaged layers.
+- Integration decision and VM acceptance checklist:
+  `docs/deploy/regional-cube-integration.md`. Recommendation is conditional on
+  VM and browser acceptance. Local Docker access and VM HTTP probing were
+  unavailable in this execution environment; no deployment was performed.
+
 - Added `/cube` and `/api/cube` for a native-grid regional Zarr explorer.
 - Offline packaging reads extracted GeoTIFFs and records source references,
   CRS, grid, valid-pixel denominators and related evidence artifacts. Missing or

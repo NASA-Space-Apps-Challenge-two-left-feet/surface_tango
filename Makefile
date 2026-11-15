@@ -7,6 +7,12 @@ COMPOSE := docker compose
 help: ## Show available Space Apps Medellín operational commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
+cube: ## Launch regional cube explorer (run in a terminal with socket permissions)
+	uv run python scripts/serve_cube.py
+
+cube-check: ## Verify every packaged cube and preview without opening a network port
+	uv run python scripts/check_regional_cube.py --output reports/regional-cube-local.json
+
 # ==============================================================================
 # Development (AGENTS.md: trunk-based, one worktree per branch, local CI gate)
 # ==============================================================================

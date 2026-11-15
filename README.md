@@ -17,6 +17,12 @@ The command refuses to overwrite a store. This initial explorer does not yet
 provide time-stack alignment, multiscale pyramids, arbitrary region extraction,
 or cloud object-store hosting.
 
+Run `make cube` locally, or `make cube-check` for a complete pixel-equality and
+preview check without a listening server. The agent sandbox may prohibit binding
+local ports; the launcher reports that failure explicitly. Cloud integration
+readiness and the deployment checklist are in
+[the cube integration review](docs/deploy/regional-cube-integration.md).
+
 **Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
 Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
 NISAR L-band data, with a ranked first-aid answer and no number without a source?**
