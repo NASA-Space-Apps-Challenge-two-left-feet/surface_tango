@@ -38,3 +38,14 @@ Write `BLOCKED: <reason>` and stop.
 
 ## Report (append when done)
 Band counts + hand_m finite ratios per AOI, the evidence-artifact tool checks, the staged release sizes/sha256, and the measured numbers the tools now serve.
+
+---
+
+**Report — 2026-11-15 UTC (opencode Kimi-K3).** Full measured detail in `reports/cache_release_v2.md`; commit `9508d1e` on this branch.
+
+- **`hand_m` per AOI** *(measured, `uv run python scripts/build_cache.py --aoi <aoi> --only-band hand_m`; MERIT/Hydro/v1_0_1 `hnd`, each AOI's own 512×512 grid)*: aburra 17 bands, 262144/262144 finite (ratio 1.0, range 0.0–1214.2 m); eje_cafetero 16 bands, 262144/262144 (1.0, 0.0–1204.3 m); mojana 17 bands, 262144/262144 (1.0, 0.0–716.0 m, already present from #137 → skipped unchanged). The builder change generalizes `append_merit_hand_band` to every AOI cube and skips a cube that already carries `hand_m` instead of raising.
+- **Evidence artifacts** *(measured, the four `write_hazard_evidence.py` commands)*: landslide `no_motion`; flood display 2026-06-17 water 5539/197758 px, baseline accepted; quake t11 316399/10353357 px units 32/28/4 and t47 316398/10353357 px units 32/28/4, both carry `coherence_statistics` (pre-registration frozen).
+- **Tool checks** *(measured, in-memory `fastmcp.Client(mcp)` calls, zero drift; script was a scratch file, not committed)*: `analyze_flood_inundation` live — 5539/197758 valid px, 4486.59 ha, matches `reports/mojana.md`; `analyze_landslide_kinematics` gate result — `no_motion`, 9.105440970850369 mm, 17 pairs (#109); `analyze_earthquake_dpm` t11/t47 live — counts as above, `coherence_statistics` **present** post-freeze.
+- **Staged release** `dist/cache-release/` *(measured; NOT published, no GCS writes)*: single part `cache.tar.gz.part-000000`, 137264762 bytes, sha256 `ba24939ce6faec8019a0e0ec0ba3c62cf1131ebf9676e4a1ac5716f028614667`; `cache_manifest.json` 392705 bytes, sha256 `9f5266474b4b33316a6f2f5b8bb6ea71b5bb81bbdc3ff04d573b5a493943a9f8`; `source_commit` `9508d1ef5a75538ed8efc4bf3844e70fac190367`, built 2026-11-15T08:52:58Z. `cache stage: verified`; `cache verify: verified`. 1740 files (aburra 312, eje_cafetero 710, mojana 718): all four `*_evidence.json`, the three cubes with `hand_m`, the unsealed `coherence_C`/`coherence_coseismic` bands, COGs, tiles, manifests; zero `quake/` files. All entries `missing: true` provenance (no sidecars/zarr provenance in this layout — explicitly unknown, never fabricated; band provenance ships in the AOI manifests). The pre-staged copy `dist/staged-aois/` was left beside it (both git-ignored).
+- **`make sync` / `make ci`**: sync clean before the commit; `make ci` green at baseline and after the builder change (422 passed, 7 deselected; `tests/test_cache_builder.py` 15 passed).
+- Nothing pushed, no branches switched, no resets/stashes, no `gh`, no release publishing, no GCS writes.
