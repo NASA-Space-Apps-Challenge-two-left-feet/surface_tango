@@ -102,7 +102,7 @@ tools and public data, never from a language model.
 ## Links
 
 - Repository: https://github.com/NASA-Space-Apps-Challenge-two-left-feet/surface_tango
-- Live demo (Google Cloud): `{paste the verified gcloud URL}`
+- Live demo (Google Cloud): http://136.119.19.137:8000
 - 30-second video: `{paste the uploaded video URL}`
 
 ## Team
