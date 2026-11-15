@@ -9,9 +9,9 @@ from agents.run_plan import TOOL_ARGUMENTS
 
 
 def valid_arguments(name):
-    required, _ = TOOL_ARGUMENTS[name]
+    required, _, _ = TOOL_ARGUMENTS[name]
     return {
-        key: []
+        key: [-75.70, 6.12, -75.42, 6.45]
         if key == "bbox"
         else "2026-11-14"
         if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
@@ -33,15 +33,24 @@ class ContractTools(MissingTools):
     async def call(self, server, name, arguments):
         self.calls.append(name)
         # Non-numeric transport marker only, never a hazard measurement.
+        if server == "nisar_asf":
+            return {"state": "cached", "data": [{"https_url": "transport-check"}]}
         return {"state": "cached", "data": {"contract": "transport-check"}}
 
 
 def requests():
     return {
+        "bbox": [-75.70, 6.12, -75.42, 6.45],
+        "start_date": "2026-11-14",
+        "end_date": "2026-11-15",
         "ingestion_requests": [
             {
                 "tool": "search_nisar_granules",
-                "arguments": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+                "arguments": {
+                    "bbox": [-75.70, 6.12, -75.42, 6.45],
+                    "start_date": "2026-11-14",
+                    "end_date": "2026-11-15",
+                },
             }
         ],
         "tool_requests": {domain: valid_arguments(tool) for domain, tool in DOMAIN_TOOLS.items()},

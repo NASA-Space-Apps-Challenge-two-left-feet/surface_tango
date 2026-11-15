@@ -10,9 +10,9 @@ from agents.run_plan import TOOL_ARGUMENTS
 
 
 def valid_arguments(name):
-    required, _ = TOOL_ARGUMENTS[name]
+    required, _, _ = TOOL_ARGUMENTS[name]
     return {
-        key: []
+        key: [-75.70, 6.12, -75.42, 6.45]
         if key == "bbox"
         else "2026-11-14"
         if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
@@ -180,20 +180,30 @@ def test_unconfigured_explicit_model_has_no_tool_effects(tmp_path, monkeypatch):
     assert result["final_bulletin"]["state"] == "error"
 
 
-def test_invalid_later_staged_reference_prevents_earlier_tool_effect(tmp_path):
-    required, _ = TOOL_ARGUMENTS["search_nisar_granules"]
-    first_arguments = {key: [] if key == "bbox" else "2026-11-14" for key in required}
+@pytest.mark.parametrize("defect", ["unknown_id", "unknown_path", "wrong_type"])
+def test_invalid_later_request_prevents_earlier_tool_effect(tmp_path, defect):
+    required, _, _ = TOOL_ARGUMENTS["search_nisar_granules"]
+    first_arguments = {
+        key: [-75.70, 6.12, -75.42, 6.45] if key == "bbox" else "2026-11-14" for key in required
+    }
     document = {
-        "context": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+        "context": {
+            "bbox": [-75.70, 6.12, -75.42, 6.45],
+            "start_date": "2026-11-14",
+            "end_date": "2026-11-15",
+        },
         "ingestion_requests": [
             {"id": "first", "tool": "search_nisar_granules", "arguments": first_arguments},
             {
                 "id": "second",
                 "tool": "stage_nisar_gunw_ionosphere_corrected_to_gcs",
                 "arguments": {
-                    "https_url": {"from_staged": "unknown", "path": ["data", "https_url"]},
+                    "https_url": {
+                        "from_staged": "unknown" if defect == "unknown_id" else "first",
+                        "path": [0, "unknown_field"] if defect == "unknown_path" else ["https_url"],
+                    },
                     "scene_name": "scene-from-owner",
-                    "bbox": {"from_context": "bbox"},
+                    "bbox": "bad" if defect == "wrong_type" else {"from_context": "bbox"},
                 },
             },
         ],

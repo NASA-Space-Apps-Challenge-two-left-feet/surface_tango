@@ -12,12 +12,12 @@ from agents.run_plan import TOOL_ARGUMENTS, load_run_plan, resolve_arguments
 
 
 def valid_arguments(name, *, references=False):
-    required, _ = TOOL_ARGUMENTS[name]
+    required, _, _ = TOOL_ARGUMENTS[name]
     return {
         key: (
-            {"from_staged": "reference", "path": ["contract"]}
+            {"from_staged": "reference", "path": [0, "https_url"]}
             if references and key != "bbox"
-            else []
+            else [-75.70, 6.12, -75.42, 6.45]
             if key == "bbox"
             else "2026-11-14"
             if key.endswith("_date") or key.endswith("_start") or key.endswith("_end")
@@ -29,12 +29,20 @@ def valid_arguments(name, *, references=False):
 
 def plan():
     return {
-        "context": {"bbox": [], "start_date": "", "end_date": ""},
+        "context": {
+            "bbox": [-75.70, 6.12, -75.42, 6.45],
+            "start_date": "2026-11-14",
+            "end_date": "2026-11-15",
+        },
         "ingestion_requests": [
             {
                 "id": "reference",
                 "tool": "search_nisar_granules",
-                "arguments": {"bbox": [], "start_date": "2026-11-14", "end_date": "2026-11-15"},
+                "arguments": {
+                    "bbox": [-75.70, 6.12, -75.42, 6.45],
+                    "start_date": "2026-11-14",
+                    "end_date": "2026-11-15",
+                },
             }
         ],
         "tool_requests": {
@@ -54,10 +62,13 @@ class Tools:
         self.calls.append((server, arguments))
         if server == "gee_fusion":
             assert all(
-                value == [] if key == "bbox" else value == "transport-check"
+                value == [-75.70, 6.12, -75.42, 6.45]
+                if key == "bbox"
+                else value == "transport-check"
                 for key, value in arguments.items()
             )
-        return {"state": "cached", "data": {"contract": "transport-check"}}
+            return {"state": "cached", "data": {"contract": "transport-check"}}
+        return {"state": "cached", "data": [{"https_url": "transport-check"}]}
 
 
 def test_plan_supplies_requests_and_resolves_staged_arguments(tmp_path, monkeypatch):
@@ -81,7 +92,8 @@ def test_plan_supplies_requests_and_resolves_staged_arguments(tmp_path, monkeypa
     )
     assert result["final_bulletin"]["state"] == "cached"
     assert (
-        result["staged_nisar_assets"]["data"]["reference"]["data"]["contract"] == "transport-check"
+        result["staged_nisar_assets"]["data"]["reference"]["data"][0]["https_url"]
+        == "transport-check"
     )
 
 

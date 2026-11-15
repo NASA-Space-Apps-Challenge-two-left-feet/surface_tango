@@ -1,6 +1,7 @@
 """Load an explicit real-input run plan; never select or invent scene values."""
 
 import json
+import math
 from pathlib import Path
 
 from agents.bulletin import BulletinContractError, Placeholder
@@ -20,23 +21,46 @@ INGESTION_TOOLS = {
     "stage_nisar_gunw_ionosphere_corrected_to_gcs",
 }
 TOOL_ARGUMENTS = {
-    "get_earthquake_pair_set": ({}, set()),
-    "search_nisar_granules": ({"bbox", "start_date", "end_date"}, {"product_level"}),
+    "get_earthquake_pair_set": ({}, set(), {}),
+    "search_nisar_granules": (
+        {"bbox", "start_date", "end_date"},
+        {"product_level"},
+        {"bbox": "bbox", "start_date": str, "end_date": str, "product_level": str},
+    ),
     "stage_nisar_gcov_to_gcs": (
         {"https_url", "scene_name", "bbox"},
         {"polarizations"},
+        {"https_url": str, "scene_name": str, "bbox": "bbox", "polarizations": "strings"},
     ),
     "stage_nisar_gunw_ionosphere_corrected_to_gcs": (
         {"https_url", "scene_name", "bbox"},
         set(),
+        {"https_url": str, "scene_name": str, "bbox": "bbox"},
     ),
     "analyze_landslide_kinematics": (
         {"gunw_unw_gcs", "gunw_iono_gcs", "gunw_coh_gcs", "gunw_conncomp_gcs", "bbox"},
         {"rain_start_date", "rain_end_date", "temporal_baseline_days"},
+        {
+            "gunw_unw_gcs": str,
+            "gunw_iono_gcs": str,
+            "gunw_coh_gcs": str,
+            "gunw_conncomp_gcs": str,
+            "bbox": "bbox",
+            "rain_start_date": str,
+            "rain_end_date": str,
+            "temporal_baseline_days": "number",
+        },
     ),
     "analyze_earthquake_dpm": (
         {"coh_pre_gcs", "coh_coseismic_gcs", "goff_range_gcs", "goff_azimuth_gcs", "bbox"},
         set(),
+        {
+            "coh_pre_gcs": str,
+            "coh_coseismic_gcs": str,
+            "goff_range_gcs": str,
+            "goff_azimuth_gcs": str,
+            "bbox": "bbox",
+        },
     ),
     "analyze_flood_inundation": (
         {
@@ -47,10 +71,22 @@ TOOL_ARGUMENTS = {
             "bbox",
         },
         {"s1_post_start", "s1_post_end"},
+        {
+            "gcov_hhhh_pre_gcs": str,
+            "gcov_hvhv_pre_gcs": str,
+            "gcov_hhhh_post_gcs": str,
+            "gcov_hvhv_post_gcs": str,
+            "bbox": "bbox",
+            "s1_post_start": str,
+            "s1_post_end": str,
+        },
     ),
-    "rank_first_aid_barrios": ({"dataset_id"}, set()),
-    "score_against_baseline": ({"dataset_id"}, set()),
+    "rank_first_aid_barrios": ({"dataset_id"}, set(), {"dataset_id": str}),
+    "score_against_baseline": ({"dataset_id"}, set(), {"dataset_id": str}),
 }
+
+SEARCH_RESULT_FIELDS = {"scene_name", "start_time", "https_url", "s3_url", "product_level"}
+STAGING_RESULT_FIELDS = {"corrected_phase_gcs", "coherence_gcs"}
 
 
 def domain_request(domain, specification):
@@ -72,10 +108,54 @@ def domain_request(domain, specification):
     return specification["tool"], specification["arguments"]
 
 
-def _validate_argument_references(value, *, context, available_ids):
+def _validate_bbox(value):
+    return (
+        isinstance(value, list)
+        and len(value) == 4
+        and all(
+            isinstance(item, int | float) and not isinstance(item, bool) and math.isfinite(item)
+            for item in value
+        )
+    )
+
+
+def _output_path_exists(request, path):
+    name = request["tool"]
+    if name == "search_nisar_granules":
+        return (
+            len(path) == 2
+            and isinstance(path[0], int)
+            and not isinstance(path[0], bool)
+            and 0 <= path[0] < 5
+            and path[1] in SEARCH_RESULT_FIELDS
+        )
+    if name == "stage_nisar_gunw_ionosphere_corrected_to_gcs":
+        return len(path) == 1 and path[0] in STAGING_RESULT_FIELDS
+    if name == "stage_nisar_gcov_to_gcs":
+        arguments = request.get("arguments", {})
+        polarizations = arguments.get("polarizations", ["HHHH", "HVHV"])
+        return len(path) == 1 and path[0] in polarizations
+    return False
+
+
+def _value_matches(value, expected):
+    if expected == "bbox":
+        return _validate_bbox(value)
+    if expected == "strings":
+        return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    if expected == "number":
+        return (
+            isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+        )
+    return isinstance(value, expected)
+
+
+def _validate_argument_references(value, *, context, available_requests):
     if isinstance(value, list):
         for item in value:
-            _validate_argument_references(item, context=context, available_ids=available_ids)
+            _validate_argument_references(
+                item, context=context, available_requests=available_requests
+            )
         return
     if isinstance(value, dict):
         if "from_context" in value:
@@ -93,25 +173,43 @@ def _validate_argument_references(value, *, context, available_ids):
             if (
                 set(value) != {"from_staged", "path"}
                 or not isinstance(request_id, str)
-                or request_id not in available_ids
+                or request_id not in available_requests
                 or not isinstance(path, list)
                 or not path
-                or any(not isinstance(part, str) or not part for part in path)
+                or any(
+                    not (isinstance(part, str) and part)
+                    and not (isinstance(part, int) and not isinstance(part, bool))
+                    for part in path
+                )
+                or not _output_path_exists(available_requests[request_id], path)
             ):
                 raise BulletinContractError("invalid staged reference")
             return
         for item in value.values():
-            _validate_argument_references(item, context=context, available_ids=available_ids)
+            _validate_argument_references(
+                item, context=context, available_requests=available_requests
+            )
 
 
-def _validate_tool_arguments(name, arguments, *, context, available_ids):
+def _validate_tool_arguments(name, arguments, *, context, available_requests):
     if name not in TOOL_ARGUMENTS or not isinstance(arguments, dict):
         raise BulletinContractError("unknown tool or invalid arguments")
-    required, optional = TOOL_ARGUMENTS[name]
+    required, optional, expected_types = TOOL_ARGUMENTS[name]
     keys = set(arguments)
     if not required <= keys or not keys <= required | optional:
         raise BulletinContractError("missing or unknown tool arguments")
-    _validate_argument_references(arguments, context=context, available_ids=available_ids)
+    _validate_argument_references(arguments, context=context, available_requests=available_requests)
+    for key, value in arguments.items():
+        expected = expected_types[key]
+        if isinstance(value, dict) and ({"from_context", "from_staged"} & value.keys()):
+            if "from_context" in value and not _value_matches(
+                context[value["from_context"]], expected
+            ):
+                raise BulletinContractError("context value has an invalid tool argument type")
+            if "from_staged" in value and expected is not str:
+                raise BulletinContractError("staged reference has an invalid tool argument type")
+        elif not _value_matches(value, expected):
+            raise BulletinContractError("tool argument has an invalid value type")
 
 
 def validate_requests(ingestion_requests, tool_requests, context):
@@ -119,7 +217,7 @@ def validate_requests(ingestion_requests, tool_requests, context):
     if not isinstance(ingestion_requests, list) or not isinstance(tool_requests, dict):
         raise BulletinContractError("run plan requires ingestion and domain requests")
     seen = set()
-    prior_ids = set()
+    prior_requests = {}
     for request in ingestion_requests:
         if not isinstance(request, dict):
             raise BulletinContractError("invalid ingestion request")
@@ -135,13 +233,15 @@ def validate_requests(ingestion_requests, tool_requests, context):
         ):
             raise BulletinContractError("invalid or duplicate ingestion request")
         _validate_tool_arguments(
-            name, request.get("arguments", {}), context=context, available_ids=prior_ids
+            name, request.get("arguments", {}), context=context, available_requests=prior_requests
         )
         seen.add(request_id)
-        prior_ids.add(request_id)
+        prior_requests[request_id] = request
     for domain, specification in tool_requests.items():
         name, arguments = domain_request(domain, specification)
-        _validate_tool_arguments(name, arguments, context=context, available_ids=prior_ids)
+        _validate_tool_arguments(
+            name, arguments, context=context, available_requests=prior_requests
+        )
 
 
 def load_run_plan(filename: Path):
@@ -201,9 +301,17 @@ def resolve_arguments(value, staged, context):
             raise BulletinContractError("staged result unavailable")
         result = envelope.get("data")
         for field in value["path"]:
-            if not isinstance(result, dict) or field not in result:
+            if isinstance(result, dict) and isinstance(field, str) and field in result:
+                result = result[field]
+            elif (
+                isinstance(result, list)
+                and isinstance(field, int)
+                and not isinstance(field, bool)
+                and 0 <= field < len(result)
+            ):
+                result = result[field]
+            else:
                 raise BulletinContractError("staged field missing")
-            result = result[field]
     else:
         return {key: resolve_arguments(item, staged, context) for key, item in value.items()}
     if result is None:
