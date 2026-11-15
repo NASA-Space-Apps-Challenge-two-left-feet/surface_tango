@@ -10,7 +10,7 @@ _Last update: 2026-11-14 (UTC−5)_
 - Cache handoff: Keep the builder output `local_cache/aburra/aburra_sar_cube.zarr/` together with `local_cache/aburra/manifest.json`. The older `local_cache/antioquia_aburra/` layout still works. Set `BAILASAR_CACHE_DIR` to the shared cache root if the worktree has no cache link. The cube route serves LOS displacement with recorded provenance. Quake and flood comparisons need approved story tiles.
 - Sentinel tile handoff: Keep each AOI's `tiles/manifest.json` with its `tiles/s1/` and `tiles/s2/` PNGs. Mission control uses the Aburrá cache for the reference panels when a live source is unavailable. The tile API also accepts Eje Cafetero and La Mojana.
 - Gate handoff: Optional `gate-panel-results.json` in the same directory maps `landslide`, `flood`, or `earthquake` to the approved coverage or null statement. This is a UI adapter. Populate it from the approved plan 02-01 output once available.
-- BLOCKED: Real PNG rendering needs the Aburrá Zarr cube and its provenance manifest from the data team. The Agents/MCP lane owns the remaining biomass node in the backend graph.
+- Cache verification for #22: Assembled the private cache release with `scripts/cache_release.py assemble`. Mission control rendered Aburrá Sentinel and NISAR LOS PNGs with recorded provenance. Withheld co-event bands stay unavailable. The Agents/MCP lane owns the remaining biomass node in the backend graph.
 
 ## Stage frontend assets once, before going offline
 
