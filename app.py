@@ -44,6 +44,10 @@ ASSET_PATHS = {
     "maplibre-gl.css": "node_modules/maplibre-gl/dist/maplibre-gl.css",
     "maplibre-gl.js": "node_modules/maplibre-gl/dist/maplibre-gl.js",
     "deck.gl.js": "node_modules/deck.gl/dist.min.js",
+    "jost-500.woff2": "node_modules/@fontsource/jost/files/jost-latin-500-normal.woff2",
+    "jost-600.woff2": "node_modules/@fontsource/jost/files/jost-latin-600-normal.woff2",
+    "caslon-400.woff2": "node_modules/@fontsource/libre-caslon-text/files/libre-caslon-text-latin-400-normal.woff2",
+    "caslon-400-italic.woff2": "node_modules/@fontsource/libre-caslon-text/files/libre-caslon-text-latin-400-italic.woff2",
 }
 HAZARD_DOMAINS = {"landslide", "flood", "earthquake"}
 LANDSLIDE_BAND = "los_disp_mm"
@@ -56,7 +60,8 @@ def frontend_asset(name: str):
     asset = OFFLINE_ASSETS / ASSET_PATHS[name]
     if not asset.is_file():
         raise HTTPException(404, "Frontend asset not staged")
-    return FileResponse(asset)
+    media = "font/woff2" if name.endswith(".woff2") else None
+    return FileResponse(asset, media_type=media)
 
 
 SENTINEL_AOIS = {"aburra", "eje_cafetero", "mojana"}
