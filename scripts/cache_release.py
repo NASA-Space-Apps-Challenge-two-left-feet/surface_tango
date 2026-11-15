@@ -11,7 +11,10 @@ Keep the cache quiescent while staging; changing files aborts staging.
 import argparse
 import hashlib
 import json
+import os
+import shutil
 import tarfile
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
@@ -318,15 +321,70 @@ def stage(cache_dir, output_dir, source_commit, max_part_bytes=MAX_ASSET_BYTES):
     return manifest
 
 
-def assemble(manifest, parts_dir, cache_dir, force=False):
-    """Validate bytes before extraction; force overlays files, preserving unlisted files."""
-    require_valid(verify_parts(manifest, parts_dir))
+def preflight_destination(cache_dir, force=False):
+    """Reject ineligible destinations before downloading or assembling assets."""
     destination = Path(cache_dir).absolute()
     if any(parent.is_symlink() for parent in (destination, *destination.parents)):
         raise ValueError("cache destination must not traverse symlinks")
     if destination.exists() and (not destination.is_dir() or any(destination.iterdir())):
         if not force or not destination.is_dir():
             raise ValueError("refusing non-empty local_cache; use --force to overlay files")
+    return destination
+
+
+def install_staged(staging, destination):
+    """Overlay verified files, restoring the previous tree if installation fails."""
+    backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}-backup-", dir=destination.parent))
+    placed = []
+    saved = []
+    directories = []
+
+    def ensure_directory(target):
+        if target.is_dir():
+            return
+        ensure_directory(target.parent)
+        if target.exists():
+            save(target)
+        target.mkdir()
+        directories.append(target)
+
+    def save(target):
+        stored = backup / target.relative_to(destination)
+        stored.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(target, stored)
+        saved.append((target, stored))
+
+    try:
+        ensure_directory(destination)
+        for source in sorted(staging.rglob("*")):
+            target = destination / source.relative_to(staging)
+            if source.is_dir():
+                ensure_directory(target)
+            else:
+                ensure_directory(target.parent)
+                if target.exists():
+                    if target.is_dir():
+                        raise ValueError(f"cannot overlay directory with file: {target}")
+                    save(target)
+                os.replace(source, target)
+                placed.append(target)
+    except BaseException:
+        for target in reversed(placed):
+            target.unlink()
+        for target in reversed(directories):
+            target.rmdir()
+        for target, stored in reversed(saved):
+            os.replace(stored, target)
+        # Keep backups available if rollback itself raises.
+        shutil.rmtree(backup)
+        raise
+    shutil.rmtree(backup)
+
+
+def assemble(manifest, parts_dir, cache_dir, force=False):
+    """Validate bytes before extraction; force overlays files, preserving unlisted files."""
+    require_valid(verify_parts(manifest, parts_dir))
+    destination = preflight_destination(cache_dir, force)
     archive = Path(parts_dir) / manifest["archive"]["name"]
     if archive.exists() or archive.is_symlink():
         raise ValueError("temporary archive path already exists")
@@ -368,19 +426,25 @@ def assemble(manifest, parts_dir, cache_dir, force=False):
                         raise ValueError(f"provenance sha256 mismatch: {name}")
             if files != set(expected):
                 raise ValueError("archive is missing manifest files")
-            destination.mkdir(parents=True, exist_ok=True)
-            for member in members:
-                target = destination.joinpath(*PurePosixPath(member.name).parts)
-                if member.isdir():
-                    target.mkdir(parents=True, exist_ok=True)
-                else:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with bundle.extractfile(member) as stream, target.open("wb") as output:
-                        while chunk := stream.read(1024 * 1024):
-                            output.write(chunk)
-        for entry in expected.values():
-            if sha256_file(destination / entry["path"]).lower() != entry["sha256"].lower():
-                raise ValueError(f"extracted sha256 mismatch: {entry['path']}")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=f".{destination.name}-staging-", dir=destination.parent
+            ) as tmp:
+                staging = Path(tmp)
+                for member in members:
+                    target = staging.joinpath(*PurePosixPath(member.name).parts)
+                    if member.isdir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with bundle.extractfile(member) as stream, target.open("wb") as output:
+                            while chunk := stream.read(1024 * 1024):
+                                output.write(chunk)
+                for entry in expected.values():
+                    if sha256_file(staging / entry["path"]).lower() != entry["sha256"].lower():
+                        raise ValueError(f"extracted sha256 mismatch: {entry['path']}")
+                preflight_destination(destination, force)
+                install_staged(staging, destination)
     finally:
         if created:
             archive.unlink(missing_ok=True)
