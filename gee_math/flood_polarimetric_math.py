@@ -6,6 +6,9 @@ dry-baseline rule fails, or when the wettest open-water fraction is 0, Class 2
 is null and only absolute water extent is reported.
 
 The CLI writes class rasters under ``local_cache/mojana/`` and ``reports/mojana.md``.
+``--lvsc`` only compares the cached open-water masks with Sentinel-1. It writes
+the comparison report and ``lvsc_comparison.json``, and it does not rewrite
+provenance or cube bands.
 
 Each GCOV is read in its own subprocess: a new HTTPS session, socket timeouts,
 two retries, and a hard time limit. The first pass strides to the analysis
@@ -46,8 +49,11 @@ ANALYSIS_CRS = "EPSG:32618"
 ANALYSIS_CELL_M = 90.0
 
 # Half of the 12-day NISAR repeat: S1 passes nearest the L-band date.
-# Not a backscatter threshold.
+# Not a backscatter threshold. The comparison composites every IW scene in
+# this window; it does not keep only the single nearest slice.
 S1_HALF_WINDOW_DAYS = 6
+# A stalled Sentinel-1 date is recorded missing. It is not retried into a zero.
+S1_DATE_LIMIT_S = 15 * 60
 CHIRPS_DAYS = 15
 
 # Reader limits. Not flood thresholds. One session per attempt, then two
@@ -210,6 +216,78 @@ class S1Comparison:
     median_vh_positive: float | None
     median_vv_domain: float | None
     s1_scene_count: int | None
+
+
+@dataclass(frozen=True)
+class S1Scene:
+    """One Sentinel-1 IW GRD scene. Date bounds come from the product name."""
+
+    scene_id: str
+    orbit_pass: str
+    start: str
+    end: str
+    relative_orbit: int | None
+
+
+@dataclass(frozen=True)
+class ProvenanceDate:
+    """Open-water counts read from provenance. This object does not write them."""
+
+    date: str
+    granule_ids: tuple[str, ...]
+    n_water: int
+    n_valid: int
+
+
+@dataclass(frozen=True)
+class LvscDateResult:
+    """One date of the L-band vs C-band open-water comparison.
+
+    ``n_missed`` is None unless the miss fraction is measurable. A date with no
+    Sentinel-1 scene, or with no NISAR open water, is not stored as zero misses.
+    """
+
+    date: str
+    nisar_granule_ids: tuple[str, ...]
+    n_open_water: int
+    n_valid: int
+    n_with_s1: int | None
+    n_s1_missing_on_water: int | None
+    n_s1_also_water: int | None
+    n_missed: int | None
+    median_vv_open_water_db: float | None
+    scenes: tuple[S1Scene, ...]
+    status: str
+    detail: str
+
+    @property
+    def miss_fraction_text(self) -> str | None:
+        """Unreduced missed/finite-S1. None when that denominator is not usable."""
+        if self.status != "measured" or self.n_missed is None or self.n_with_s1 is None:
+            return None
+        if self.n_with_s1 <= 0:
+            return None
+        return f"{self.n_missed}/{self.n_with_s1}"
+
+    @property
+    def miss_fraction(self) -> Fraction | None:
+        text = self.miss_fraction_text
+        if text is None or self.n_missed is None or self.n_with_s1 is None:
+            return None
+        return Fraction(self.n_missed, self.n_with_s1)
+
+
+@dataclass(frozen=True)
+class MissFractionSummary:
+    """Median and range of measurable per-date miss fractions."""
+
+    n_dates: int
+    median: Fraction
+    median_text: str
+    minimum_text: str
+    maximum_text: str
+    sorted_text: str
+    even_count_averaged: bool
 
 
 @dataclass(frozen=True)
@@ -587,6 +665,530 @@ def compare_s1(
         median_vv_domain=finite_median(vv[domain]) if np.any(domain) else None,
         s1_scene_count=s1_scene_count,
     )
+
+
+_S1_PRODUCT_TIMES = re.compile(
+    r"^S1[A-D]_[A-Z0-9]+_[A-Z0-9]+_[A-Z0-9]+_(\d{8}T\d{6})_(\d{8}T\d{6})_"
+)
+
+
+def s1_window_bounds(date: str, half_days: int = S1_HALF_WINDOW_DAYS) -> tuple[str, str]:
+    """Inclusive start and exclusive end for ``filterDate``.
+
+    ``half_days`` of 6 covers the NISAR date and the six calendar days on
+    either side. The exclusive end is the morning after the last included day.
+    """
+    day = datetime.strptime(date, "%Y-%m-%d").date()
+    start = (day - timedelta(days=half_days)).isoformat()
+    end = (day + timedelta(days=half_days + 1)).isoformat()
+    return start, end
+
+
+def miss_fraction(n_missed: int, n_with_s1: int) -> Fraction | None:
+    """Missed / open-water pixels with finite S1. None when the denominator is 0.
+
+    Missing S1 is not a miss, so the denominator is the finite-S1 count. It
+    equals the NISAR open-water count only when every open-water pixel has S1.
+    """
+    if n_with_s1 < 0 or n_missed < 0:
+        raise ValueError("counts must be non-negative")
+    if n_missed > n_with_s1:
+        raise ValueError("misses cannot exceed the finite-S1 denominator")
+    if n_with_s1 == 0:
+        return None
+    return Fraction(n_missed, n_with_s1)
+
+
+def _text_or_missing(value: object) -> str:
+    if value is None:
+        return "missing"
+    text = str(value).strip()
+    return text or "missing"
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _iso_from_s1_token(token: str) -> str:
+    return f"{token[0:4]}-{token[4:6]}-{token[6:8]}T{token[9:11]}:{token[11:13]}:{token[13:15]}Z"
+
+
+def _ee_millis_to_iso(value: object) -> str | None:
+    """Earth Engine ``system:time_start`` is milliseconds since the UTC epoch."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        millis = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(millis):
+        return None
+    return datetime.fromtimestamp(millis / 1000.0, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def scene_from_ee_row(row: dict) -> S1Scene:
+    """Build a scene record. Product-name bounds win over the EE timestamp."""
+    raw = _text_or_missing(row.get("scene_id"))
+    product = raw.split("/")[-1] if raw != "missing" else "missing"
+    match = _S1_PRODUCT_TIMES.match(product) if product != "missing" else None
+    if match:
+        start = _iso_from_s1_token(match.group(1))
+        end = _iso_from_s1_token(match.group(2))
+    else:
+        start = _ee_millis_to_iso(row.get("time_start")) or "missing"
+        end = _ee_millis_to_iso(row.get("time_end")) or "missing"
+    return S1Scene(
+        scene_id=product,
+        orbit_pass=_text_or_missing(row.get("orbit_pass")),
+        start=start,
+        end=end,
+        relative_orbit=_optional_int(row.get("relative_orbit")),
+    )
+
+
+def _blank_lvsc(
+    date: str,
+    granule_ids: tuple[str, ...],
+    n_open_water: int,
+    n_valid: int,
+    status: str,
+    detail: str,
+    scenes: tuple[S1Scene, ...] = (),
+    n_with_s1: int | None = None,
+    n_s1_missing_on_water: int | None = None,
+) -> LvscDateResult:
+    return LvscDateResult(
+        date=date,
+        nisar_granule_ids=granule_ids,
+        n_open_water=n_open_water,
+        n_valid=n_valid,
+        n_with_s1=n_with_s1,
+        n_s1_missing_on_water=n_s1_missing_on_water,
+        n_s1_also_water=None,
+        n_missed=None,
+        median_vv_open_water_db=None,
+        scenes=scenes,
+        status=status,
+        detail=detail,
+    )
+
+
+def lvsc_result_for_date(
+    date: str,
+    nisar_granule_ids: tuple[str, ...],
+    n_open_water: int,
+    n_valid: int,
+    scenes: tuple[S1Scene, ...],
+    comparison: S1Comparison | None,
+    error: str | None = None,
+) -> LvscDateResult:
+    """Turn one date's mask and S1 composite into a report row.
+
+    Zero open water and an empty scene list stay non-numeric. They are not
+    recorded as zero misses.
+    """
+    if n_open_water < 0 or n_valid < 0:
+        raise ValueError("counts must be non-negative")
+    if n_open_water == 0:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            0,
+            n_valid,
+            "no_open_water",
+            "no NISAR open water (denominator 0)",
+        )
+    if error:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "missing",
+            error,
+            scenes=scenes,
+        )
+    if not scenes:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "no_s1",
+            "no S1 within window",
+        )
+    if comparison is None:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "missing",
+            "comparison was not computed",
+            scenes=scenes,
+        )
+    if comparison.n_positive != n_open_water:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "missing",
+            (f"open-water count {n_open_water} != comparison positive {comparison.n_positive}"),
+            scenes=scenes,
+        )
+    if comparison.n_positive_with_s1 == 0:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "not_measurable",
+            "no finite S1 on the NISAR open-water pixels",
+            scenes=scenes,
+            n_with_s1=0,
+            n_s1_missing_on_water=comparison.n_positive_s1_missing,
+        )
+    n_also = comparison.n_positive_with_s1 - comparison.n_missed
+    if n_also < 0:
+        return _blank_lvsc(
+            date,
+            nisar_granule_ids,
+            n_open_water,
+            n_valid,
+            "missing",
+            "S1 miss count exceeds the finite-S1 denominator",
+            scenes=scenes,
+        )
+    # Raises if the counts are inconsistent. A raised error is a programming
+    # fault, not a missing scene.
+    miss_fraction(comparison.n_missed, comparison.n_positive_with_s1)
+    return LvscDateResult(
+        date=date,
+        nisar_granule_ids=nisar_granule_ids,
+        n_open_water=n_open_water,
+        n_valid=n_valid,
+        n_with_s1=comparison.n_positive_with_s1,
+        n_s1_missing_on_water=comparison.n_positive_s1_missing,
+        n_s1_also_water=n_also,
+        n_missed=comparison.n_missed,
+        median_vv_open_water_db=comparison.median_vv_positive,
+        scenes=scenes,
+        status="measured",
+        detail="measured",
+    )
+
+
+def _fraction_tie_text(rows: list[LvscDateResult]) -> str:
+    return ", ".join(f"{item.miss_fraction_text} on {item.date}" for item in rows)
+
+
+def summarize_miss_fractions(
+    results: tuple[LvscDateResult, ...] | list[LvscDateResult],
+) -> MissFractionSummary | None:
+    """Median and range over dates whose miss fraction is measurable.
+
+    An even count uses the mean of the two central fractions. Dates with no
+    S1, no open water, or a failed fetch are left out of the median.
+    """
+    measured = [
+        item for item in results if item.status == "measured" and item.miss_fraction is not None
+    ]
+    if not measured:
+        return None
+    ranked = sorted(
+        measured,
+        key=lambda item: (item.miss_fraction if item.miss_fraction is not None else 0, item.date),
+    )
+    n_dates = len(ranked)
+    even = n_dates % 2 == 0
+    if even:
+        left = ranked[n_dates // 2 - 1]
+        right = ranked[n_dates // 2]
+        left_fraction = left.miss_fraction
+        right_fraction = right.miss_fraction
+        if left_fraction is None or right_fraction is None:
+            return None
+        median = (left_fraction + right_fraction) / 2
+        median_text = (
+            f"({left.miss_fraction_text} + {right.miss_fraction_text}) / 2 "
+            f"= {median.numerator}/{median.denominator}"
+        )
+    else:
+        middle = ranked[n_dates // 2]
+        median = middle.miss_fraction
+        if median is None:
+            return None
+        median_text = f"{middle.miss_fraction_text}"
+    minimum = ranked[0].miss_fraction
+    maximum = ranked[-1].miss_fraction
+    if minimum is None or maximum is None:
+        return None
+    return MissFractionSummary(
+        n_dates=n_dates,
+        median=median,
+        median_text=median_text,
+        minimum_text=_fraction_tie_text([item for item in ranked if item.miss_fraction == minimum]),
+        maximum_text=_fraction_tie_text([item for item in ranked if item.miss_fraction == maximum]),
+        sorted_text=", ".join(f"{item.date} {item.miss_fraction_text}" for item in ranked),
+        even_count_averaged=even,
+    )
+
+
+def duplicate_scene_note(results: tuple[LvscDateResult, ...] | list[LvscDateResult]) -> str | None:
+    """Scene IDs that share a start and end. Both stay in the median."""
+    parts: list[str] = []
+    for item in results:
+        groups: dict[tuple[str, str], list[str]] = {}
+        for scene in item.scenes:
+            groups.setdefault((scene.start, scene.end), []).append(scene.scene_id)
+        for ids in groups.values():
+            if len(ids) > 1:
+                parts.append(f"{item.date}: {', '.join(ids)}")
+    if not parts:
+        return None
+    return (
+        "These scene IDs share a start and end. The collection returned each of "
+        "them, and the median kept them all: " + "; ".join(parts) + "."
+    )
+
+
+def _md_cell(value: object) -> str:
+    return str(value).replace("|", "/").replace("\n", " ")
+
+
+def _lvsc_numeric_cells(item: LvscDateResult) -> tuple[str, str, str, str, str]:
+    """Finite denominator, also-water, missed, fraction, scene-id cell."""
+    if item.status == "no_open_water":
+        return (
+            "no NISAR open water (denominator 0)",
+            "not measurable",
+            "not measurable",
+            "not measurable",
+            "not compared",
+        )
+    if item.status == "no_s1":
+        return (
+            "no S1 within window",
+            "not measurable",
+            "not measurable",
+            "not measurable",
+            "no S1 within window",
+        )
+    if item.status == "not_measurable":
+        missing = item.n_s1_missing_on_water
+        finite = "0" if item.n_with_s1 == 0 else "not measurable"
+        detail = item.detail if missing is None else f"{item.detail}; S1 missing {missing}"
+        return (finite, "not measurable", "not measurable", "not measurable", _md_cell(detail))
+    if item.status != "measured" or item.miss_fraction_text is None:
+        return (
+            "not measurable",
+            "not measurable",
+            "not measurable",
+            "not measurable",
+            _md_cell(item.detail),
+        )
+    scene_ids = ", ".join(scene.scene_id for scene in item.scenes) or "missing"
+    return (
+        str(item.n_with_s1),
+        str(item.n_s1_also_water),
+        str(item.n_missed),
+        item.miss_fraction_text,
+        scene_ids,
+    )
+
+
+def render_lvsc_report(
+    results: tuple[LvscDateResult, ...] | list[LvscDateResult],
+    *,
+    command: str,
+    generated_utc: str,
+    config_path: str,
+    config_sha256: str,
+    threshold_db: float,
+    bbox: tuple[float, float, float, float],
+    bbox_source: str,
+    provenance_generated_utc: str,
+    provenance_config_sha256: str,
+    grid_text: str,
+    prior_note: str | None = None,
+) -> str:
+    """Markdown for the all-dates L-band vs C-band comparison."""
+    summary = summarize_miss_fractions(results)
+    lines = [
+        "# L-band vs C-band open water, all La Mojana dates",
+        "",
+        "NISAR L2 GCOV products in this window are **PROVISIONAL** (processing type `PR`).",
+        "The open-water cut is **uncalibrated**. Sentinel-1 uses that same frozen number.",
+        "It is not an S1 calibration.",
+        "",
+        "Seasonal water and breach water are not separated. "
+        "This is not a map of the May 2024 breach.",
+        "Change classes were not recomputed. They remain degenerate under the frozen "
+        "reference-date rule (issue #26).",
+        "",
+        "## Reproduce",
+        "",
+        f"- Command: `{command}`",
+        f"- Generated (UTC): {generated_utc}",
+        f"- Config: `{config_path}`",
+        f"- Config sha256: `{config_sha256}`",
+        (
+            f"- Open-water cut: VV < {threshold_db:g} dB "
+            "(`flood.open_water_abs_hh_db`, read from the config above)"
+        ),
+        "- Sentinel-1: `COPERNICUS/S1_GRD`, IW, VV and VH, median of every scene in the window",
+        (
+            f"- Window: ±{S1_HALF_WINDOW_DAYS} days. `filterDate` start is inclusive and end "
+            "is exclusive, so the last included calendar day is the NISAR date plus "
+            f"{S1_HALF_WINDOW_DAYS} days."
+        ),
+        "- Sampling: `ee.data.computePixels` onto the cached analysis grid. "
+        'No `.resample("nearest")`.',
+        (
+            "- NISAR open water: cached `water_extent_<date>.tif` value 1, checked against "
+            f"`local_cache/mojana/provenance.json` (generated {provenance_generated_utc}, "
+            f"config sha256 `{provenance_config_sha256}`). "
+            "This command did not write that file or the cube bands."
+        ),
+        f"- AOI [W, S, E, N]: [{bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]}]",
+        f"- AOI source: {bbox_source}",
+        f"- Grid: {grid_text}",
+        "",
+        "A NISAR open-water pixel is missed when its Sentinel-1 VV is finite and is not "
+        f"below {threshold_db:g} dB. Pixels with missing Sentinel-1 stay missing and are not "
+        "counted as misses. The miss denominator is the number of NISAR open-water pixels "
+        "with finite Sentinel-1 VV. A date with no IW scene in the window is `no S1 within "
+        "window` and is not given a zero miss.",
+        "",
+    ]
+    if prior_note:
+        lines.append(prior_note)
+        lines.append("")
+    lines.extend(["## Summary", ""])
+    if summary is None:
+        lines.append("No measurable miss fraction. The median and the range are not reported.")
+    else:
+        even_clause = ""
+        if summary.even_count_averaged:
+            even_clause = (
+                f", the mean of the two central fractions because {summary.n_dates} is even"
+            )
+        lines.append(
+            f"Measurable dates: {summary.n_dates} "
+            "(NISAR open water with finite Sentinel-1 on those pixels)."
+        )
+        lines.append(
+            f"Median miss fraction: {summary.median_text} "
+            f"({float(summary.median):.6f}){even_clause} *(measured, PROVISIONAL, uncalibrated)*."
+        )
+        lines.append(
+            f"Range: minimum {summary.minimum_text}; maximum {summary.maximum_text} "
+            "*(measured, PROVISIONAL, uncalibrated)*."
+        )
+        lines.append(f"Fractions used, sorted by value then date: {summary.sorted_text}.")
+    held_out = [item for item in results if item.status != "measured"]
+    if held_out:
+        held = "; ".join(f"{item.date} {item.detail}" for item in held_out)
+        lines.append(f"Not in the median: {held}.")
+    lines.extend(
+        [
+            "",
+            "## Per-date comparison",
+            "",
+            "The miss fraction is S1 missed / finite S1 on NISAR open-water pixels. "
+            "Every count below is *(measured, PROVISIONAL, uncalibrated)* unless the cell "
+            "says the fraction is not measurable.",
+            "",
+            "| Date | NISAR open-water px | Finite S1 denominator | "
+            "S1 also water | S1 missed | Miss fraction | S1 scene IDs |",
+            "|---|---:|---|---:|---:|---|---|",
+        ]
+    )
+    for item in results:
+        finite, also, missed, fraction, scenes = _lvsc_numeric_cells(item)
+        lines.append(
+            f"| {item.date} | {item.n_open_water} | {_md_cell(finite)} | "
+            f"{_md_cell(also)} | {_md_cell(missed)} | {_md_cell(fraction)} | "
+            f"{_md_cell(scenes)} |"
+        )
+    unequal = [
+        item
+        for item in results
+        if item.status == "measured" and item.n_with_s1 != item.n_open_water
+    ]
+    lines.append("")
+    if unequal:
+        listed = ", ".join(
+            f"{item.date} ({item.n_with_s1}/{item.n_open_water} finite)" for item in unequal
+        )
+        lines.append(
+            "On these dates the finite-S1 denominator is smaller than the NISAR "
+            f"open-water count, because some open-water pixels have no S1: {listed}."
+        )
+    else:
+        measured_rows = [item for item in results if item.status == "measured"]
+        if measured_rows:
+            lines.append(
+                "On every measurable date the finite-S1 denominator equals the "
+                "NISAR open-water count."
+            )
+    lines.extend(["", "## Scenes", ""])
+    for item in results:
+        lines.append(f"### {item.date}")
+        lines.append("")
+        granules = ", ".join(item.nisar_granule_ids) or "missing"
+        lines.append(f"NISAR granules: {granules}.")
+        if item.status == "measured":
+            start, end = s1_window_bounds(item.date)
+            lines.append(
+                f"Sentinel-1 window {start} inclusive to {end} exclusive "
+                f"(±{S1_HALF_WINDOW_DAYS} days). Scenes in the median: {len(item.scenes)}."
+            )
+            if item.median_vv_open_water_db is None:
+                lines.append("Median S1 VV on NISAR open-water pixels: missing.")
+            else:
+                lines.append(
+                    "Median S1 VV on NISAR open-water pixels with finite S1: "
+                    f"{item.median_vv_open_water_db:.3f} dB, "
+                    f"denominator {item.n_with_s1} *(measured)*."
+                )
+            lines.append("")
+            lines.append("| Scene ID | Pass | Start | End | Relative orbit |")
+            lines.append("|---|---|---|---|---|")
+            for scene in item.scenes:
+                orbit = "missing" if scene.relative_orbit is None else str(scene.relative_orbit)
+                lines.append(
+                    f"| {_md_cell(scene.scene_id)} | {_md_cell(scene.orbit_pass)} | "
+                    f"{_md_cell(scene.start)} | {_md_cell(scene.end)} | {orbit} |"
+                )
+        else:
+            lines.append(item.detail)
+        lines.append("")
+    notes = [
+        "## Notes",
+        "",
+        "- The composite is the median of every IW GRD scene in the ±"
+        f"{S1_HALF_WINDOW_DAYS} day window, the same construction as the "
+        "2026-07-11 comparison in `reports/mojana.md`.",
+        "- A date with no matching scene stays `no S1 within window`. It is not zero-filled.",
+        "- Thresholds were read from the frozen config and were not edited.",
+    ]
+    duplicate_note = duplicate_scene_note(results)
+    if duplicate_note:
+        notes.append(f"- {duplicate_note}")
+    notes.append("")
+    lines.extend(notes)
+    return "\n".join(lines)
 
 
 def _db_pair(cube: DateCube) -> tuple[np.ndarray, np.ndarray]:
@@ -2018,19 +2620,13 @@ def fetch_chirps_15d_mm(bbox: tuple[float, float, float, float], date: str) -> f
     return float(value)
 
 
-def fetch_s1(
-    grid: AnalysisGrid,
-    bbox: tuple[float, float, float, float],
-    date: str,
-) -> tuple[np.ndarray, np.ndarray, int] | None:
-    """Median S1 VV and VH in dB. Returns None when the window has no IW scene."""
+def s1_iw_collection(bbox: tuple[float, float, float, float], date: str):
+    """IW GRD scenes with VV and VH inside the ±N day window. N is ``S1_HALF_WINDOW_DAYS``."""
     import ee
 
-    day = datetime.strptime(date, "%Y-%m-%d").date()
-    start = (day - timedelta(days=S1_HALF_WINDOW_DAYS)).isoformat()
-    end = (day + timedelta(days=S1_HALF_WINDOW_DAYS + 1)).isoformat()
+    start, end = s1_window_bounds(date)
     region = ee.Geometry.Rectangle([bbox[0], bbox[1], bbox[2], bbox[3]])
-    collection = (
+    return (
         ee.ImageCollection("COPERNICUS/S1_GRD")
         .filterBounds(region)
         .filterDate(start, end)
@@ -2038,12 +2634,516 @@ def fetch_s1(
         .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
         .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VH"))
     )
+
+
+def fetch_s1(
+    grid: AnalysisGrid,
+    bbox: tuple[float, float, float, float],
+    date: str,
+) -> tuple[np.ndarray, np.ndarray, int] | None:
+    """Median S1 VV and VH in dB. Returns None when the window has no IW scene."""
+    collection = s1_iw_collection(bbox, date)
     count = int(collection.size().getInfo())
     if count == 0:
         return None
+    vv, vh = fetch_s1_median_bands(collection, grid)
+    return vv, vh, count
+
+
+def fetch_s1_median_bands(collection, grid: AnalysisGrid) -> tuple[np.ndarray, np.ndarray]:
+    """Median VV and VH in dB on the analysis grid. Missing samples stay NaN."""
     median = collection.select(["VV", "VH"]).median()
     bands = sample_ee_image(median, grid)
-    return _pick_band(bands, "VV"), _pick_band(bands, "VH"), count
+    return _pick_band(bands, "VV"), _pick_band(bands, "VH")
+
+
+def list_s1_scenes(collection) -> tuple[S1Scene, ...]:
+    """Scene id, pass and date bounds. Raises if the list is shorter than the collection."""
+    import ee
+
+    def pack(image):
+        img = ee.Image(image)
+        return ee.Dictionary(
+            {
+                "scene_id": img.id(),
+                "orbit_pass": img.get("orbitProperties_pass"),
+                "time_start": img.get("system:time_start"),
+                "time_end": img.get("system:time_end"),
+                "relative_orbit": img.get("relativeOrbitNumber_start"),
+            }
+        )
+
+    payload = ee.Dictionary(
+        {
+            "count": collection.size(),
+            "rows": ee.List(collection.toList(collection.size()).map(pack)),
+        }
+    ).getInfo()
+    count = int(payload["count"])
+    rows = payload.get("rows") or []
+    if len(rows) != count:
+        raise RuntimeError(f"S1 scene list length {len(rows)} != collection size {count}")
+    scenes = tuple(
+        sorted(
+            (scene_from_ee_row(row) for row in rows),
+            key=lambda scene: (scene.start, scene.scene_id),
+        )
+    )
+    return scenes
+
+
+def _call_with_alarm(fn, timeout_s: float):
+    """Run ``fn`` on the main thread. A stall becomes ``TimeoutError``."""
+
+    def handler(signum, frame):
+        raise TimeoutError(f"timed out after {timeout_s:.0f}s")
+
+    previous = signal.signal(signal.SIGALRM, handler)
+    signal.alarm(int(timeout_s))
+    try:
+        return fn()
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def inspect_water_mask(array: np.ndarray) -> tuple[int, int, int]:
+    """Return (value==1, value>=0, values other than -1/0/1)."""
+    values = np.asarray(array)
+    n_water = int(np.count_nonzero(values == 1))
+    n_valid = int(np.count_nonzero(values >= 0))
+    n_other = int(np.count_nonzero((values != -1) & (values != 0) & (values != 1)))
+    return n_water, n_valid, n_other
+
+
+def read_water_mask(path: Path) -> tuple[AnalysisGrid, np.ndarray]:
+    """Read a cached water raster. The file is opened read-only."""
+    import rasterio
+
+    with rasterio.open(path) as src:
+        array = src.read(1)
+        transform = src.transform
+        crs = src.crs.to_string() if src.crs is not None else ""
+        grid = AnalysisGrid(
+            crs=crs,
+            transform=(
+                transform.a,
+                transform.b,
+                transform.c,
+                transform.d,
+                transform.e,
+                transform.f,
+            ),
+            width=int(src.width),
+            height=int(src.height),
+            cell_m=abs(float(transform.a)),
+        )
+    return grid, array
+
+
+def load_provenance_dates(path: Path) -> tuple[str, str, tuple[ProvenanceDate, ...]]:
+    """Read open-water counts. The file is opened read-only."""
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    generated = str(payload.get("generated_utc") or "missing")
+    config_sha = str(payload.get("config_sha256") or "missing")
+    rows: list[ProvenanceDate] = []
+    for item in payload["dates"]:
+        rows.append(
+            ProvenanceDate(
+                date=str(item["date"]),
+                granule_ids=tuple(str(value) for value in item["granule_ids"]),
+                n_water=int(item["n_water"]),
+                n_valid=int(item["n_valid"]),
+            )
+        )
+    return generated, config_sha, tuple(rows)
+
+
+def _refuse_protected_write(path: Path) -> None:
+    name = path.name
+    if name == "provenance.json" or name.endswith((".tif", ".zarr")) or "sar_cube" in name:
+        raise RuntimeError(f"refusing to write {name}")
+
+
+@dataclass
+class _LvscJob:
+    provenance: ProvenanceDate
+    grid: AnalysisGrid
+    water: np.ndarray
+
+
+def _prepare_lvsc_dates(
+    cache_dir: Path,
+    dates: tuple[ProvenanceDate, ...],
+) -> tuple[list[LvscDateResult | _LvscJob], str]:
+    """Check each cached mask against provenance. Mismatches never become a fraction."""
+    prepared: list[LvscDateResult | _LvscJob] = []
+    grid_text = "missing"
+    reference: AnalysisGrid | None = None
+    for item in dates:
+        raster_path = cache_dir / f"water_extent_{item.date}.tif"
+        if not raster_path.is_file():
+            prepared.append(
+                _blank_lvsc(
+                    item.date,
+                    item.granule_ids,
+                    item.n_water,
+                    item.n_valid,
+                    "missing",
+                    f"cached water mask missing: {raster_path.name}",
+                )
+            )
+            continue
+        grid, array = read_water_mask(raster_path)
+        if reference is None:
+            reference = grid
+            grid_text = (
+                f"{grid.crs} grid, {grid.cell_m:g} m cells, "
+                f"{grid.width} columns by {grid.height} rows"
+            )
+        elif (
+            grid.crs != reference.crs
+            or grid.transform != reference.transform
+            or grid.width != reference.width
+            or grid.height != reference.height
+        ):
+            prepared.append(
+                _blank_lvsc(
+                    item.date,
+                    item.granule_ids,
+                    item.n_water,
+                    item.n_valid,
+                    "missing",
+                    "water mask grid does not match the other dates",
+                )
+            )
+            continue
+        n_water, n_valid, n_other = inspect_water_mask(array)
+        if n_other:
+            prepared.append(
+                _blank_lvsc(
+                    item.date,
+                    item.granule_ids,
+                    item.n_water,
+                    item.n_valid,
+                    "missing",
+                    f"water mask has {n_other} values other than -1, 0, 1",
+                )
+            )
+            continue
+        if n_water != item.n_water or n_valid != item.n_valid:
+            prepared.append(
+                _blank_lvsc(
+                    item.date,
+                    item.granule_ids,
+                    item.n_water,
+                    item.n_valid,
+                    "missing",
+                    (
+                        f"water mask count {n_water}/{n_valid} != provenance "
+                        f"{item.n_water}/{item.n_valid}"
+                    ),
+                )
+            )
+            continue
+        if item.n_water == 0:
+            prepared.append(
+                lvsc_result_for_date(
+                    item.date,
+                    item.granule_ids,
+                    0,
+                    item.n_valid,
+                    (),
+                    None,
+                )
+            )
+            continue
+        prepared.append(_LvscJob(provenance=item, grid=grid, water=array))
+    return prepared, grid_text
+
+
+def _fetch_lvsc_job(
+    job: _LvscJob,
+    bbox: tuple[float, float, float, float],
+    threshold_db: float,
+) -> LvscDateResult:
+    date = job.provenance.date
+    print(
+        f"lvsc {date}: Sentinel-1 IW GRD within ±{S1_HALF_WINDOW_DAYS} days",
+        flush=True,
+    )
+
+    def work():
+        collection = s1_iw_collection(bbox, date)
+        scenes = list_s1_scenes(collection)
+        if not scenes:
+            return scenes, None
+        print(f"lvsc {date}: {len(scenes)} scenes, median VV/VH", flush=True)
+        return scenes, fetch_s1_median_bands(collection, job.grid)
+
+    last_error: BaseException | None = None
+    for attempt in (1, 2):
+        try:
+            scenes, bands = _call_with_alarm(work, S1_DATE_LIMIT_S)
+            break
+        except TimeoutError as exc:
+            print(f"lvsc {date}: {safe_error(exc)}", flush=True)
+            return lvsc_result_for_date(
+                date,
+                job.provenance.granule_ids,
+                job.provenance.n_water,
+                job.provenance.n_valid,
+                (),
+                None,
+                error=safe_error(exc),
+            )
+        except Exception as exc:
+            last_error = exc
+            print(f"lvsc {date}: attempt {attempt} failed: {safe_error(exc)}", flush=True)
+            if attempt == 1:
+                time.sleep(GRANULE_BACKOFF_S[0])
+                continue
+            return lvsc_result_for_date(
+                date,
+                job.provenance.granule_ids,
+                job.provenance.n_water,
+                job.provenance.n_valid,
+                (),
+                None,
+                error=safe_error(exc),
+            )
+    else:
+        return lvsc_result_for_date(
+            date,
+            job.provenance.granule_ids,
+            job.provenance.n_water,
+            job.provenance.n_valid,
+            (),
+            None,
+            error=safe_error(last_error or RuntimeError("S1 fetch failed")),
+        )
+
+    if not scenes:
+        print(f"lvsc {date}: no S1 within window", flush=True)
+        return lvsc_result_for_date(
+            date,
+            job.provenance.granule_ids,
+            job.provenance.n_water,
+            job.provenance.n_valid,
+            (),
+            None,
+        )
+    if bands is None:
+        return lvsc_result_for_date(
+            date,
+            job.provenance.granule_ids,
+            job.provenance.n_water,
+            job.provenance.n_valid,
+            scenes,
+            None,
+            error="S1 median was not returned",
+        )
+    vv, vh = bands
+    if vv.shape != job.water.shape or vh.shape != job.water.shape:
+        return lvsc_result_for_date(
+            date,
+            job.provenance.granule_ids,
+            job.provenance.n_water,
+            job.provenance.n_valid,
+            scenes,
+            None,
+            error=(f"S1 grid shape VV {vv.shape} VH {vh.shape} != water mask {job.water.shape}"),
+        )
+    comparison = compare_s1(
+        job.water == 1,
+        job.water >= 0,
+        vv,
+        vh,
+        threshold_db,
+        date,
+        "absolute_water",
+        len(scenes),
+    )
+    result = lvsc_result_for_date(
+        date,
+        job.provenance.granule_ids,
+        job.provenance.n_water,
+        job.provenance.n_valid,
+        scenes,
+        comparison,
+    )
+    print(
+        f"lvsc {date}: status {result.status} fraction {result.miss_fraction_text}",
+        flush=True,
+    )
+    return result
+
+
+def _july_prior_note(results: list[LvscDateResult]) -> str | None:
+    """Cite the published 2026-07-11 row. This run's row is computed separately."""
+    july = next((item for item in results if item.date == "2026-07-11"), None)
+    if july is None or july.status != "measured":
+        return None
+    prior = (
+        "`reports/mojana.md` recorded 3351 Sentinel-1 misses out of 4946 NISAR "
+        "open-water pixels on 2026-07-11, from 14 IW GRD scenes in this same window "
+        "*(measured, that report)*."
+    )
+    if july.n_missed == 3351 and july.n_with_s1 == 4946 and len(july.scenes) == 14:
+        return prior + " This command reproduces that row."
+    return (
+        prior
+        + f" This command measured {july.miss_fraction_text} "
+        + f"with {len(july.scenes)} scenes on that date."
+    )
+
+
+def _write_lvsc_outputs(
+    report_path: Path,
+    json_path: Path,
+    text: str,
+    payload: dict,
+) -> None:
+    _refuse_protected_write(report_path)
+    _refuse_protected_write(json_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(text, encoding="utf-8")
+
+
+def _lvsc_json_row(item: LvscDateResult) -> dict:
+    return {
+        "date": item.date,
+        "status": item.status,
+        "detail": item.detail,
+        "nisar_granule_ids": list(item.nisar_granule_ids),
+        "n_open_water": item.n_open_water,
+        "n_valid": item.n_valid,
+        "n_with_s1": item.n_with_s1,
+        "n_s1_missing_on_water": item.n_s1_missing_on_water,
+        "n_s1_also_water": item.n_s1_also_water,
+        "n_missed": item.n_missed,
+        "miss_fraction": item.miss_fraction_text,
+        "median_vv_open_water_db": item.median_vv_open_water_db,
+        "scenes": [
+            {
+                "scene_id": scene.scene_id,
+                "orbit_pass": scene.orbit_pass,
+                "start": scene.start,
+                "end": scene.end,
+                "relative_orbit": scene.relative_orbit,
+            }
+            for scene in item.scenes
+        ],
+    }
+
+
+def run_lvsc(
+    *,
+    thresholds: FloodThresholds,
+    bbox: tuple[float, float, float, float],
+    bbox_source: str,
+    config_path: Path,
+    cache_dir: Path,
+    report_path: Path,
+    json_path: Path,
+    command: str,
+    root: Path,
+) -> int:
+    """Compare cached NISAR open water with Sentinel-1 on every provenance date.
+
+    Reads ``provenance.json`` and ``water_extent_*.tif``. Does not write them,
+    and does not open the cube.
+    """
+    provenance_path = cache_dir / "provenance.json"
+    if not provenance_path.is_file():
+        print(f"missing provenance: {provenance_path}", file=sys.stderr)
+        return 1
+    generated_provenance, provenance_sha, dates = load_provenance_dates(provenance_path)
+    prepared, grid_text = _prepare_lvsc_dates(cache_dir, dates)
+    needs_s1 = any(isinstance(item, _LvscJob) for item in prepared)
+    ee_error: str | None = None
+    if needs_s1:
+        try:
+            from gee_math.ee_session import init_ee
+
+            init_ee()
+        except Exception as exc:
+            ee_error = safe_error(exc)
+            print(f"lvsc Earth Engine init failed: {ee_error}", file=sys.stderr)
+    results: list[LvscDateResult] = []
+    for item in prepared:
+        if isinstance(item, LvscDateResult):
+            results.append(item)
+            continue
+        if ee_error:
+            results.append(
+                lvsc_result_for_date(
+                    item.provenance.date,
+                    item.provenance.granule_ids,
+                    item.provenance.n_water,
+                    item.provenance.n_valid,
+                    (),
+                    None,
+                    error=ee_error,
+                )
+            )
+            continue
+        results.append(_fetch_lvsc_job(item, bbox, thresholds.open_water_abs_hh_db))
+    generated = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    config_rel = (
+        str(config_path.relative_to(root)) if config_path.is_relative_to(root) else str(config_path)
+    )
+    prior_note = _july_prior_note(results)
+    text = render_lvsc_report(
+        results,
+        command=command,
+        generated_utc=generated,
+        config_path=config_rel,
+        config_sha256=file_sha256(config_path),
+        threshold_db=thresholds.open_water_abs_hh_db,
+        bbox=bbox,
+        bbox_source=bbox_source,
+        provenance_generated_utc=generated_provenance,
+        provenance_config_sha256=provenance_sha,
+        grid_text=grid_text,
+        prior_note=prior_note,
+    )
+    summary = summarize_miss_fractions(results)
+    payload = {
+        "command": command,
+        "generated_utc": generated,
+        "config_path": config_rel,
+        "config_sha256": file_sha256(config_path),
+        "threshold_db": thresholds.open_water_abs_hh_db,
+        "half_window_days": S1_HALF_WINDOW_DAYS,
+        "collection": "COPERNICUS/S1_GRD",
+        "bbox": list(bbox),
+        "bbox_source": bbox_source,
+        "provenance_generated_utc": generated_provenance,
+        "provenance_config_sha256": provenance_sha,
+        "grid": grid_text,
+        "dates": [_lvsc_json_row(item) for item in results],
+        "summary": None
+        if summary is None
+        else {
+            "n_dates": summary.n_dates,
+            "median": f"{summary.median.numerator}/{summary.median.denominator}",
+            "median_text": summary.median_text,
+            "minimum": summary.minimum_text,
+            "maximum": summary.maximum_text,
+            "sorted": summary.sorted_text,
+            "even_count_averaged": summary.even_count_averaged,
+        },
+    }
+    _write_lvsc_outputs(report_path, json_path, text, payload)
+    print(f"wrote {report_path}", flush=True)
+    print(f"wrote {json_path}", flush=True)
+    if any(item.status == "missing" for item in results):
+        return 1
+    return 0
 
 
 def login_earthdata() -> None:
@@ -2152,6 +3252,19 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--end", default="2026-11-14")
     parser.add_argument("--cache-dir", default="local_cache/mojana")
     parser.add_argument("--report", default="reports/mojana.md")
+    parser.add_argument(
+        "--lvsc",
+        action="store_true",
+        help=(
+            "Compare cached NISAR open water with Sentinel-1 on every date. "
+            "Does not write provenance.json or cube bands."
+        ),
+    )
+    parser.add_argument("--lvsc-report", default="reports/mojana_lvsc.md")
+    parser.add_argument(
+        "--lvsc-json",
+        default="local_cache/mojana/lvsc_comparison.json",
+    )
     parser.add_argument("--worker-job", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
@@ -2175,6 +3288,24 @@ def run(argv: list[str] | None = None) -> int:
     thresholds = load_flood_thresholds(config_path)
     bbox, bbox_source = resolve_bbox(ops_path)
     command = "uv run python -m gee_math.flood_polarimetric_math " + " ".join(argv or sys.argv[1:])
+    if args.lvsc:
+        lvsc_report = Path(args.lvsc_report)
+        if not lvsc_report.is_absolute():
+            lvsc_report = root / lvsc_report
+        lvsc_json = Path(args.lvsc_json)
+        if not lvsc_json.is_absolute():
+            lvsc_json = root / lvsc_json
+        return run_lvsc(
+            thresholds=thresholds,
+            bbox=bbox,
+            bbox_source=bbox_source,
+            config_path=config_path,
+            cache_dir=cache_dir,
+            report_path=lvsc_report,
+            json_path=lvsc_json,
+            command=command.strip(),
+            root=root,
+        )
     generated = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     grid = build_grid(bbox)
     base_context = dict(

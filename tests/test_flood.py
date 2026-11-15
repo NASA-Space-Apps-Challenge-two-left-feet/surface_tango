@@ -6,8 +6,11 @@ the cache or the report of a real run.
 """
 
 import io
+import json
 import sys
 import time
+from datetime import UTC, datetime
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +26,7 @@ from gee_math.flood_polarimetric_math import (
     FloodThresholds,
     GranuleRef,
     ReportContext,
+    S1Scene,
     StackChoice,
     absolute_water_counts,
     analysis_stride,
@@ -31,18 +35,26 @@ from gee_math.flood_polarimetric_math import (
     classify_stack,
     compare_s1,
     db_to_power,
+    duplicate_scene_note,
     few_dates_block,
     invalid_gcov_pixels,
     load_flood_thresholds,
+    lvsc_result_for_date,
+    miss_fraction,
     mosaic_linear,
     parse_scene_name,
     power_to_db,
     read_granule_power,
+    render_lvsc_report,
     render_report,
     resample_power_mean,
+    run,
     run_bounded_process,
+    s1_window_bounds,
     safe_error,
+    scene_from_ee_row,
     select_stack,
+    summarize_miss_fractions,
     water_raster,
     write_class_geotiff,
 )
@@ -526,6 +538,329 @@ def test_s1_miss_does_not_count_missing_pixels():
     assert result.n_s1_water == 2
     assert result.n_s1_water_not_positive == 1
     assert result.median_vv_positive == -15.0
+
+
+def _scene(product: str, orbit_pass: str, start: str, end: str, orbit: int) -> S1Scene:
+    return S1Scene(product, orbit_pass, start, end, orbit)
+
+
+def _measured(date: str, positive: np.ndarray, vv: np.ndarray, scenes: tuple[S1Scene, ...]):
+    domain = np.ones(positive.shape, dtype=bool)
+    comparison = compare_s1(positive, domain, vv, None, -18.0, date, "absolute_water", len(scenes))
+    return lvsc_result_for_date(
+        date,
+        (f"NISAR_{date}",),
+        int(np.count_nonzero(positive)),
+        int(positive.size),
+        scenes,
+        comparison,
+    )
+
+
+def test_per_date_miss_fraction_from_hand_written_arrays():
+    """Miss fraction is missed/finite S1. Empty windows and dry dates stay non-numeric."""
+    scenes = (
+        _scene(
+            "S1A_IW_GRDH_1SDV_20260710T104500_20260710T104530_000001_000001_AAAA",
+            "DESCENDING",
+            "2026-07-10T10:45:00Z",
+            "2026-07-10T10:45:30Z",
+            142,
+        ),
+        _scene(
+            "S1A_IW_GRDH_1SDV_20260712T221000_20260712T221030_000002_000002_BBBB",
+            "ASCENDING",
+            "2026-07-12T22:10:00Z",
+            "2026-07-12T22:10:30Z",
+            48,
+        ),
+    )
+    # 4 open-water pixels: two below -18, one above, one missing S1.
+    # Hand count: finite 3, also water 2, missed 1, fraction 1/3.
+    partial = _measured(
+        "2026-07-11",
+        np.array([True, True, True, True]),
+        np.array([-20.0, -19.0, -10.0, np.nan]),
+        scenes,
+    )
+    assert partial.n_open_water == 4
+    assert partial.n_with_s1 == 3
+    assert partial.n_s1_missing_on_water == 1
+    assert partial.n_s1_also_water == 2
+    assert partial.n_missed == 1
+    assert partial.miss_fraction == Fraction(1, 3)
+    assert partial.miss_fraction_text == "1/3"
+    assert partial.median_vv_open_water_db == -19.0
+
+    # 2 open-water pixels, both below the cut: 0/2, not an empty denominator.
+    none_missed = _measured(
+        "2026-06-17",
+        np.array([True, True]),
+        np.array([-22.0, -30.0]),
+        scenes[:1],
+    )
+    assert none_missed.miss_fraction_text == "0/2"
+    assert none_missed.n_missed == 0
+    assert miss_fraction(0, 2) == Fraction(0, 1)
+
+    # 2 open-water pixels, one miss: 1/2.
+    half = _measured(
+        "2026-08-28",
+        np.array([True, True]),
+        np.array([-20.0, -5.0]),
+        scenes[:1],
+    )
+    assert half.miss_fraction_text == "1/2"
+
+    # 3 open-water pixels, all finite and all above the cut: 3/3.
+    all_missed = _measured(
+        "2026-09-09",
+        np.array([True, True, True]),
+        np.array([-10.0, -1.0, 0.0]),
+        scenes[:1],
+    )
+    assert all_missed.miss_fraction_text == "3/3"
+
+    no_s1 = lvsc_result_for_date("2026-08-16", ("NISAR_2026-08-16",), 10, 100, (), None)
+    assert no_s1.status == "no_s1"
+    assert no_s1.n_missed is None
+    assert no_s1.miss_fraction is None
+    assert no_s1.detail == "no S1 within window"
+
+    dry = lvsc_result_for_date(
+        "2026-10-27",
+        ("NISAR_2026-10-27",),
+        0,
+        1,
+        scenes,
+        compare_s1(
+            np.array([False]),
+            np.array([True]),
+            np.array([-30.0]),
+            None,
+            -18.0,
+            "2026-10-27",
+            "absolute_water",
+            2,
+        ),
+    )
+    assert dry.status == "no_open_water"
+    assert dry.n_missed is None
+    assert dry.scenes == ()
+
+    assert miss_fraction(0, 0) is None
+    with pytest.raises(ValueError):
+        miss_fraction(2, 1)
+
+    rows = (none_missed, partial, no_s1, half, all_missed, dry)
+    summary = summarize_miss_fractions(rows)
+    assert summary is not None
+    # Sorted values 0/2, 1/3, 1/2, 3/3. Central pair (1/3 + 1/2) / 2 = 5/12.
+    assert summary.n_dates == 4
+    assert summary.median == Fraction(5, 12)
+    assert summary.median_text == "(1/3 + 1/2) / 2 = 5/12"
+    assert summary.minimum_text == "0/2 on 2026-06-17"
+    assert summary.maximum_text == "3/3 on 2026-09-09"
+    assert summary.even_count_averaged is True
+
+    text = render_lvsc_report(
+        rows,
+        command="hand-written",
+        generated_utc="2026-11-15T00:00:00Z",
+        config_path="config/preregistered.yaml",
+        config_sha256="abc",
+        threshold_db=-18.0,
+        bbox=(-75.4, 7.9, -74.2, 9.2),
+        bbox_source="test",
+        provenance_generated_utc="2026-11-15T00:00:00Z",
+        provenance_config_sha256="abc",
+        grid_text="test grid",
+    )
+    assert "PROVISIONAL" in text
+    assert "uncalibrated" in text
+    assert "not separated" in text
+    assert "#26" in text
+    assert "1/3" in text
+    assert "5/12" in text
+    assert "S1A_IW_GRDH_1SDV_20260710T104500_20260710T104530_000001_000001_AAAA" in text
+    assert "DESCENDING" in text
+    assert "no S1 within window" in text
+    assert "no NISAR open water (denominator 0)" in text
+    no_s1_row = next(line for line in text.splitlines() if line.startswith("| 2026-08-16 |"))
+    dry_row = next(line for line in text.splitlines() if line.startswith("| 2026-10-27 |"))
+    assert "0/" not in no_s1_row
+    assert no_s1_row.split("|")[5].strip() == "not measurable"
+    assert dry_row.split("|")[5].strip() == "not measurable"
+    assert "not measurable" in no_s1_row
+    assert duplicate_scene_note(rows) is None
+    assert "share a start and end" not in text
+
+
+def test_duplicate_scene_ids_are_named_and_kept():
+    """Two catalog IDs with one start and end stay in the median and are named."""
+    start = "2026-09-01T23:14:13Z"
+    end = "2026-09-01T23:14:42Z"
+    pair = (
+        _scene("S1D_DUP_6E7B", "ASCENDING", start, end, 77),
+        _scene("S1D_DUP_B95A", "ASCENDING", start, end, 77),
+    )
+    row = _measured("2026-08-28", np.array([True, True]), np.array([-20.0, -5.0]), pair)
+    note = duplicate_scene_note((row,))
+    assert note is not None
+    assert "S1D_DUP_6E7B" in note
+    assert "S1D_DUP_B95A" in note
+    assert "the median kept them all" in note
+    assert duplicate_scene_note(()) is None
+    text = render_lvsc_report(
+        (row,),
+        command="hand-written",
+        generated_utc="2026-11-15T00:00:00Z",
+        config_path="config/preregistered.yaml",
+        config_sha256="abc",
+        threshold_db=-18.0,
+        bbox=(-75.4, 7.9, -74.2, 9.2),
+        bbox_source="test",
+        provenance_generated_utc="2026-11-15T00:00:00Z",
+        provenance_config_sha256="abc",
+        grid_text="test grid",
+    )
+    assert f"- {note}" in text
+
+
+def test_s1_scene_bounds_come_from_the_product_name():
+    assert s1_window_bounds("2026-07-11") == ("2026-07-05", "2026-07-18")
+    full_id = (
+        "COPERNICUS/S1_GRD/S1A_IW_GRDH_1SDV_20260710T104500_20260710T104530_000001_000001_AAAA"
+    )
+    named = scene_from_ee_row(
+        {
+            "scene_id": full_id,
+            "orbit_pass": "DESCENDING",
+            "time_start": 0,
+            "time_end": 0,
+            "relative_orbit": 142.0,
+        }
+    )
+    assert named.scene_id.endswith("AAAA")
+    assert named.start == "2026-07-10T10:45:00Z"
+    assert named.end == "2026-07-10T10:45:30Z"
+    assert named.orbit_pass == "DESCENDING"
+    assert named.relative_orbit == 142
+    sentinel_1c = scene_from_ee_row(
+        {
+            "scene_id": ("S1C_IW_GRDH_1SDV_20260709T104909_20260709T104934_008465_010C1F_D963"),
+            "orbit_pass": "DESCENDING",
+            "time_start": 0,
+            "time_end": 0,
+            "relative_orbit": 142,
+        }
+    )
+    assert sentinel_1c.start == "2026-07-09T10:49:09Z"
+    assert sentinel_1c.end == "2026-07-09T10:49:34Z"
+
+    start_ms = int(datetime(2026, 7, 10, 10, 45, tzinfo=UTC).timestamp() * 1000)
+    end_ms = int(datetime(2026, 7, 10, 10, 45, 30, tzinfo=UTC).timestamp() * 1000)
+    fallback = scene_from_ee_row(
+        {
+            "scene_id": "not-a-product-name",
+            "orbit_pass": "ASCENDING",
+            "time_start": start_ms,
+            "time_end": end_ms,
+            "relative_orbit": "48",
+        }
+    )
+    assert fallback.start == "2026-07-10T10:45:00Z"
+    assert fallback.end == "2026-07-10T10:45:30Z"
+    assert fallback.relative_orbit == 48
+
+    unknown = scene_from_ee_row(
+        {
+            "scene_id": "not-a-product-name",
+            "orbit_pass": None,
+            "time_start": None,
+            "time_end": None,
+            "relative_orbit": None,
+        }
+    )
+    assert unknown.start == "missing"
+    assert unknown.end == "missing"
+    assert unknown.orbit_pass == "missing"
+    assert unknown.relative_orbit is None
+
+
+def _write_lvsc_cache(tmp_path: Path, n_water: int, raster_value: int) -> None:
+    grid = AnalysisGrid("EPSG:32618", (90.0, 0.0, 500000.0, 0.0, -90.0, 1_000_090.0), 1, 1, 90.0)
+    array = np.array([[raster_value]], dtype=np.int16)
+    write_class_geotiff(
+        tmp_path / "water_extent_2026-10-27.tif",
+        array,
+        grid,
+        "absolute water test mask",
+    )
+    payload = {
+        "generated_utc": "2026-11-15T00:00:00Z",
+        "config_sha256": "abc",
+        "dates": [
+            {
+                "date": "2026-10-27",
+                "granule_ids": ["NISAR_TEST"],
+                "n_water": n_water,
+                "n_valid": 1,
+            }
+        ],
+    }
+    (tmp_path / "provenance.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_lvsc_does_not_call_earth_engine_or_rewrite_provenance(tmp_path: Path, monkeypatch):
+    def explode(*_args, **_kwargs):
+        raise AssertionError("init_ee should not run")
+
+    monkeypatch.setattr("gee_math.ee_session.init_ee", explode)
+    real_provenance = ROOT / "local_cache" / "mojana" / "provenance.json"
+    real_report = ROOT / "reports" / "mojana.md"
+    before_provenance = real_provenance.read_bytes()
+    before_report = real_report.read_bytes()
+    _write_lvsc_cache(tmp_path, n_water=0, raster_value=0)
+    written_provenance = (tmp_path / "provenance.json").read_bytes()
+    code = run(
+        [
+            "--lvsc",
+            "--cache-dir",
+            str(tmp_path),
+            "--lvsc-report",
+            str(tmp_path / "lvsc.md"),
+            "--lvsc-json",
+            str(tmp_path / "lvsc.json"),
+        ]
+    )
+    assert code == 0
+    text = (tmp_path / "lvsc.md").read_text(encoding="utf-8")
+    assert "no NISAR open water (denominator 0)" in text
+    assert (tmp_path / "provenance.json").read_bytes() == written_provenance
+    assert real_provenance.read_bytes() == before_provenance
+    assert real_report.read_bytes() == before_report
+    assert list(tmp_path.glob("water_extent_*.tif")) == [tmp_path / "water_extent_2026-10-27.tif"]
+
+    _write_lvsc_cache(tmp_path, n_water=5, raster_value=0)
+    mismatch_provenance = (tmp_path / "provenance.json").read_bytes()
+    code = run(
+        [
+            "--lvsc",
+            "--cache-dir",
+            str(tmp_path),
+            "--lvsc-report",
+            str(tmp_path / "lvsc.md"),
+            "--lvsc-json",
+            str(tmp_path / "lvsc.json"),
+        ]
+    )
+    assert code == 1
+    mismatch = (tmp_path / "lvsc.md").read_text(encoding="utf-8")
+    assert "water mask count 0/1 != provenance 5/1" in mismatch
+    assert (tmp_path / "provenance.json").read_bytes() == mismatch_provenance
+    assert real_provenance.read_bytes() == before_provenance
+    assert real_report.read_bytes() == before_report
 
 
 def test_raster_roundtrip_keeps_nodata(tmp_path: Path):
