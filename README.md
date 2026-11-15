@@ -1,69 +1,189 @@
-# 🛰️ Dancing with the SARs: Multi-Agent NISAR Early Warning & Cascading Hazard Observatory
+# BailaSAR: NISAR L-band observatory for cascading disasters in Colombia
 
-[![NASA Space Apps 2026](https://img.shields.io/badge/NASA_Space_Apps_2026-Medell%C3%ADn%2C_Colombia-0B3D91?style=for-the-badge)](https://www.spaceappschallenge.org/2026/challenges/dancing-with-the-sars/)
-[![Mission: NISAR L-Band](https://img.shields.io/badge/Sensor-NISAR_L--Band_(24cm)-00B4D8?style=for-the-badge)](https://nisar.jpl.nasa.gov/)
-[![Compute: Google Earth Engine](https://img.shields.io/badge/Compute-GEE_High--Volume_%2B_Zarr_v3-34A853?style=for-the-badge&logo=google-earth)](https://earthengine.google.com/)
-[![Orchestration: LangGraph + MCP](https://img.shields.io/badge/Agents-LangGraph_%2B_FastMCP-F97316?style=for-the-badge)](https://modelcontextprotocol.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+BailaSAR is a hackathon project for the NASA Space Apps challenge **"Dancing with the SARs"**, built in Medellín to investigate cascading disasters in Colombia using public radar observations and contextual datasets. Its intended focus is landslides in the Aburrá Valley, earthquake damage assessment and first-aid ranking in the Eje Cafetero, and flooding at La Mojana / Caregato. The goal is to make surface-change evidence understandable through a mission-control map and tool-grounded bulletins; the status below distinguishes available discovery evidence from analysis and demo features still pending integration.
 
-> **"On Earth's surface there is an endless dance of natural processes and human activities... When upper-watershed deforestation strips root cohesion on 34° Andean slopes, 145 mm of tropical rainfall accelerates millimeter-scale slope creep into a catastrophic valley flood."**  
-> — *Built in Medellín & Bello, Antioquia for the 2026 NASA Space Apps Challenge (`Dancing with the SARs`)*
+> **Evidence rules.** No synthetic or fabricated data. Missing pixels and bands remain missing (NaN, shown as "no data"), never zero-filled. Measured results require the producing command, source granule or scene IDs, denominators and applicable intervals; estimates must be labelled. Agents write prose with `{placeholders}` filled from tool outputs. Only public data is permitted; no personal data or secrets. See [AGENTS.md](AGENTS.md).
 
----
+## Quickstart
 
-## 🌍 1. Executive Summary & The "Hometown" Problem Statement
+Use a local checkout with [uv](https://docs.astral.sh/uv/), Bash and GNU make. Docker with Compose is needed for the stack targets. Read the limitations below before attempting the offline demo.
 
-In the steep tropical topography of the **Aburrá Valley (Medellín, Bello, and Copacabana, Colombia)**, natural hazards do not happen in isolation—they **cascade**:
-1. **Optical Blindness:** Persistent Andean cloud cover blinds optical satellites (`Sentinel-2`, `Landsat`) during critical rainy-season emergencies (`CHIRPS`).
-2. **C-Band Foliage Decorrelation:** Short-wavelength C-band radar (`Sentinel-1`, $\lambda = 5.6\text{ cm}$) scatters off upper tree leaves, saturating at low forest biomass ($\sim 60\text{ Mg/ha}$) and suffering severe interferometric temporal decorrelation over vegetated hillslopes.
-3. **The NISAR L-Band Breakthrough:** By exploiting **NISAR's 24.0 cm L-band wavelength** (`L2 GCOV`, `L2 GUNW`, and `L2 GOFF`), our system penetrates both tropical clouds and dense forest canopies to measure **bare-earth millimeter slope creep**, **sub-canopy dihedral double-bounce flooding**, **co-seismic urban building damage**, and **woody carbon disturbance** simultaneously.
+### Setup
 
-We present an **open-source, multi-agent geospatial observatory** orchestrated via **LangGraph** and the **Model Context Protocol (MCP)**, powered by **Google Earth Engine's High-Volume Compute API**, **Zarr v3 Edge Data Cubes**, and an interactive **3-Panel Synchronized Curtain Slider & Radar Physics Inspector** (`MapLibre GL JS` + `Deck.gl`).
+```bash
+make setup
+```
 
----
+This installs the project environment and commit hooks, creates `.env` from [.env.example](.env.example) if absent, and creates `local_cache/`. Keep credential values in the ignored local `.env` only.
 
-## 🏗️ 2. System Architecture (Mermaid Diagrams)
+### Offline demo from a release cache (pending)
 
-### 2.1 Zero-Download Cloud-to-Edge Data & Multi-Agent Topology
+The intended submission workflow is:
+
+```bash
+export BAILASAR_REPO="<owner/repository>"
+export BAILASAR_RELEASE_TAG="<published-release-tag>"
+make fetch-cache
+make pitch
+```
+
+**Currently blocked:** the [Makefile](Makefile) does not yet implement `fetch-cache`, and this checkout provides no verified submission release or downloadable cache. The repository and tag above are placeholders for the team's published release, not working download coordinates. Do not run this sequence expecting a complete demo yet. The planned release must contain real tiles, statistics and a provenance manifest with source IDs; `local_cache/` stays out of git.
+
+`make pitch` selects the offline Compose profile at <http://localhost:8000>. End-to-end offline operation is pending. The current Compose configuration also expects local credential mount paths and invokes the cache warmer when its manifest is absent; selecting pitch mode alone does not establish a credential-free offline demo.
+
+### Live mode (credentials required)
+
+Configure the relevant keys from [.env.example](.env.example): Earthdata authentication for ASF/NISAR; a Google Cloud project and storage bucket plus authorized Earth Engine/Google Cloud credentials; and a configured LLM provider key for bulletin generation. Use the team's approved authentication setup; do not paste credential values into docs, logs or chat.
+
+```bash
+make up
+```
+
+This starts the live Compose profile at <http://localhost:8000>. Live hazard analysis remains pending integration; a launch command is not evidence of a working pipeline. Cloud processing is restricted to the account holders named in [AGENTS.md](AGENTS.md).
+
+### Windows notes and commands without make
+
+Use Git Bash for the Makefile's Bash syntax. Git Bash, uv and GNU make are separate prerequisites; Windows does not include uv or make by default, and Git Bash does not supply GNU make by itself. With uv installed, run the commands behind the development targets directly from the repository root:
+
+```bash
+# make setup
+uv sync --all-extras
+uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
+[ -f .env ] || cp .env.example .env
+mkdir -p local_cache
+
+# make check
+uv run pre-commit run --all-files
+
+# make test
+uv run pytest -q -m "not network and not cache"
+
+# make up (requires credentials)
+OFFLINE_DEMO_MODE=0 docker compose --profile live up --build -d
+
+# make pitch (requires a real cache; integration pending)
+OFFLINE_DEMO_MODE=1 docker compose --profile pitch up -d
+```
+
+There is no equivalent fetch command to copy yet because `make fetch-cache` is unimplemented. Stack targets wrap Docker Compose rather than uv. See the [Makefile](Makefile) for the remaining commands and [AGENTS.md](AGENTS.md) for contributor checks and worktree rules.
+
+## Status
+
+States: **live** · **cached** · **not cached** · **planned** · **dropped**. Discovery evidence does not demonstrate that a hazard pipeline or the offline demo works. Pending rows retain the scope of the existing rewrite; no completed integration is claimed without evidence.
+
+| Component | State | Issue / PR | Report |
+|---|---|---|---|
+| NISAR discovery gate (search script and saved catalog) | live | #23 | [Gate report](reports/gate.md) |
+| Pre-registration and power check (fields pending) | planned | #25 | pending |
+| Quake damage proxy, first-aid ranking and scorecard | planned | — | pending |
+| Aburrá landslide noise-floor test | planned | — | pending |
+| La Mojana flood classes (dual-pol HH/HV) | planned | — | pending |
+| Real-data cache and release download | not cached | #30 | pending |
+| MCP servers and SSE integration | planned | #10 | pending |
+| LangGraph orchestrator and bulletin integration | planned | #11, #51 | pending |
+| Mission-control UI, curtain slider and story map | planned | #12 | pending |
+| Submission video | planned | — | pending |
+| Biomass agent (TODO; out of scope) | dropped | — | — |
+| GOFF / surface-rupture analysis (TODO; out of scope) | dropped | — | — |
+| Split-spectrum ionosphere processing (TODO; out of scope) | dropped | — | — |
+| GEE High-Volume endpoint (TODO; out of scope) | dropped | — | — |
+| `/math-lab` | dropped | #41, #55, #56 | — |
+| ISRO S-band fusion (TODO; out of scope) | dropped | — | — |
+
+## Results
+
+See `reports/` — pending.
+
+- Quake scorecard and population-only comparison: see `reports/` — pending.
+- Aburrá motion or documented null: see `reports/` — pending.
+- La Mojana flood classes and sensitivity: see `reports/` — pending.
+- Offline demo and tool latency evidence: see `reports/` — pending.
+
+## Architecture
+
+The retained diagram describes the agreed architecture, not a claim of completed integration. Biomass is outside the submission scope.
 
 ```mermaid
-flowchart TB
-    subgraph NASA_CLOUD["☁️ NASA Earthdata Cloud (AWS us-west-2 S3 / ASF DAAC)"]
-        H5_GCOV["NISAR L2 GCOV (.h5)\nPolarimetric Covariance (HHHH, HVHV)"]
-        H5_GUNW["NISAR L2 GUNW (.h5)\nUnwrapped Phase, Coherence & Ionosphere"]
-        H5_GOFF["NISAR L2 GOFF (.h5)\n3D Range & Azimuth Pixel Offsets"]
+flowchart LR
+    subgraph DATA["Public data"]
+        NISAR["NISAR L2 GUNW / GCOV<br/>(ASF DAAC, Earthdata)"]
+        GEE["Google Earth Engine catalogs<br/>Sentinel-1, Sentinel-2, CHIRPS,<br/>MERIT Hydro, WorldPop"]
     end
-
-    subgraph MCP_TIER["🔌 Model Context Protocol (FastMCP Server Tier)"]
-        MCP1["mcp-nisar-asf (Port 8001)\n• asf_search Track/Frame Pairing\n• GDAL /vsicurl/ Byte-Range Slicing\n• Split-Spectrum Ionosphere Removal"]
-        MCP2["mcp-gee-fusion (Port 8002)\n• GEE High-Volume Compute Engine\n• Official + Awesome GEE Community Catalog\n• 1.8s Circuit-Breaker -> Local Zarr v3 Cube"]
+    subgraph MCP["Two FastMCP servers (SSE)"]
+        M1["mcp-nisar-asf :8001<br/>search, stage to GCS, pair sets"]
+        M2["mcp-gee-fusion :8002<br/>statistics, tiles, ranking, scoring"]
     end
-
-    subgraph GEE_CATALOGS["🌍 Google Earth Engine & Community Catalogs"]
-        GEE_OFF["Official GEE Catalog\n• Sentinel-1 C-Band (5.6cm)\n• Sentinel-2 Optical RGB\n• CHIRPS Daily Rain\n• GEDI L4A Biomass Shots\n• MERIT Hydro HAND & JRC Water"]
-        GEE_COMM["Awesome GEE Community Catalog\n• FABDEM (30m Tree-Free DEM)\n• ESA CCI AGB v6.0 Biomass\n• VIDA Combined Building Footprints\n• WorldPop Vulnerability"]
+    GUARD["cache_guard<br/>live, or real pre-staged tiles,<br/>or an explicit 'not cached' error"]
+    subgraph GRAPH["LangGraph"]
+        IN["nisar_ingestion"]
+        L["landslide_agent"]
+        Q["earthquake_agent"]
+        F["flood_agent"]
+        S["cross_hazard_synthesis<br/>(ES/EN bulletin)"]
     end
+    UI["Mission control<br/>FastAPI SSE + MapLibre + Deck.gl"]
 
-    subgraph LANGGRAPH_DAG["🧠 LangGraph Parallel Multi-Agent Orchestrator"]
-        INGEST["1. NISAR Ingestion Node\n(Stages COGs once per AOI)"]
-        A_LAND["2a. Landslide Agent\n(3D Downslope InSAR + Rain)"]
-        A_FLOOD["2b. Flood Agent\n(Specular vs Double-Bounce)"]
-        A_QUAKE["2c. Seismic DPM Agent\n(Coherence Drop + VIDA)"]
-        A_BIO["2d. Biomass Agent\n(HV Volume + GEDI GBDT)"]
-        SYNTH["3. Cross-Hazard Synthesis Agent\n(Cascading Risk Chain & Bilingual Bulletin)"]
-    end
+    NISAR --> M1
+    GEE --> M2
+    M1 --- GUARD
+    M2 --- GUARD
+    IN --> L & Q & F
+    L & Q & F --> S
+    L & Q & F <-->|tool calls| GUARD
+    S --> UI
+```
 
-    subgraph FRONTEND["🖥️ Interactive Mission Control UI (FastAPI SSE + MapLibre + Deck.gl)"]
-        SLIDER["3-Panel Curtain Slider\nOptical vs. C-Band vs. NISAR L-Band"]
-        INSPECTOR["Radar Physics Inspector\nDynamic Wave Scattering SVGs"]
-        STORY["5-Chapter Story Map Tour\n3D Cascading Arcs over Bello & Medellín"]
-    end
+- **Quake:** planned coherence-loss damage proxy over built-up pixels, with first-aid ranking compared against a population-only baseline and a pre-event control. Pre-registration remains pending in [validation/README.md](validation/README.md); it must be committed before co-event coherence is viewed.
+- **Aburrá landslides:** planned use of GUNW unwrapped phase and the supplied ionosphere screen, subject to layer availability and a stable-pixel noise-floor check. A null result must be reported when motion is unsupported. Split-spectrum ionosphere estimation is out of scope.
+- **La Mojana flood:** planned dual-pol HH/HV change detection against a dry baseline, with height-above-drainage gating. Classification thresholds belong in config and require validation.
+- **Agents route, tools compute:** numeric bulletin content must come from deterministic tool outputs or sourced event constants in [validation/event_facts.json](validation/event_facts.json). AI-written bulletins must carry the **SI-Assisted Analytics** badge; enforcement remains part of the pending integration.
+- **Cache guard:** the agreed fallback serves only real pre-staged tiles with provenance, or an explicit "not cached" error. The breaker default in [config/bailasar.yaml](config/bailasar.yaml) is a configuration estimate, not a measured latency result. Per-tool measurements are pending.
+- **Panel states:** the required UI states are live, cached, not cached, gate result or error. Missing data must be explicit.
 
-    H5_GCOV & H5_GUNW & H5_GOFF -->|"/vsicurl/ Byte-Range"| MCP1
-    MCP1 -->|"Cloud-Optimized GeoTIFFs (gs://) & Local Zarr v3"| MCP2
-    GEE_OFF & GEE_COMM --> MCP2
-    INGEST --> MCP1
-    INGEST --> A_LAND & A_FLOOD & A_QUAKE & A_BIO
-    A_LAND & A_FLOOD & A_QUAKE & A_BIO <-->|"JSON-RPC Tool Calls"| MCP2
-    A_LAND & A_FLOOD & A_QUAKE & A_BIO -->|"Annotated[Dict, operator.or_]"| SYNTH
-    SYNTH -->|"Server-Sent Events (SSE) + XYZ Tiles"| SLIDER & INSPECTOR & STORY
+Frozen thresholds, ranking parameters and pair choices belong only in [config/preregistered.yaml](config/preregistered.yaml); operational settings belong in [config/bailasar.yaml](config/bailasar.yaml). The design and binding decisions are in [docs/designs/bailasar.md](docs/designs/bailasar.md). Biomass, GOFF/rupture, split-spectrum ionosphere and GEE High-Volume remain out of scope / TODO even where imported baseline code still mentions them.
+
+## Data sources and citations
+
+Only public inputs are permitted. The datasets below are the intended inputs, not evidence that each has already been ingested. Cached outputs must retain source granule or scene IDs and provenance. Official provider links are included only where already referenced in the repository; other entries name the dataset and provider pending source verification. No DOI is inferred.
+
+| Dataset | Provider / citation | Intended role |
+|---|---|---|
+| NISAR L-band GUNW / GCOV | NASA/JPL and ISRO; distributed by [ASF DAAC](https://asf.alaska.edu/notices/nisar-l-band-data-now-publicly-available/); [ASF GUNW documentation](https://nisar-docs.asf.alaska.edu/gunw/) | Coherence, unwrapped phase and HH/HV backscatter |
+| Sentinel-1 | ESA / Copernicus | C-band comparison and water context |
+| Sentinel-2 | ESA / Copernicus | Optical comparison |
+| CHIRPS | Climate Hazards Center, University of California, Santa Barbara | Precipitation and wetness context |
+| FABDEM | University of Bristol | Terrain context |
+| MERIT Hydro | University of Tokyo, Institute of Industrial Science | Drainage context and flood gating |
+| JRC Global Surface Water | European Commission, Joint Research Centre | Surface-water history |
+| WorldPop | WorldPop, University of Southampton | Population exposure and baseline ranking |
+| OpenStreetMap | OpenStreetMap contributors | Public hospitals and roads; extract provenance required |
+| Published damage reports | Issuing public agency and report citation pending selection in [validation/README.md](validation/README.md) | Independent damage labels for scoring |
+
+The NISAR references above are already recorded in [docs/kb/](docs/kb/). Dataset and method claims require primary-source verification there before they can support the pitch.
+
+## Acknowledgements and agency credits
+
+NASA/JPL and ISRO are NISAR mission partners; ASF DAAC distributes its L-band products. ESA and Copernicus provide Sentinel observations. Google Earth Engine supplies catalog access and computation. We acknowledge the Space Apps organizers and the Medellín local event.
+
+Use no NASA logos, flags or identifiers in generated media, badges or UI headers, and no likeness of minors. Agency names here provide attribution and do not imply endorsement.
+
+## AI disclosure
+
+This project is built with Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph.
+
+The team reviews AI-assisted code and documentation. The initial generated baseline is documented in [docs/baseline/BASELINE_NOTES.md](docs/baseline/BASELINE_NOTES.md). Runtime bulletin generation is subject to the tool-output and disclosure requirements above. Disclosure of any AI tools used in the submission video is pending completion of that artifact.
+
+## License
+
+License: to be decided by the team (TODO)
+
+## Team
+
+| Team member | Lane |
+|---|---|
+| [@LEONOB2014](https://github.com/LEONOB2014) | orchestrator, data gate, hazard modeling |
+| [@Jack4Codes](https://github.com/Jack4Codes) | config, pre-registration, cloud tools |
+| [@Maru816](https://github.com/Maru816) | scoring and ground truth |
+| [@EstebanOchoaedos](https://github.com/EstebanOchoaedos) | knowledge base, cloud cache checks, README |
+| [@alicealanapineda-byte](https://github.com/alicealanapineda-byte) | MCP, agents, bulletin |
+| [@SaritaRpo](https://github.com/SaritaRpo) | UI and video |
