@@ -19,10 +19,46 @@ INGESTION_TOOLS = {
     "stage_nisar_gcov_to_gcs",
     "stage_nisar_gunw_ionosphere_corrected_to_gcs",
 }
+TOOL_ARGUMENTS = {
+    "get_earthquake_pair_set": ({}, set()),
+    "search_nisar_granules": ({"bbox", "start_date", "end_date"}, {"product_level"}),
+    "stage_nisar_gcov_to_gcs": (
+        {"https_url", "scene_name", "bbox"},
+        {"polarizations"},
+    ),
+    "stage_nisar_gunw_ionosphere_corrected_to_gcs": (
+        {"https_url", "scene_name", "bbox"},
+        set(),
+    ),
+    "analyze_landslide_kinematics": (
+        {"gunw_unw_gcs", "gunw_iono_gcs", "gunw_coh_gcs", "gunw_conncomp_gcs", "bbox"},
+        {"rain_start_date", "rain_end_date", "temporal_baseline_days"},
+    ),
+    "analyze_earthquake_dpm": (
+        {"coh_pre_gcs", "coh_coseismic_gcs", "goff_range_gcs", "goff_azimuth_gcs", "bbox"},
+        set(),
+    ),
+    "analyze_flood_inundation": (
+        {
+            "gcov_hhhh_pre_gcs",
+            "gcov_hvhv_pre_gcs",
+            "gcov_hhhh_post_gcs",
+            "gcov_hvhv_post_gcs",
+            "bbox",
+        },
+        {"s1_post_start", "s1_post_end"},
+    ),
+    "rank_first_aid_barrios": ({"dataset_id"}, set()),
+    "score_against_baseline": ({"dataset_id"}, set()),
+}
 
 
 def domain_request(domain, specification):
-    if domain not in DOMAIN_TOOLS or not isinstance(specification, dict):
+    if (
+        not isinstance(domain, str)
+        or domain not in DOMAIN_TOOLS
+        or not isinstance(specification, dict)
+    ):
         raise BulletinContractError("invalid domain request")
     if "tool" not in specification:
         return DOMAIN_TOOLS[domain], specification
@@ -36,11 +72,54 @@ def domain_request(domain, specification):
     return specification["tool"], specification["arguments"]
 
 
-def validate_requests(ingestion_requests, tool_requests):
+def _validate_argument_references(value, *, context, available_ids):
+    if isinstance(value, list):
+        for item in value:
+            _validate_argument_references(item, context=context, available_ids=available_ids)
+        return
+    if isinstance(value, dict):
+        if "from_context" in value:
+            field = value["from_context"]
+            if (
+                set(value) != {"from_context"}
+                or not isinstance(field, str)
+                or field not in CONTEXT_FIELDS
+                or field not in context
+            ):
+                raise BulletinContractError("invalid context reference")
+            return
+        if "from_staged" in value:
+            request_id, path = value.get("from_staged"), value.get("path")
+            if (
+                set(value) != {"from_staged", "path"}
+                or not isinstance(request_id, str)
+                or request_id not in available_ids
+                or not isinstance(path, list)
+                or not path
+                or any(not isinstance(part, str) or not part for part in path)
+            ):
+                raise BulletinContractError("invalid staged reference")
+            return
+        for item in value.values():
+            _validate_argument_references(item, context=context, available_ids=available_ids)
+
+
+def _validate_tool_arguments(name, arguments, *, context, available_ids):
+    if name not in TOOL_ARGUMENTS or not isinstance(arguments, dict):
+        raise BulletinContractError("unknown tool or invalid arguments")
+    required, optional = TOOL_ARGUMENTS[name]
+    keys = set(arguments)
+    if not required <= keys or not keys <= required | optional:
+        raise BulletinContractError("missing or unknown tool arguments")
+    _validate_argument_references(arguments, context=context, available_ids=available_ids)
+
+
+def validate_requests(ingestion_requests, tool_requests, context):
     """Validate the whole request collection before permitting any tool effect."""
     if not isinstance(ingestion_requests, list) or not isinstance(tool_requests, dict):
         raise BulletinContractError("run plan requires ingestion and domain requests")
     seen = set()
+    prior_ids = set()
     for request in ingestion_requests:
         if not isinstance(request, dict):
             raise BulletinContractError("invalid ingestion request")
@@ -52,12 +131,17 @@ def validate_requests(ingestion_requests, tool_requests):
             or not isinstance(request_id, str)
             or not request_id.strip()
             or request_id in seen
-            or not isinstance(request.get("arguments", {}), dict)
+            or set(request) - {"id", "tool", "arguments"}
         ):
             raise BulletinContractError("invalid or duplicate ingestion request")
+        _validate_tool_arguments(
+            name, request.get("arguments", {}), context=context, available_ids=prior_ids
+        )
         seen.add(request_id)
+        prior_ids.add(request_id)
     for domain, specification in tool_requests.items():
-        domain_request(domain, specification)
+        name, arguments = domain_request(domain, specification)
+        _validate_tool_arguments(name, arguments, context=context, available_ids=prior_ids)
 
 
 def load_run_plan(filename: Path):
@@ -73,7 +157,7 @@ def load_run_plan(filename: Path):
         raise BulletinContractError("explicit model must be a nonempty configured model name")
     if not isinstance(plan.get("context"), dict) or not CONTEXT_FIELDS <= plan["context"].keys():
         raise BulletinContractError("run plan requires explicit place and dates")
-    validate_requests(plan.get("ingestion_requests"), plan.get("tool_requests"))
+    validate_requests(plan.get("ingestion_requests"), plan.get("tool_requests"), plan["context"])
     if (
         not isinstance(plan.get("placeholders"), dict)
         or not isinstance(plan.get("recipe"), str)
