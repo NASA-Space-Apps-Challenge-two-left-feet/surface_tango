@@ -8,31 +8,31 @@ HKLSI is not computed.
 
 **No motion detected above 9.105 mm (17 pairs).** *(measured, PROVISIONAL)*
 
-The keep-rule below passes noise, so its raw kept count is not a detection. Calibrated against a sign-flip null, the kept fraction is **below** the null on both tracks:
+The keep-rule below passes noise, so its raw kept count is not a detection. The hillslope kept fraction is shown beside the stable-pixel false-positive rate and the sign-flip null. All of these fractions are *(measured, PROVISIONAL)*.
 
-| Stack | Pairs | Eligible px | Kept fraction | Sign-flip null mean | Null 95th pct | Exceeds null |
-|---|---:|---:|---:|---:|---:|---|
-| Track 11 frame 85 descending | 8 | 113,424 | 0.3748 | 0.4131 | 0.4974 | no |
-| Track 47 frame 5 ascending | 9 | 112,958 | 0.4073 | 0.4857 | 0.5390 | no |
+| Stack | Pairs | Hillslope px | Hillslope kept fraction | Stable px | Stable kept fraction | Sign-flip null mean | Null 95th pct | Exceeds sign-flip null | Exceeds stable |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| track 11 frame 85 DESCENDING | 8 | 113,424 | 0.3748 | 24,531 | 0.3511 | 0.4131 | 0.4974 | no | yes |
+| track 47 frame 5 ASCENDING | 9 | 112,958 | 0.4073 | 24,155 | 0.3600 | 0.4857 | 0.5390 | no | yes |
 
-- Command: `uv run python -m gee_math.landslide_insar_math --calibrate-from-cache` (offline; reads `local_cache/aburra/summary.json` and `local_cache/aburra/pairs/*.npz`, writes `local_cache/aburra/calibration.json`). 200 draws, seed 20261115. Measured 2026-11-15 ~05:15 UTC.
-- Eligible pixels: finite downslope value in at least one pair of the stack (hillslopes; valley-floor stable pixels excluded upstream).
-- Null: each draw multiplies every pair's downslope field by one seeded ±1. That keeps each pair's noise and spatial structure but breaks the sign consistency real motion would show across pairs. No value is generated.
-- Why the raw rule passes noise: a pixel is kept when *any* two date-independent pairs agree in sign with |LOS| > RMS. With 8–9 pairs there are ~28 such pair combinations, and a single pair exceeds its RMS on roughly a third of noise pixels. The near-even sign split below is consistent with that.
-- Not done here: the same rule on the stable valley-floor pixels (an empirical false-positive rate). The stable mask isn't in the cached pair files, so that needs a re-run of the live pipeline.
+The hillslope kept fraction is above the stable-pixel false-positive rate on track 11 frame 85 DESCENDING and track 47 frame 5 ASCENDING, and below the sign-flip null, so the null holds. *(measured, PROVISIONAL)*
+
+- Hillslope px: finite downslope in at least one pair of the stack (valley-floor stable pixels excluded upstream).
+- Stable px: finite downslope on the valley-floor sample in at least one pair (FABDEM slope ≤ 5.0°, inside the reference component, outside layover and shadow). The stable kept fraction is the keep-rule's empirical false-positive rate on those pixels.
+- Sign-flip null: each draw multiplies every pair's downslope field by one seeded ±1 (200 draws, seed 20261115). That keeps each pair's noise and spatial structure and breaks the sign consistency real motion would show across pairs. No value is generated.
+- Exceeds stable: the hillslope kept fraction is greater than the stable-pixel kept fraction. No extra margin is pre-registered. That comparison becomes a candidate only when the hillslope fraction also exceeds the sign-flip 95th percentile. Below that null, the headline stays the null sentence.
+- Command: `uv run python -m gee_math.landslide_insar_math`.
 
 Raw keep-rule output, kept for the record, **not a detection**:
+
+kept downslope rates on 88517 pixels; noise floor 9.105 mm (17 pairs).
 
 Noise floor: 9.105 mm *(measured)*.
 Denominator: 17 pairs with a finite stable-pixel residual RMS,
 out of 17 single-pol HH granules returned by the search
 (17 GUNW hits before the SH filter; 0 UR copies of a PR pair were not reprocessed).
 Pixels with a kept downslope rate: 88517.
-That count is the sum of two native grids that were not resampled onto each other.
-Ascending track 47 frame 5: 46009 of 176859 pixels (grid 457×387).
-Descending track 11 frame 85: 42508 of 176859 pixels (grid 457×387).
-Sign of the kept downslope rate (positive = downhill): ascending 21737 positive and 24272 negative; descending 23271 positive and 19237 negative.
-Grid sizes are from `local_cache/aburra/stacks/*.npz`; sign counts are from `local_cache/aburra/summary.json` *(measured)*.
+That count is the sum of the per-track native grids. The grids are not resampled onto each other.
 
 ## Reproduce
 
@@ -40,7 +40,7 @@ Grid sizes are from `local_cache/aburra/stacks/*.npz`; sign counts are from `loc
 uv run python -m gee_math.landslide_insar_math
 ```
 
-Measured 2026-11-14 21:10 Bogotá (UTC−5); log time 2026-11-15T02:10:16Z.
+Measured 2026-11-15 01:32 Bogotá (UTC−5); log time 2026-11-15T06:32:21Z.
 Search: `asf.geo_search`, platform NISAR, processingLevel GUNW,
 bbox [W, S, E, N] = [-75.7, 6.12, -75.42, 6.45] from `1_aburra_medellin_bello`, start 2026-06-17T00:00:00Z, end 2026-11-14T23:59:59Z.
 
@@ -62,7 +62,10 @@ bbox [W, S, E, N] = [-75.7, 6.12, -75.42, 6.45] from `1_aburra_medellin_bello`, 
   downslope sign agrees on two pairs that do not share an acquisition date,
   on the same native grid. Ascending and descending grids are not resampled
   onto each other.
-- `config/preregistered.yaml` landslide block: absent (no landslide key).
+- The same keep-rule is applied to the stable valley-floor pixels. Their kept
+  fraction is the empirical false-positive rate. Those pixels stay excluded
+  from the hillslope count.
+- `config/preregistered.yaml` landslide block: landslide.noise_floor {min_pairs: 2, require_sign_agreement: true} read and matched; valley_floor_max_slope_deg not pre-registered, code constant 5.0 used.
 - AOI `1_aburra_medellin_bello` read from `config/bailasar.yaml`: [-75.7, 6.12, -75.42, 6.45].
 
 ## Pairs
@@ -90,11 +93,6 @@ bbox [W, S, E, N] = [-75.7, 6.12, -75.42, 6.45] from `1_aburra_medellin_bello`, 
 ## Notes on the pairs
 
 No urgent-response copy of a provisional pair was returned by the search.
-The hour-2 gate catalog `nisar_colombia_granules_2026.json` lists 20 Aburrá GUNW at `aois.1_aburra_medellin_bello.counts.GUNW`: 17 `PR` and 3 `UR` *(measured by reading that file)*.
-The three UR names share dates with PR pairs on track 11 frame 85 and are not an extra independent sample:
-`NISAR_L2_UR_GUNW_026_011_D_085_028_4000_SH_20260720T232838_20260720T232913_20260813T232837_20260813T232912_P05023_F_F_J_001` (2026-07-20 → 2026-08-13),
-`NISAR_L2_UR_GUNW_028_011_D_085_029_4000_SH_20260813T232837_20260813T232912_20260825T232837_20260825T232915_P05023_F_F_J_001` (2026-08-13 → 2026-08-25),
-`NISAR_L2_UR_GUNW_029_011_D_085_030_4000_SH_20260825T232837_20260825T232911_20260906T232837_20260906T232911_P05023_F_F_J_001` (2026-08-25 → 2026-09-06).
 Temporal-baseline mismatch (not a 12-day pair; |Δt − 12| > 1 day), kept visible:
 - NISAR_L2_PR_GUNW_026_011_D_085_028_4000_SH_20260720T232838_20260720T232913_20260813T232837_20260813T232912_P05023_N_F_J_001: Δt = 24.00 days (2026-07-20 → 2026-08-13) *(measured)*.
 - NISAR_L2_PR_GUNW_026_047_A_005_028_4000_SH_20260723T103904_20260723T103939_20260816T103903_20260816T103937_P05023_N_F_J_001: Δt = 24.00 days (2026-07-23 → 2026-08-16) *(measured)*.
@@ -102,8 +100,8 @@ Product wavelength c/centerFrequency = 0.241963 m *(measured)*. Displacement use
 
 ## Stacks
 
-- track 47 frame 5 ASCENDING: 9 pairs on one grid, 46009 pixels kept, stack median RMS 7.898 mm *(measured)*.
-- track 11 frame 85 DESCENDING: 8 pairs on one grid, 42508 pixels kept, stack median RMS 10.359 mm *(measured)*.
+- track 47 frame 5 ASCENDING: 9 pairs on one grid, 46009 of 176859 pixels kept (grid 457×387; positive = downhill: 21737 positive and 24272 negative), stack median RMS 7.898 mm *(measured)*.
+- track 11 frame 85 DESCENDING: 8 pairs on one grid, 42508 of 176859 pixels kept (grid 457×387; positive = downhill: 23271 positive and 19237 negative), stack median RMS 10.359 mm *(measured)*.
 
 ## FABDEM
 
