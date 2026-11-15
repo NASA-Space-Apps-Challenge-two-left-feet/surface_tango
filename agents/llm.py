@@ -26,14 +26,49 @@ def load_llm_config(path: Path = CONFIG_PATH) -> dict:
     return cfg["llm"]
 
 
+def _vertex_model(entry: dict, provider: dict, config: dict) -> BaseChatModel | None:
+    """Gemini via Vertex AI, authenticated with ADC (the same identity as init_ee).
+
+    No API key: uses Application Default Credentials and the GCP project. Lazily
+    imported and ADC-checked, so a missing library or unset ADC skips this entry
+    (like a missing key) instead of breaking the chain.
+    """
+    project = os.environ.get(provider.get("project_env", "GCP_PROJECT_ID"))
+    if not project:
+        return None
+    try:
+        import google.auth
+        from langchain_google_vertexai import ChatVertexAI
+
+        google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    except Exception:
+        return None
+    return ChatVertexAI(
+        model=entry["model"],
+        project=project,
+        location=os.environ.get("VERTEX_LOCATION", provider.get("location", "us-central1")),
+        temperature=config.get("temperature", 0.0),
+        max_retries=config.get("max_retries", 1),
+    )
+
+
 def build_models(config: dict | None = None) -> list[BaseChatModel]:
-    """One chat model per chain entry whose provider key is set, in chain order."""
+    """One chat model per chain entry that is usable, in chain order.
+
+    An OpenAI-compatible entry needs its provider key in the environment; a
+    ``vertex`` entry needs ADC and a GCP project. Unusable entries are skipped.
+    """
     load_dotenv(ROOT / ".env", override=False)
     config = config or load_llm_config()
     providers = config["providers"]
     models: list[BaseChatModel] = []
     for entry in config["chain"]:
         provider = providers[entry["provider"]]
+        if provider.get("type") == "vertex":
+            model = _vertex_model(entry, provider, config)
+            if model is not None:
+                models.append(model)
+            continue
         api_key = os.environ.get(provider["api_key_env"])
         if not api_key:
             continue
@@ -48,8 +83,11 @@ def build_models(config: dict | None = None) -> list[BaseChatModel]:
             )
         )
     if not models:
-        keys = sorted({p["api_key_env"] for p in providers.values()})
-        raise RuntimeError(f"no LLM provider key set; set one of {keys} in .env")
+        keys = sorted({p["api_key_env"] for p in providers.values() if p.get("api_key_env")})
+        raise RuntimeError(
+            f"no usable LLM provider; set one of {keys} in .env, or enable Vertex AI "
+            "(gcloud services enable aiplatform.googleapis.com) with ADC + GCP_PROJECT_ID"
+        )
     return models
 
 
