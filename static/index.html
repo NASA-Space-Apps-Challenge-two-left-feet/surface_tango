@@ -36,24 +36,63 @@
       padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
       white-space: nowrap; user-select: none;
     }
-    /* two-feet stepping loader (brand motion motif) */
+    /* two-feet stepping loader (brand motion motif) — the surface tango caminata.
+       Two left feet (never mirrored, never leveled, never touching) dance a
+       coordinated Argentine-tango walk: blue (first/before) and vermilion
+       (second/after/highlight) alternate as the stepping foot and the standing
+       axis. Each step reads heel-lead reach -> roll onto the full foot ->
+       weight change -> pivot on the ball (ocho) -> collect under the body.
+       No vertical bounce (translateX + rotate only): the upper body stays level
+       while the feet trade weight, gap always kept open. 2.4s = a slow tango
+       walk tempo. Pivot about each foot's own centroid (fill-box + center). */
     .feet-loader { display: inline-block; height: 22px; width: 44px; }
-    .feet-loader .foot { opacity: 0; }
-    .feet-loader .foot-blue { animation: footstep-blue 1.6s ease-in-out infinite; }
-    .feet-loader .foot-vermilion { animation: footstep-vermilion 1.6s ease-in-out infinite; }
-    @keyframes footstep-blue {
-      0%, 20% { opacity: 0; transform: translateY(6px); }
-      30%, 70% { opacity: 1; transform: translateY(0); }
-      80%, 100% { opacity: 0; }
+    .feet-loader .foot { opacity: 1; transform-box: fill-box; transform-origin: center; }
+    .feet-loader .foot-blue { animation: tango-blue 2.4s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+    .feet-loader .foot-vermilion { animation: tango-vermilion 2.4s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+    /* Blue steps first (the "before"), opening outward (to its own side, never
+       toward vermilion — the gap stays open), then stands as the axis. */
+    @keyframes tango-blue {
+      0%   { transform: translateX(0) rotate(0deg); }      /* collected, weight held */
+      10%  { transform: translateX(0) rotate(-9deg); }     /* heel-lead: reach */
+      25%  { transform: translateX(-5px) rotate(0deg); }   /* abrir: open out, roll onto full foot */
+      40%  { transform: translateX(-5px) rotate(6deg); }   /* ocho: pivot on the ball */
+      55%  { transform: translateX(-1px) rotate(0deg); }   /* cerrar: collect under body */
+      70%, 100% { transform: translateX(0) rotate(0deg); } /* stand: the axis for vermilion */
     }
-    @keyframes footstep-vermilion {
-      0%, 45% { opacity: 0; transform: translate(8px, 8px); }
-      55%, 95% { opacity: 1; transform: translate(8px, 0); }
-      100% { opacity: 0; }
+    /* Vermilion holds the axis, then steps a beat ahead (the highlight), opening
+       outward to its own side so the two left feet never touch. */
+    @keyframes tango-vermilion {
+      0%, 30% { transform: translateX(0) rotate(0deg); }   /* stand as the axis */
+      45%  { transform: translateX(0) rotate(9deg); }      /* heel-lead: reach */
+      60%  { transform: translateX(5px) rotate(0deg); }    /* abrir: open out, a step ahead */
+      75%  { transform: translateX(5px) rotate(-6deg); }   /* ocho: pivot on the ball */
+      88%  { transform: translateX(1px) rotate(0deg); }    /* cerrar: collect */
+      100% { transform: translateX(0) rotate(0deg); }      /* back to the axis */
     }
     @media (prefers-reduced-motion: reduce) {
-      .feet-loader .foot-blue { animation: none; opacity: 1; }
-      .feet-loader .foot-vermilion { animation: none; opacity: 1; }
+      .feet-loader .foot-blue, .feet-loader .foot-vermilion { animation: none; transform: none; opacity: 1; }
+    }
+    /* Chapter-transition curtain: the same two left feet dance the caminata,
+       scaled up, over an ink veil while the next chapter's tiles load. The
+       feet reuse the .foot-blue / .foot-vermilion keyframes above. */
+    #feet-transition {
+      position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      background: rgba(18, 18, 18, 0.92); pointer-events: none;
+      opacity: 0; visibility: hidden; transition: opacity 240ms ease;
+    }
+    #feet-transition.feet-transition-on { opacity: 1; visibility: visible; }
+    #feet-transition .feet-stage { width: 180px; height: 132px; }
+    #feet-transition .feet-label {
+      font-family: 'Jost', 'Poppins', system-ui, sans-serif; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase; font-size: 13px;
+      color: #FFFFFF; text-align: center;
+    }
+    #feet-transition .feet-label .feet-sub { display: block; margin-top: 4px;
+      font-weight: 500; letter-spacing: 0.08em; text-transform: none;
+      font-size: 11px; color: var(--brand-vermilion); }
+    @media (prefers-reduced-motion: reduce) {
+      #feet-transition { transition: none; }
     }
     .flood-date { display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
       gap: 4px; background: transparent; border: 0; padding: 0; cursor: pointer; }
@@ -70,6 +109,24 @@
   </style>
 </head>
 <body class="flex flex-col h-screen">
+
+  <!-- Chapter-transition curtain: two left feet dancing the caminata (brand motion motif) -->
+  <div id="feet-transition" aria-hidden="true">
+    <span class="feet-loader feet-stage">
+      <svg viewBox="0 0 60 44" width="180" height="132">
+        <g class="foot foot-blue">
+          <ellipse cx="18" cy="14" rx="7" ry="13" transform="rotate(8 18 14)" fill="#1B3FD6"/>
+          <circle cx="21" cy="31" r="6" fill="#1B3FD6"/>
+        </g>
+        <g class="foot foot-vermilion">
+          <ellipse cx="37" cy="9" rx="7" ry="13" transform="rotate(8 37 9)" fill="#F04A23"/>
+          <circle cx="40" cy="26" r="6" fill="#F04A23"/>
+        </g>
+      </svg>
+    </span>
+    <div class="feet-label" id="feet-transition-label">surface tango<span class="feet-sub"></span></div>
+  </div>
+
 
   <!-- Top Mission Control Bar -->
   <header class="h-14 bg-[#121212] border-b border-[#2a2a2a] px-5 flex items-center justify-between z-40">

@@ -53,8 +53,18 @@ never out of step." · "Two radars. Both look left. We call that a footprint."
 
 ## Motion motif (platform)
 
-The two-footprint pair is the loading/transition animation: the blue foot
-steps first, the vermilion foot follows one step ahead (114 right, 40 up),
-alternating like a slow synchronized dance. Use it for the homepage intro,
-loading states and chapter transitions. The feet are always left feet, always
-a step apart, gap kept open; respect `prefers-reduced-motion`.
+The two-footprint pair is the loading/transition animation, and it dances a
+real Argentine-tango **caminata**: the blue foot (first/before) steps, the
+vermilion foot (second/after, the highlight) follows a beat ahead, and the two
+trade the roles of stepping foot and standing axis. Each step reads heel-lead
+reach → roll onto the full foot → weight change → pivot on the ball (ocho) →
+collect — the *abrir y cerrar* (open and close): each foot opens outward to its
+own side and collects back, so the two left feet never move toward each other.
+No vertical bounce (the upper body stays level while the feet trade weight);
+the feet are always left feet, never mirrored, never leveled, a step apart with
+the gap kept open, and never touching. Tempo ~2.4 s per phrase. Use it for the
+homepage intro, loading states and chapter transitions; respect
+`prefers-reduced-motion` (feet rest, no animation). Implemented as CSS
+keyframes `tango-blue` / `tango-vermilion` in `static/index.html`; the
+chapter-transition curtain reuses the same feet (`playFeetTransition` in
+`static/story-map.js`). "Two left feet, one coordinated surface tango."
