@@ -225,8 +225,12 @@
       <!-- Panel 3: L-Band SAR (NISAR 24cm) + Deck.gl 3D Hotspots -->
       <div id="map-nisar" class="map-layer"></div>
       <p id="preview-error" role="alert" hidden>Map assets are missing. Stage the offline frontend bundle and reload.</p>
-      <section class="absolute top-14 left-3 z-20 max-w-sm bg-slate-950/95 border border-slate-700 rounded p-3 text-sm max-h-[80vh] overflow-y-auto" aria-label="Story map">
-        <label for="story-chapter" class="block font-semibold mb-1">Story map</label>
+      <section id="story-dock" class="story-dock" aria-label="Story map">
+        <div class="story-dock-head">
+          <label for="story-chapter" id="story-dock-label">Story map</label>
+          <button type="button" id="story-fold" aria-expanded="true" aria-controls="story-body">Fold</button>
+        </div>
+        <div id="story-body">
         <select id="story-chapter" class="bg-slate-900 text-slate-100 rounded p-1 max-w-full">
           <option value="">Live mission control</option>
           <option value="flood">1 · La Mojana floods (headline)</option>
@@ -260,7 +264,9 @@
           <p id="story-source" class="text-xs text-slate-300" hidden></p>
           <button id="story-retry" type="button" class="underline text-cyan-300" hidden>Retry</button>
         </div>
+        </div>
       </section>
+      <button type="button" id="physics-dock" aria-expanded="false" aria-controls="physics-inspector" title="Show the radar physics inspector">Physics</button>
       <p id="context-basemap-credit" style="position:absolute;top:42px;right:12px;z-index:30;width:210px;font-size:10px;line-height:1.35;color:#e2e8f0;background:rgba(18,18,18,.92);border:1px solid #2a2a2a;padding:4px 8px;border-radius:6px;pointer-events:none;">
         Esri World Imagery is geographic context, not a measurement. Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community. If it cannot load, the field stays dark. No-data inside an area of interest stays marked.
       </p>
@@ -303,7 +309,7 @@
     </main>
 
     <!-- Right Sidebar: Interactive Radar Physics Inspector -->
-    <aside id="physics-inspector" class="w-96 bg-[#121212] border-l border-[#2a2a2a] p-4 flex flex-col gap-4 overflow-y-auto z-40">
+    <aside id="physics-inspector" class="w-96 bg-[#121212] border-l border-[#2a2a2a] p-4 flex flex-col gap-4 overflow-y-auto z-40" style="display:none">
       <div>
         <h2 class="text-xs font-bold uppercase tracking-wider text-white">Radar Physics Inspector</h2>
         <p class="text-[11px] text-slate-400 mt-0.5">Physical drivers of surface roughness ($\sigma^0/\gamma^0$), dielectric constant ($\varepsilon_r$), & phase ($\Delta\phi$)</p>
@@ -639,8 +645,46 @@
       });
     }
 
+    function syncPhysicsDock(open) {
+      const dock = document.getElementById("physics-dock");
+      if (!dock) return;
+      dock.setAttribute("aria-expanded", open ? "true" : "false");
+      dock.title = open
+        ? "Hide the radar physics inspector"
+        : "Show the radar physics inspector";
+    }
+
+    function resizeMaps() {
+      requestAnimationFrame(() => maps.forEach((map) => map.resize()));
+    }
+
+    function foldPhysicsInspector() {
+      const inspector = document.getElementById("physics-inspector");
+      if (!inspector) return;
+      inspector.style.display = "none";
+      syncPhysicsDock(false);
+      resizeMaps();
+    }
+
+    function unfoldPhysicsInspector() {
+      const inspector = document.getElementById("physics-inspector");
+      if (!inspector) return;
+      inspector.style.display = "";
+      syncPhysicsDock(true);
+      resizeMaps();
+    }
+
+    function togglePhysicsInspector() {
+      const inspector = document.getElementById("physics-inspector");
+      if (!inspector || inspector.style.display === "none") unfoldPhysicsInspector();
+      else foldPhysicsInspector();
+    }
+
+    document.getElementById("physics-dock").addEventListener("click", togglePhysicsInspector);
+
     function switchNisarDomain(domain) {
       if (activeStory) openLiveView();
+      foldPhysicsInspector();
       selectedDomain = domain;
       domains.forEach(d => {
         const btn = document.getElementById(`btn-${d}`);
@@ -685,6 +729,7 @@
     }
 
     function startMultiAgentStream() {
+      foldPhysicsInspector();
       const btn = document.getElementById("run-btn");
       btn.innerHTML = '<span class="feet-loader mono inline"><svg viewBox="0 0 210 104" width="56" preserveAspectRatio="xMidYMid meet">'
         + '<g transform="translate(26 80) rotate(6)"><use href="#lfoot" class="trail-foot s1"/></g>'
@@ -792,7 +837,41 @@
     /* Response posture — evidence states, not a fatality scale.
        The story panel sits above the curtain handles (z-index 50) so the
        hectare line is readable where the Optical | C-band pill crosses it. */
-    #comparison-viewport > section[aria-label="Story map"] { z-index: 60; max-height: 80vh; }
+    /* Story map docks over the curtain. 272px keeps the decision card readable
+       and leaves the three panels visible on a short laptop. Folding removes
+       the panel and leaves the tab. */
+    .story-dock {
+      position: absolute; top: 52px; left: 8px; z-index: 60;
+      width: min(272px, calc(100% - 16px));
+      max-height: calc(100% - 70px);
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 8px; background: rgba(15, 23, 42, 0.96);
+      border: 1px solid #334155; border-radius: 8px; font-size: 13px;
+    }
+    .story-dock-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .story-dock-head label { font-weight: 600; font-size: 13px; }
+    #story-body { overflow: auto; min-height: 0; }
+    #story-chapter { width: 100%; }
+    #story-fold, #physics-dock {
+      border: 1px solid #F04A23; background: #121212; color: #fff;
+      font: 600 11px/1 'Jost', system-ui, sans-serif; letter-spacing: 0.06em;
+      text-transform: uppercase; border-radius: 8px; padding: 5px 8px; cursor: pointer;
+    }
+    #story-fold:focus-visible, #physics-dock:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .story-dock.is-folded {
+      width: auto; max-height: none; padding: 0; gap: 0;
+      background: transparent; border-color: transparent; overflow: visible;
+    }
+    .story-dock.is-folded .story-dock-head label,
+    .story-dock.is-folded #story-body { display: none; }
+    .story-dock.is-folded #story-fold { writing-mode: vertical-rl; padding: 10px 6px; }
+    #physics-dock {
+      position: absolute; top: 128px; right: 8px; z-index: 61;
+      writing-mode: vertical-rl; padding: 10px 6px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .story-dock, #physics-dock { transition: none; }
+    }
     .dec-card { margin-top: 10px; padding: 8px; border: 1px solid #2b3240; border-radius: 8px; background: #0b0f16; }
     .dec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .dec-kicker { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #9aa4b2; font-weight: 600; }

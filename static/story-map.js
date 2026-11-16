@@ -362,7 +362,7 @@ function openLiveView() {
   window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: "" } }));
   hideFloodTimeline();
   hideVerdictCard();
-  physicsInspector.style.display = "";
+  unfoldPhysicsInspector();
   maps.forEach(map => map.resize());
   setCurtainLabels("");
   mapNisar.jumpTo(INITIAL_VIEW);
@@ -383,7 +383,7 @@ async function openStoryChapter(chapter, selectedAoi = chapterAreas[chapter]) {
   window.dispatchEvent(new CustomEvent("bailasar-chapter", { detail: { chapter: chapter } }));
   playFeetTransition(chapter);
   ++currentInspection;
-  physicsInspector.style.display = "none";
+  foldPhysicsInspector();
   maps.forEach(map => map.resize());
   const labels = setCurtainLabels(chapter);
   deckOverlay.setProps({ layers: [] });
@@ -478,6 +478,28 @@ async function openStoryChapter(chapter, selectedAoi = chapterAreas[chapter]) {
   }
 }
 
+const storyFoldKey = "bailasar-story-folded";
+
+function setStoryFolded(folded) {
+  const dock = document.getElementById("story-dock");
+  const button = document.getElementById("story-fold");
+  if (!dock || !button) return;
+  dock.classList.toggle("is-folded", folded);
+  button.setAttribute("aria-expanded", folded ? "false" : "true");
+  button.textContent = folded ? "Story" : "Fold";
+  button.title = folded ? "Open the story map" : "Fold the story map";
+  try { sessionStorage.setItem(storyFoldKey, folded ? "1" : "0"); } catch { /* private mode */ }
+}
+
+document.getElementById("story-fold").addEventListener("click", () => {
+  const dock = document.getElementById("story-dock");
+  setStoryFolded(!dock.classList.contains("is-folded"));
+});
+
+try {
+  if (sessionStorage.getItem(storyFoldKey) === "1") setStoryFolded(true);
+} catch { /* private mode */ }
+
 chapterSelect.addEventListener("change", () => openStoryChapter(chapterSelect.value));
 storyRetry.addEventListener("click", () => openStoryChapter(chapterSelect.value));
 
@@ -487,4 +509,8 @@ const requestedChapter = new URLSearchParams(location.search).get("chapter") ?? 
 if ([...chapterSelect.options].some(option => option.value && option.value === requestedChapter)) {
   chapterSelect.value = requestedChapter;
   openStoryChapter(requestedChapter);
+} else {
+  // `?chapter=live` keeps mission control, with the inspector available until a
+  // hazard button or the scan folds it.
+  unfoldPhysicsInspector();
 }
