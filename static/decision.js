@@ -118,7 +118,8 @@
   }
 
   function revealCard() {
-    const panel = document.querySelector('[aria-label="Story map"]');
+    const panel = document.getElementById("story-body")
+      || document.querySelector('[aria-label="Story map"]');
     if (panel) panel.scrollTop = 0;
   }
 

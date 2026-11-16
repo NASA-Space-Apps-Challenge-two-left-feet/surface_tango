@@ -1,5 +1,14 @@
 # Status: frontend-video
 
+## feat/web-fold-panels
+
+- Landslide, flood, earthquake, and Launch Multi-Agent NISAR Scan fold the
+  radar physics inspector. A Physics tab on the curtain opens it again.
+- The story map is 272px wide and folds to a Story tab. The choice stays for
+  the browser session.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## fix/flood-agent-badge
 
 - The scan emits `flood_caregato_agent`. The telemetry row is `flood_agent`.
