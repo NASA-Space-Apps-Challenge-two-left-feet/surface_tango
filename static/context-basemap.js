@@ -1,13 +1,11 @@
 "use strict";
 
 // Geographic context for the visor. This is not a Surface Tango measurement.
-// Esri World Imagery uses row/column order: /tile/{z}/{y}/{x}.
+// Tiles are cut from the cached Sentinel-2 cloud-free median. Same-origin XYZ.
 const CONTEXT_BASEMAP_SOURCE_ID = "context-basemap";
-const CONTEXT_BASEMAP_TILES = [
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-];
+const CONTEXT_BASEMAP_TILES = ["/api/context-basemap/{z}/{x}/{y}.png"];
 const CONTEXT_BASEMAP_ATTRIBUTION =
-  "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community. Geographic context, not a measurement.";
+  "Sentinel-2 cloud-free median. Geographic context, not a measurement. Unobserved pixels stay dark.";
 
 function contextBasemapStyle(fallbackColor) {
   return {
@@ -17,7 +15,7 @@ function contextBasemapStyle(fallbackColor) {
         type: "raster",
         tiles: CONTEXT_BASEMAP_TILES,
         tileSize: 256,
-        maxzoom: 19,
+        maxzoom: 15,
         attribution: CONTEXT_BASEMAP_ATTRIBUTION,
       },
     },

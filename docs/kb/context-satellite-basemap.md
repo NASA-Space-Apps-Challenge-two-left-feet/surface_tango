@@ -1,6 +1,6 @@
 ---
 title: Esri World Imagery is visor context, not a measurement
-status: verified
+status: superseded
 source: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=pjson
 accessed: 2026-11-15
 quote: "World Imagery provides one meter or better satellite and aerial imagery in many parts of the world and lower resolution satellite imagery worldwide."
