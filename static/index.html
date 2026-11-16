@@ -715,8 +715,10 @@
 
       evtSource.addEventListener("agent_update", (e) => {
         const { node, payload } = JSON.parse(e.data);
-        unfinishedNodes.delete(node);
-        markNodeBadge(node, "DONE ✓", "text-emerald-400");
+        // The graph node is flood_caregato_agent. The panel row is flood_agent.
+        const badgeId = node === "flood_caregato_agent" ? "flood_agent" : node;
+        unfinishedNodes.delete(badgeId);
+        markNodeBadge(badgeId, "DONE ✓", "text-emerald-400");
 
         if (payload.hazard_reports) {
           Object.entries(payload.hazard_reports).forEach(([domain, rep]) => {
