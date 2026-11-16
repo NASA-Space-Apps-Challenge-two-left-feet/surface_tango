@@ -1,5 +1,13 @@
 # Status: frontend-video
 
+## fix/web-drop-regional-cube
+
+- The `/cube` page, its catalog API, and the header link are removed.
+- Science Zarr stores used by the curtain stay in each area-of-interest cache.
+- `local_cache/regional-cubes/` is left on disk. The application no longer serves it.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## feat/web-fold-panels
 
 - Landslide, flood, earthquake, and Launch Multi-Agent NISAR Scan fold the
@@ -40,6 +48,8 @@ _Last update: 2026-11-15 (UTC−5)_
 _Last update: 2026-11-15 (UTC−5)_
 
 ## feat/regional-cube-explorer
+
+Dropped later in `fix/web-drop-regional-cube`. These notes record what that branch shipped.
 
 - Atlas redesign: georeferenced map, date selection, catalog search, opacity,
   scientific legends and source-pixel inspection. Source arrays retain native grids;
