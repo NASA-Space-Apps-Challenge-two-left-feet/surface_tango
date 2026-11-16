@@ -4,6 +4,8 @@
 
 ### A NISAR L-band multi-agent observatory for cascading disasters in Colombia
 
+**AI-assisted development.** Code, documentation, and the interface in this repository were written with AI-assisted development: Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok, and LangGraph. The team reviews that work. The 2026 challenge names these tools Super Intelligence (SI). Bulletins an agent writes carry the SI-Assisted Analytics badge. [Full disclosure](#ai-disclosure).
+
 **Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
 Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
 NISAR L-band data, with a ranked first-aid answer and no number without a source?**
@@ -419,7 +421,7 @@ No NASA logos, flags or identifiers appear in generated media, badges or UI head
 
 ## AI disclosure
 
-This project is built with Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph.
+This project is built with AI-assisted development: Claude Code + gstack, OpenAI Codex, Google Antigravity/Gemini, OpenCode (GLM), Grok and LangGraph. The same statement is in the header of this file.
 
 The team reviews AI-assisted code and documentation. The initial generated baseline is documented in [docs/baseline/BASELINE_NOTES.md](docs/baseline/BASELINE_NOTES.md). Runtime bulletins are tool-grounded and carry the **SI-Assisted Analytics** badge. Disclosure for the submission video is pending completion of that artifact.
 
