@@ -1,5 +1,13 @@
 # Status: frontend-video
 
+## fix/flood-agent-badge
+
+- The scan emits `flood_caregato_agent`. The telemetry row is `flood_agent`.
+  The finished event now marks that row, instead of leaving it on NO UPDATE
+  when the scan completes.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## feat/context-basemap
 
 - The curtain and the atlas draw Esri World Imagery under the measured layers
