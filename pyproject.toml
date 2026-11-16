@@ -1,6 +1,6 @@
 [project]
 name = "bailasar"
-version = "0.1.0"
+version = "0.2.0"
 description = "NISAR L-band multi-agent observatory for cascading disasters in Colombia (NASA Space Apps 2026)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -52,7 +52,7 @@ ignore = ["E501"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "0.2.0"
 version_files = ["pyproject.toml:^version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
