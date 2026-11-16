@@ -14,7 +14,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 [![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![uv](https://img.shields.io/badge/uv-managed-DE5FE9)](https://docs.astral.sh/uv/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![version](https://img.shields.io/badge/version-0.1.0-2563eb)](pyproject.toml)
+[![version](https://img.shields.io/badge/version-0.2.0-2563eb)](pyproject.toml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 <br>
 [![FastMCP](https://img.shields.io/badge/FastMCP-2%20SSE%20servers-4F46E5)](mcp_servers/)
@@ -31,7 +31,7 @@ NISAR L-band data, with a ranked first-aid answer and no number without a source
 [![data policy](https://img.shields.io/badge/data%20policy-zero%20synthetic%20%C2%B7%20NaN%20for%20missing-1B3FD6)](validation/ALLOWLIST.md)
 [![pre-registration](https://img.shields.io/badge/pre--registration-frozen%20%C2%B7%202%20deviations-F04A23)](validation/README.md#deviations)
 
-<sub>Team **two left feet** · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia · private until the submission · agency names are attribution, never endorsement or logos</sub>
+<sub>Team **two left feet** · NASA Space Apps 2026 challenge "Dancing with the SARs" · Medellín, Colombia · evaluation snapshot v0.2.0, frozen while judging is underway · agency names are attribution, never endorsement or logos</sub>
 
 <sub>_Two left feet, one coordinated surface tango_ — 🔵 blue is the first pass, 🔴 vermilion the second · [brand guidelines](docs/brand/brand-guidelines.md)</sub>
 
@@ -68,7 +68,7 @@ Window 2026-06-17 → 2026-11-14 (public NISAR record), search `scripts/discover
 
 ## Status
 
-**Progress (2026-11-15, D = 2026-11-15 23:59 COT).** Phases 1–4 complete and on `main`: the frozen pre-registration, all three hazard pipelines (Aburrá double-calibrated null, La Mojana open-water headline + L-vs-C, quake damage proxy with E_C−E_K under frozen K), the MCP evidence tools, and the bilingual LangGraph bulletin that runs end to end. The go-public gate is nearly clear — secret scan green, Apache-2.0 set — leaving the owner-gated Phase 5: record the video, finalize the page, and flip to public before the deadline. Offline suite green; the full observatory is **live on Google Cloud** at https://surface-tango-827987874406.us-central1.run.app (mission control + API; the VM starts on the first visit); repo private.
+**Progress (2026-11-15, D = 2026-11-15 23:59 COT).** Evaluation snapshot **v0.2.0**. The frozen pre-registration is unchanged. On `main`: all three hazard pipelines (Aburrá double-calibrated null, La Mojana open-water headline + L-vs-C, quake damage proxy with E_C−E_K under frozen K), the MCP evidence tools, and the bilingual LangGraph bulletin. A full-history secret scan found no credentials. The pitch app is at https://surface-tango-827987874406.us-central1.run.app (mission control + API; the VM starts on the first visit). `main` is frozen for judging. The offline suite on the maintainer machine is not fully green.
 
 States: **live** · **cached** · **not cached** · **planned** · **dropped**. No completed integration is claimed without evidence.
 
