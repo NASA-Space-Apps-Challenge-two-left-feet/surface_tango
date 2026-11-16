@@ -247,12 +247,41 @@ _QUAKE_COUNT_KEYS = (
 )
 
 
+_COVERAGE_AOI_KEY = {
+    "choco_epicenter": "4_choco_epicenter_quake",
+    "valle_del_cauca": "5_valle_del_cauca_quake",
+}
+
+
+def _quake_zarr(aoi: str, track: int) -> Path:
+    """Eje stays on the frozen scorecard store. Coverage AOIs use their own directory."""
+    if aoi == "eje_cafetero":
+        return CACHE / "quake" / f"dpm_track{int(track)}.zarr" / "zarr.json"
+    return CACHE / aoi / f"dpm_track{int(track)}.zarr" / "zarr.json"
+
+
+def _bboxes_match(recorded, expected) -> bool:
+    from scripts.cut_quake_coherence_cog import bboxes_match
+
+    return bboxes_match(recorded, expected)
+
+
 def quake_artifact(aoi: str = "eje_cafetero", track: int = 11) -> dict | None:
-    zarr = CACHE / "quake" / f"dpm_track{int(track)}.zarr" / "zarr.json"
+    zarr = _quake_zarr(aoi, track)
     if not zarr.is_file():
-        print(f"skip quake track {track}: dpm_track{track}.zarr absent")
+        print(f"skip quake {aoi} track {track}: {zarr.name} absent")
         return None
     prov = json.loads(json.loads(zarr.read_text(encoding="utf-8"))["attributes"]["provenance"])
+    if aoi in _COVERAGE_AOI_KEY:
+        from src.bailasar.config import get_config
+
+        expected = get_config().aoi_bbox(_COVERAGE_AOI_KEY[aoi])
+        if not _bboxes_match(prov.get("aoi"), expected):
+            print(f"skip quake {aoi} track {track}: stored window is not this AOI")
+            return None
+    elif aoi != "eje_cafetero":
+        print(f"skip quake {aoi}: unsupported area")
+        return None
     summary = prov.get("summary_C")
     if not isinstance(summary, dict) or any(k not in summary for k in _QUAKE_COUNT_KEYS):
         print(f"skip quake track {track}: summary_C counts incomplete")
@@ -317,14 +346,21 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--hazard", choices=sorted(BUILDERS), default="landslide")
     ap.add_argument("--track", type=int, default=11, help="quake GUNW track (11 or 47)")
+    ap.add_argument(
+        "--aoi",
+        default="eje_cafetero",
+        help="quake area. Coverage AOIs read their own zarr, not the Eje store",
+    )
     args = ap.parse_args(argv)
     if args.hazard == "quake":
-        artifact = BUILDERS[args.hazard](track=args.track)
+        artifact = BUILDERS[args.hazard](aoi=args.aoi, track=args.track)
     else:
         artifact = BUILDERS[args.hazard]()
     if artifact is None:
         return 0
     aoi, name = OUT_NAME[args.hazard]
+    if args.hazard == "quake":
+        aoi = args.aoi
     if "{track}" in name:
         name = name.format(track=args.track)
     out = CACHE / aoi / name

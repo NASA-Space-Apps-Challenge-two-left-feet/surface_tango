@@ -1,5 +1,20 @@
 # Status: frontend-video
 
+## feat/web-cloud-free-basemap
+
+- The curtain background is a Sentinel-2 SR median for 2025, masked with
+  Cloud Score+ `cs_cdf`, written as a COG per navigator frame.
+- Tiles are same-origin. Earth Engine is not called when the page loads.
+- A masked pixel stays transparent. The photograph is geographic context,
+  not a measurement.
+- Planet NICFI is checked at build time and is not copied onto the visor.
+- The NISAR curtain keeps a measured pixel. A missing pixel inside the shared
+  frame is the no-data hatch. Dry flood pixels stay transparent.
+- Chocó and Valle read only their own coherence store. The Eje scorecard is
+  not a substitute. Those two rasters are not on disk yet.
+
+_Last update: 2026-11-15 (UTC−5)_
+
 ## fix/web-drop-regional-cube
 
 - The `/cube` page, its catalog API, and the header link are removed.

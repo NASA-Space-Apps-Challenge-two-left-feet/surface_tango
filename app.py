@@ -25,8 +25,10 @@ from agents.state import MultiHazardGraphState
 from gee_math.ee_session import init_ee
 from mcp_servers.decision import DecisionConfigError, product_for_aoi, roster
 from mcp_servers.flood_display import display_legend, paint_open_water
+from scripts.context_basemap_tiles import render_context_tile
 from scripts.prestage_tiles import (
     bboxes_intersect,
+    composite_nodata_hatch,
     layer_data_bbox,
     nodata_hatch_rgba,
     pixels_inside_frame,
@@ -191,6 +193,37 @@ def cached_sentinel_layer(manifest: dict, layer: str) -> dict | None:
 def nodata_hatch_png():
     """Labeled hatch for a curtain panel that has no observation inside the frame."""
     return _png_response(nodata_hatch_rgba(256, 256))
+
+
+@app.get("/api/context-basemap/{z}/{x}/{y}.png")
+def serve_context_basemap(z: int, x: int, y: int):
+    """XYZ photograph under the curtain. Geographic context, not a measurement.
+
+    A missing composite is a transparent tile, so the dark field stays.
+    This route does not call Earth Engine.
+    """
+    if not valid_xyz(z, x, y):
+        raise HTTPException(404, "Invalid XYZ tile")
+    cached = CACHE_ROOT / "context-basemap" / "xyz" / str(z) / str(x) / f"{y}.png"
+    if cached.is_file():
+        return FileResponse(
+            cached,
+            media_type="image/png",
+            headers={
+                "X-Bailasar-Role": "geographic-context",
+                "Cache-Control": "public, max-age=86400",
+            },
+        )
+    rgba = render_context_tile(CACHE_ROOT, z, x, y)
+    body = rgba_to_png(rgba)
+    if (CACHE_ROOT / "context-basemap" / "manifest.json").is_file():
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_bytes(body)
+    return Response(
+        body,
+        media_type="image/png",
+        headers={"X-Bailasar-Role": "geographic-context", "Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/api/sentinel-tiles/{aoi}")
@@ -858,7 +891,51 @@ def find_nisar_panel(aoi: str) -> NisarPanel | None:
             ),
         )
 
+    if aoi in {"choco_epicenter", "valle_del_cauca"}:
+        return _coverage_quake_panel(aoi, root, manifest)
+
     return None
+
+
+def _coverage_quake_panel(aoi: str, root: Path, manifest: dict) -> NisarPanel | None:
+    """Track 11 coherence owned by this AOI. Track 47 is shown only when its own file exists."""
+    evidence_path = root / "quake_evidence_track11.json"
+    evidence = _load_cached_evidence(evidence_path, "quake/1")
+    if evidence is None or evidence.get("provenance", {}).get("aoi") != aoi:
+        return None
+    source = _cached_band(manifest, "coherence_coseismic")
+    raster = root / "cogs" / f"{aoi}_coherence_coseismic.tif"
+    granule = (evidence.get("pairs") or {}).get("C", {}).get("granule_id")
+    if not isinstance(granule, str) or source != granule or not raster.is_file():
+        return None
+    artifacts = [_artifact_name(evidence_path)]
+    tracks = [11]
+    track47_path = root / "quake_evidence_track47.json"
+    track47 = _load_cached_evidence(track47_path, "quake/1")
+    if track47 is not None and track47.get("provenance", {}).get("aoi") == aoi:
+        tracks.append(47)
+        artifacts.append(_artifact_name(track47_path))
+    bounds = _panel_bounds(raster)
+    if bounds is None:
+        return None
+    artifacts.append(_artifact_name(raster))
+    timing = evidence.get("provenance", {}).get("control_K_timing")
+    detail = "Co-event GUNW coherence · track 11. This is not the Eje Cafetero scorecard."
+    if timing == "post_event":
+        detail += " K is a post-event control."
+    if 47 not in tracks:
+        detail += " Track 47 is not in this display."
+    return NisarPanel(
+        aoi=aoi,
+        label="GUNW coherence window",
+        raster=raster,
+        style="coherence",
+        bounds=bounds,
+        granule_ids=[granule],
+        evidence_artifacts=artifacts,
+        detail=detail,
+        tracks=tracks,
+    )
 
 
 def nisar_panel(aoi: str) -> dict:
@@ -917,6 +994,26 @@ def _panel_rgba(style: str, values: np.ndarray) -> np.ndarray:
     return rgba
 
 
+def _clip_panel_to_frame(
+    style: str,
+    rgba: np.ndarray,
+    values: np.ndarray,
+    frame_mask: np.ndarray,
+) -> np.ndarray:
+    """Keep measured pixels and hatch only unobserved pixels inside the frame.
+
+    ``render_frame_tile`` clears alpha outside the mask it is given, so that
+    mask is the frame for coherence and LOS. Water's dry pixels are finite and
+    transparent. They are observed, so they are not part of the hatch mask.
+    """
+    if style == "water":
+        unobserved = frame_mask & ~np.isfinite(values)
+        out = composite_nodata_hatch(rgba, unobserved)
+        out[~frame_mask, 3] = 0
+        return out
+    return render_frame_tile(rgba, frame_mask)
+
+
 @app.get("/api/nisar-panel/{aoi}/{z}/{x}/{y}.png")
 def serve_nisar_panel_tile(aoi: str, z: int, x: int, y: int):
     """Render only the selected AOI's cached L-band raster as an XYZ PNG."""
@@ -946,14 +1043,13 @@ def serve_nisar_panel_tile(aoi: str, z: int, x: int, y: int):
             )
     except rasterio.errors.RasterioError as error:
         raise HTTPException(500, "Cached NISAR raster unreadable") from error
-    # Bands-first color, then height-width-channel. Finite dry pixels stay
-    # transparent. Only unobserved pixels inside the shared frame are hatched.
+    # Bands-first color, then height-width-channel. A measured value keeps its
+    # alpha. Only unobserved pixels inside the shared frame are hatched.
     rgba = np.moveaxis(_panel_rgba(panel.style, values), 0, -1)
     frame = aoi_curtain_frame(aoi)
     if frame is not None:
-        missing = ~np.isfinite(values)
-        inside = pixels_inside_frame(z, x, y, frame, rgba.shape[0]) & missing
-        rgba = render_frame_tile(rgba, inside)
+        frame_mask = pixels_inside_frame(z, x, y, frame, rgba.shape[0])
+        rgba = _clip_panel_to_frame(panel.style, rgba, values, frame_mask)
     return _png_response(rgba)
 
 

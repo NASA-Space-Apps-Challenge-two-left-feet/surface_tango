@@ -260,3 +260,29 @@ decision:
       hazards: [earthquake]
       primary: false
       quake_tracks: ["11", "47"]
+
+# Visor photograph. Geographic context only. Not a hazard measurement.
+# Frames are the navigator AOIs. Bboxes stay in `aois` above.
+# clear_min follows the Cloud Score+ catalog example (cs_cdf, 0.60).
+# visual_max_dn is a display clip (catalog example uses 2500), not a threshold.
+context_basemap:
+  asset: COPERNICUS/S2_SR_HARMONIZED
+  cloud_score_asset: GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED
+  cloud_score_band: cs_cdf
+  clear_min: 0.60
+  cloudy_scene_max: 90
+  start: "2025-01-01"
+  end: "2026-01-01"
+  bands: [B4, B3, B2]
+  reflectance_scale: 10000
+  visual_max_dn: 2500
+  chunk: 512
+  max_pixels: 20000000
+  pad_fraction: 0.08
+  frames:
+    aburra: {aoi: "1_aburra_medellin_bello", meters: 20}
+    eje_cafetero: {aoi: "2_eje_cafetero_quake", meters: 20}
+    mojana: {aoi: "3_la_mojana_caregato", meters: 40}
+    choco_epicenter: {aoi: "4_choco_epicenter_quake", meters: 40}
+    valle_del_cauca: {aoi: "5_valle_del_cauca_quake", meters: 40}
+    la_picacha: {aoi: "6_la_picacha_landslide", meters: 10}
