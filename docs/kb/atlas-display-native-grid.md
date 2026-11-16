@@ -1,11 +1,14 @@
 ---
-status: verified
+status: superseded
 source: https://docs.xarray.dev/en/stable/user-guide/io.html
 accessed: 2026-11-15
 quote: "Xarray can’t open just any zarr dataset"
 used_in: app.py, scripts/build_regional_cube.py
 verified_by: Codex, official Xarray documentation and local pixel round-trip tests
+supersedes: null
 ---
+
+Superseded by [atlas-page-dropped.md](atlas-page-dropped.md). The page this note described is gone.
 
 # Atlas keeps analysis grids separate from display projection
 

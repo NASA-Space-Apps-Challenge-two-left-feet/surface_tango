@@ -4,30 +4,6 @@
 
 ### A NISAR L-band multi-agent observatory for cascading disasters in Colombia
 
-Atlas regional cube dashboard: open `/cube` in the running application. It provides
-a georeferenced MapLibre map, searchable layer catalog, available-date navigation,
-scientific legends, opacity controls, shareable region/layer URLs, and a native-pixel
-inspector. Cached Sentinel imagery supplies optional geographic context. All browser
-assets are served locally. Package existing
-extracted rasters with `uv run python scripts/build_regional_cube.py --aoi mojana`
-(also `aburra` and `eje_cafetero`). This creates a separate
-`local_cache/regional-cubes/<aoi>.zarr` store, leaving science inputs intact.
-Each raster retains its native grid, CRS, nodata and source references; dated
-masks remain individually selectable observations. The explorer shows layer
-previews, measured valid-pixel denominators, ranges and a downloadable catalog.
-Related JSON and Parquet evidence is indexed by reference, not rasterized.
-Mount the same `local_cache` directory in the deployed container to serve it.
-The command refuses to overwrite a store and publishes new stores only after a
-successful build. This explorer does not yet
-provide time-stack alignment, multiscale pyramids, arbitrary region extraction,
-or cloud object-store hosting.
-
-Run `make cube` locally, or `make cube-check` for a complete pixel-equality and
-preview check without a listening server. The agent sandbox may prohibit binding
-local ports; the launcher reports that failure explicitly. Cloud integration
-readiness and the deployment checklist are in
-[the cube integration review](docs/deploy/regional-cube-integration.md).
-
 **Which neighborhoods moved after the 2026-08-10 Eje Cafetero earthquake, which slopes in the Aburrá
 Valley are creeping, and where did the La Mojana wetlands flood — measured from the first public
 NISAR L-band data, with a ranked first-aid answer and no number without a source?**
@@ -116,7 +92,8 @@ States: **live** · **cached** · **not cached** · **planned** · **dropped**. 
 | La Mojana change classes (dual-pol) | not cached: degenerate (driest-date rule picked 2026-10-27 with 1 valid pixel; rule needs a minimum valid-pixel count) | #34 | [reports/mojana.md](reports/mojana.md#baseline) |
 | Local Zarr tile server | not cached | #22 | shared cube + manifest required |
 | Mission-control UI, curtain slider and story map | live: 3-panel Sentinel-2/Sentinel-1/NISAR L-band curtain (Pointer-Events drag — mouse+touch+pen, #202). Panel 3 uses only the selected AOI's cached GCOV open-water, GUNW kinematics, or DPM-window product; an AOI with no owned L-band product stays not cached. AOI navigator is grouped and zoom-to-AOI (#204); numbers are parsed from reports via `/api/pitch-facts`. The story map is a 272px dock that folds to a tab. Landslide, flood, earthquake, and the scan fold the radar physics inspector so the curtain keeps that width | #22, #37, #202, #204 | [frontend status](status/frontend-video.md) |
-| Satellite background (curtain and atlas) | browser context only: Esri World Imagery under the measured layers. A dark field means those tiles did not load. It is not a measurement, and no-data inside an area of interest stays marked | — | [docs/kb/context-satellite-basemap.md](docs/kb/context-satellite-basemap.md) |
+| Satellite background (curtain) | browser context only: Esri World Imagery under the measured layers. A dark field means those tiles did not load. It is not a measurement, and no-data inside an area of interest stays marked | — | [docs/kb/context-satellite-basemap.md](docs/kb/context-satellite-basemap.md) |
+| Regional cube page (`/cube`) | dropped. Science Zarr stores used by the curtain stay in each area-of-interest cache | #213 | [docs/kb/atlas-page-dropped.md](docs/kb/atlas-page-dropped.md) |
 | AOI navigator (`/api/aois`) | live: AOIs grouped by hazard with bbox + measured fact + source; state computed from cache presence (`cached`/`not cached`, never faked); fitBounds zoom + keyboard + prev/next | #22, #37 | `app.py`, `static/aoi-nav.js` |
 | Response posture (`/api/decision`) | live: landslide early-warning light only. Flood is an open-water extent plus a help list. The map draws that measured border and colors MERIT HAND on wet pixels. That ramp is not a surveyed depth. Earthquake is an analyzed window plus a help list. VIDA coverage and WorldCover on the quake cube are masks, not a damaged-building inventory. Building typology, flood land-cover class, and any agricultural multiplier stay unavailable. Not a PAGER alert and not a lifeline color. Current envelopes do not dispatch. Population, damage class, and aid quantities stay unavailable | — | `mcp_servers/decision.py`, `mcp_servers/flood_display.py`, `static/decision.js` |
 | Landslide conceptual grounding — GraphRAG | scaffold live (#203): Microsoft GraphRAG + Azure OpenAI over the SGC methodology + Medellín POT detailed-risk studies (git-ignored index); `retrieve.ground()` evidence envelope | #33 | [knowledge/graphrag/README](knowledge/graphrag/README.md) |
